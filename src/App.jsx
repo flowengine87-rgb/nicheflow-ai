@@ -652,22 +652,41 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
   }, []);
 
   const titleList = titles.split("\n").map(t => t.trim()).filter(Boolean);
-
-  async function run() {
-    if (!config.gemini_key) { addLog("No AI API key configured. Go to Settings.", "err"); return; }
-    if (!config.wp_url) { addLog("No WordPress URL configured. Go to Settings.", "err"); return; }
-    if (!titleList.length) { addLog("Enter at least one article title.", "warn"); return; }
-
-    setRunning(true); setLogs([]); setProgress(0);
-    addLog(`Starting batch: ${titleList.length} article(s)`, "ok");
-
-    for (let i = 0; i < titleList.length; i++) {
-      const title = titleList[i];
-      setProgress(i / titleList.length);
-      addLog(`[${i + 1}/${titleList.length}] Generating: ${title}`, "info");
-
-      try {
-  addLog(`✦ Calling pipeline...`, "info");
+async function run() {
+  if (!titleList.length) { addLog("Enter at least one article title.", "warn"); return; }
+  setRunning(true); setLogs([]); setProgress(0);
+  addLog(`Starting batch: ${titleList.length} article(s)`, "ok");
+  const token = JSON.parse(localStorage.getItem("nicheflow_user") || "{}").access_token || "";
+  if (!token) { addLog("Not logged in. Please log in again.", "err"); setRunning(false); return; }
+  try {
+    addLog(`Sending to pipeline...`, "info");
+    const res = await fetch("https://web-production-1f143.up.railway.app/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ titles: titleList, draft, use_images: useImages, delay_sec: delay }),
+    });
+    const data = await res.json();
+    if (data.results) {
+      for (const result of data.results) {
+        if (result.success) {
+          addLog(`✓ Published: ${result.title} → ${result.post_url}`, "ok");
+          onHistoryUpdate({ title: result.title, status: "published", post_url: result.post_url, time: new Date().toLocaleTimeString() });
+        } else {
+          addLog(`✗ Failed: ${result.title} — ${result.error}`, "err");
+          onHistoryUpdate({ title: result.title, status: "failed", error: result.error, time: new Date().toLocaleTimeString() });
+        }
+        setProgress(prev => prev + 1 / titleList.length);
+      }
+    } else {
+      addLog(`✗ Error: ${data.detail || JSON.stringify(data)}`, "err");
+    }
+  } catch (err) {
+    addLog(`✗ Error: ${err.message}`, "err");
+  }
+  setProgress(1);
+  addLog(`Batch complete.`, "ok");
+  setRunning(false);
+}
   const res = await fetch("https://web-production-1f143.up.railway.app/pipeline", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
