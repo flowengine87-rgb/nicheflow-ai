@@ -38,7 +38,8 @@ async function supaAuth(action, email, password) {
 async function callClaude(systemPrompt, userMessage, maxTokens = 1000) {
   const res = await fetch("`${API_URL}/generate-proxy`", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${JSON.parse(localStorage.getItem("nicheflow_user") || "{}").access_token || ""}` },
+
     body: JSON.stringify({ systemPrompt, userMessage, maxTokens }),
   });
   const data = await res.json();
