@@ -668,26 +668,22 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
       addLog(`[${i + 1}/${titleList.length}] Generating: ${title}`, "info");
 
       try {
-        const prompt = config.custom_prompt || buildDefaultPrompt(title);
-        addLog("✦ Calling AI model for article body...", "info");
-
-        const response = await callClaude(
-          "You are a helpful content writer. Generate article content as requested. Return only the HTML content, no markdown wrapping.",
-          prompt.replace("{title}", title),
-          1000
-        );
-
-        addLog(`✓ Article generated (~${estimateTokens(response)} tokens)`, "ok");
-        addLog("Publishing to WordPress...", "info");
-
-        const pub = await publishToWP(title, response, config, draft ? "draft" : "publish");
-        if (pub.success) {
-          addLog(`✓ Published! → ${pub.url}`, "ok");
-          onHistoryUpdate({ title, status: "published", post_url: pub.url, time: new Date().toLocaleTimeString() });
-        } else {
-          addLog(`✗ Publish failed: ${pub.error}`, "err");
-          onHistoryUpdate({ title, status: "failed", error: pub.error, time: new Date().toLocaleTimeString() });
-        }
+        const token = JSON.parse(localStorage.getItem("nicheflow_user") || "{}").access_token || "";
+addLog("✦ Calling AI model for article body...", "info");
+const genRes = await fetch(`${API_URL}/generate`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+  body: JSON.stringify({ titles: [title], draft, use_images: useImages, delay_sec: 0 }),
+});
+const genData = await genRes.json();
+const pub = genData.results?.[0];
+if (pub?.success) {
+  addLog(`✓ Published! → ${pub.post_url}`, "ok");
+  onHistoryUpdate({ title, status: "published", post_url: pub.post_url, time: new Date().toLocaleTimeString() });
+} else {
+  addLog(`✗ Error: ${pub?.error || "Unknown"}`, "err");
+  onHistoryUpdate({ title, status: "failed", error: pub?.error, time: new Date().toLocaleTimeString() });
+}
       } catch (err) {
         addLog(`✗ Error: ${err.message}`, "err");
         onHistoryUpdate({ title, status: "failed", error: err.message, time: new Date().toLocaleTimeString() });
