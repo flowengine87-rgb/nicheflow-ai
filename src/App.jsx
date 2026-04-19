@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // ─── Supabase Config ───────────────────────────────────────────────────────
 const SUPABASE_URL = "https://gfulpvqqpakcgubkilwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_U9zJp_BBd-jkJCwvGimNmw_E4NyynFN";
+const API_URL = "https://web-production-1f143.up.railway.app";
 
 async function supaFetch(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
