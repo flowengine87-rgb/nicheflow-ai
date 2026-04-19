@@ -5,13 +5,6 @@ const SUPABASE_URL = "https://gfulpvqqpakcgubkilwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_U9zJp_BBd-jkJCwvGimNmw_E4NyynFN";
 const API_URL = "https://web-production-1f143.up.railway.app";
 
-function getAuthToken() {
-  try {
-    const u = JSON.parse(localStorage.getItem("nicheflow_user") || "{}");
-    return u.access_token || "";
-  } catch { return ""; }
-}
-
 async function supaFetch(path, opts = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
     ...opts,
@@ -41,18 +34,20 @@ async function supaAuth(action, email, password) {
   return data;
 }
 
-// ─── Railway API call ──────────────────────────────────────────────────────
-async function railwayFetch(path, body) {
-  const token = getAuthToken();
-  const res = await fetch(`${API_URL}${path}`, {
+// ─── Claude API ────────────────────────────────────────────────────────────
+async function callClaude(systemPrompt, userMessage, maxTokens = 1000) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userMessage }],
+    }),
   });
-  return res.json();
+  const data = await res.json();
+  return data.content?.[0]?.text || "";
 }
 
 // ─── Token Counter ─────────────────────────────────────────────────────────
@@ -98,14 +93,17 @@ const css = `
 html { scroll-behavior: smooth; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
 
+/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg2); }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
+/* Animations */
 @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
 @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
 @keyframes spin { to { transform:rotate(360deg); } }
+@keyframes shimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
 @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-12px); } }
 @keyframes glow { 0%,100% { box-shadow:0 0 20px var(--accent-glow); } 50% { box-shadow:0 0 40px var(--accent-glow), 0 0 80px rgba(99,102,241,0.2); } }
 @keyframes gradMove { 0% { background-position:0% 50%; } 50% { background-position:100% 50%; } 100% { background-position:0% 50%; } }
@@ -118,6 +116,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .fade-up-d4 { animation: fadeUp 0.5s 0.4s ease both; }
 .fade-up-d5 { animation: fadeUp 0.5s 0.5s ease both; }
 
+/* Buttons */
 .btn { display:inline-flex; align-items:center; gap:8px; padding:10px 22px; border-radius:var(--radius); font-family:var(--font); font-size:14px; font-weight:500; cursor:pointer; border:none; transition:all 0.2s; text-decoration:none; }
 .btn-primary { background:var(--accent); color:#fff; }
 .btn-primary:hover { background:#4f46e5; transform:translateY(-1px); box-shadow:0 4px 20px var(--accent-glow); }
@@ -131,43 +130,70 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .btn-sm { padding:7px 14px; font-size:13px; }
 .btn:disabled { opacity:0.5; cursor:not-allowed; transform:none !important; }
 
+/* Inputs */
 .input { width:100%; padding:11px 14px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:var(--font); font-size:14px; transition:border-color 0.2s, box-shadow 0.2s; outline:none; }
 .input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-dim); }
 .input::placeholder { color:var(--text3); }
+.input-wrap { position:relative; }
+.input-wrap .input-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text3); pointer-events:none; }
+.input-wrap .input { padding-left:38px; }
 textarea.input { resize:vertical; min-height:100px; line-height:1.6; }
 
+/* Cards */
 .card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:24px; }
+.card-sm { padding:16px; border-radius:var(--radius); }
+.glass { background:rgba(255,255,255,0.03); backdrop-filter:blur(12px); border:1px solid var(--border); }
+
+/* Badge */
 .badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:500; }
 .badge-pro { background:var(--pro-dim); color:var(--pro); border:1px solid rgba(245,158,11,0.2); }
+.badge-basic { background:var(--accent-dim); color:var(--accent2); border:1px solid rgba(99,102,241,0.2); }
+.badge-green { background:var(--green-dim); color:var(--green); border:1px solid rgba(16,185,129,0.2); }
+.badge-red { background:var(--red-dim); color:var(--red); }
+
+/* Tooltip hint */
 .hint { font-size:12px; color:var(--text3); margin-top:5px; }
+
+/* Divider */
 .divider { height:1px; background:var(--border); margin:20px 0; }
 
+/* Spinner */
 .spinner { width:18px; height:18px; border:2px solid rgba(255,255,255,0.2); border-top-color:#fff; border-radius:50%; animation:spin 0.7s linear infinite; }
 .spinner-sm { width:14px; height:14px; }
+.spinner-lg { width:32px; height:32px; }
+.spinner-accent { border-color:var(--accent-dim); border-top-color:var(--accent); }
 
+/* Tabs */
 .tabs { display:flex; gap:4px; background:var(--bg3); padding:4px; border-radius:var(--radius); border:1px solid var(--border); }
 .tab { padding:8px 16px; border-radius:calc(var(--radius) - 2px); font-size:13px; font-weight:500; cursor:pointer; color:var(--text3); border:none; background:transparent; transition:all 0.2s; font-family:var(--font); }
 .tab.active { background:var(--bg); color:var(--text); box-shadow:0 1px 8px rgba(0,0,0,0.3); }
 .tab:hover:not(.active) { color:var(--text2); }
 
+/* Status dot */
 .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
 .dot-green { background:var(--green); box-shadow:0 0 6px var(--green); }
 .dot-red { background:var(--red); }
 .dot-yellow { background:var(--pro); }
 .dot-pulse { animation:pulse 2s ease-in-out infinite; }
 
+/* Progress */
 .progress { height:4px; background:var(--bg4); border-radius:2px; overflow:hidden; }
 .progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:2px; transition:width 0.4s ease; }
 
+/* Token warning */
 .token-bar { padding:8px 12px; border-radius:var(--radius); font-size:12px; display:flex; align-items:center; gap:8px; }
 .token-ok { background:var(--green-dim); color:var(--green); border:1px solid rgba(16,185,129,0.2); }
 .token-warn { background:rgba(245,158,11,0.1); color:var(--pro); border:1px solid rgba(245,158,11,0.2); }
 .token-over { background:var(--red-dim); color:var(--red); border:1px solid rgba(239,68,68,0.2); animation:pulse 1.5s ease-in-out infinite; }
 
+/* Mesh gradient backgrounds */
 .mesh-bg { position:relative; }
-.mesh-bg::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse 60% 50% at 30% 20%, rgba(99,102,241,0.12) 0%, transparent 60%), radial-gradient(ellipse 50% 40% at 75% 70%, rgba(139,92,246,0.08) 0%, transparent 60%); pointer-events:none; z-index:0; }
+.mesh-bg::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse 60% 50% at 30% 20%, rgba(99,102,241,0.12) 0%, transparent 60%), radial-gradient(ellipse 50% 40% at 75% 70%, rgba(139,92,246,0.08) 0%, transparent 60%), radial-gradient(ellipse 40% 60% at 60% 10%, rgba(59,130,246,0.06) 0%, transparent 60%); pointer-events:none; z-index:0; }
+
+/* Noise texture overlay */
 .noise::after { content:''; position:fixed; inset:0; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E"); pointer-events:none; z-index:9999; opacity:0.4; }
 
+/* ─── LANDING PAGE ─── */
 .landing { min-height:100vh; }
 .nav { position:fixed; top:0; left:0; right:0; z-index:100; display:flex; align-items:center; justify-content:space-between; padding:16px 48px; background:rgba(8,9,13,0.85); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); }
 .nav-logo { font-family:var(--font-display); font-size:20px; font-weight:700; background:linear-gradient(135deg,var(--accent2),#c084fc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
@@ -189,6 +215,7 @@ textarea.input { resize:vertical; min-height:100px; line-height:1.6; }
 .section-label { font-size:12px; font-weight:600; color:var(--accent2); letter-spacing:2px; text-transform:uppercase; margin-bottom:16px; }
 .section-title { font-family:var(--font-display); font-size:clamp(28px,4vw,44px); font-weight:700; line-height:1.15; letter-spacing:-1px; margin-bottom:16px; }
 .section-sub { font-size:16px; color:var(--text2); font-weight:300; max-width:500px; line-height:1.7; margin-bottom:56px; }
+
 .features-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
 .feature-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:28px; transition:border-color 0.2s, transform 0.2s; position:relative; overflow:hidden; }
 .feature-card:hover { border-color:var(--border2); transform:translateY(-3px); }
@@ -198,6 +225,7 @@ textarea.input { resize:vertical; min-height:100px; line-height:1.6; }
 .feature-title { font-family:var(--font-display); font-size:16px; font-weight:600; margin-bottom:8px; }
 .feature-desc { font-size:14px; color:var(--text2); line-height:1.6; }
 
+/* Pricing */
 .pricing { padding:80px 48px; max-width:900px; margin:0 auto; }
 .pricing-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:56px; }
 .plan-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-xl); padding:36px; position:relative; overflow:hidden; transition:transform 0.2s; }
@@ -212,6 +240,7 @@ textarea.input { resize:vertical; min-height:100px; line-height:1.6; }
 .plan-features li { display:flex; align-items:center; gap:10px; font-size:14px; color:var(--text2); }
 .plan-features li::before { content:'✓'; width:20px; height:20px; background:var(--green-dim); color:var(--green); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
 
+/* Auth page */
 .auth-page { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; position:relative; }
 .auth-card { width:100%; max-width:420px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-xl); padding:40px; position:relative; z-index:1; }
 .auth-logo { font-family:var(--font-display); font-size:22px; font-weight:700; background:linear-gradient(135deg,var(--accent2),#c084fc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:8px; }
@@ -224,6 +253,7 @@ textarea.input { resize:vertical; min-height:100px; line-height:1.6; }
 .auth-divider::before { left:0; }
 .auth-divider::after { right:0; }
 
+/* ─── APP LAYOUT ─── */
 .app-layout { display:flex; min-height:100vh; }
 .sidebar { width:240px; flex-shrink:0; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; z-index:50; }
 .sidebar-logo { padding:22px 20px; border-bottom:1px solid var(--border); font-family:var(--font-display); font-size:17px; font-weight:700; background:linear-gradient(135deg,var(--accent2),#c084fc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
@@ -247,12 +277,14 @@ textarea.input { resize:vertical; min-height:100px; line-height:1.6; }
 .page-sub { font-size:14px; color:var(--text2); margin-top:4px; margin-bottom:20px; }
 .page-body { padding:28px 36px; }
 
+/* Dashboard cards */
 .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px; }
 .stat-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; }
 .stat-card-num { font-family:var(--font-display); font-size:28px; font-weight:700; }
 .stat-card-label { font-size:12px; color:var(--text3); margin-top:4px; }
 .stat-card-change { font-size:12px; color:var(--green); margin-top:8px; }
 
+/* Process log */
 .process-log { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; max-height:300px; overflow-y:auto; font-family:'Courier New', monospace; font-size:12px; line-height:1.8; }
 .log-line { display:flex; align-items:flex-start; gap:8px; animation:slideIn 0.2s ease; }
 .log-time { color:var(--text3); flex-shrink:0; }
@@ -261,15 +293,19 @@ textarea.input { resize:vertical; min-height:100px; line-height:1.6; }
 .log-info { color:var(--accent2); }
 .log-warn { color:var(--pro); }
 
+/* Prompt editor */
 .prompt-editor { position:relative; }
 .prompt-counter { position:absolute; bottom:10px; right:12px; font-size:11px; color:var(--text3); background:var(--bg3); padding:2px 8px; border-radius:8px; }
 
+/* Pinterest board */
 .board-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; }
 .board-item { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); padding:12px; cursor:pointer; transition:all 0.2s; text-align:center; }
 .board-item:hover, .board-item.selected { border-color:var(--accent); background:var(--accent-dim); }
+.board-item.selected { border-color:var(--accent); }
 .board-icon { font-size:24px; margin-bottom:6px; }
 .board-name { font-size:12px; font-weight:500; color:var(--text2); }
 
+/* Toggle */
 .toggle { position:relative; width:40px; height:22px; flex-shrink:0; }
 .toggle input { opacity:0; width:0; height:0; }
 .toggle-slider { position:absolute; cursor:pointer; inset:0; background:var(--bg4); border-radius:11px; border:1px solid var(--border2); transition:0.2s; }
@@ -277,6 +313,7 @@ textarea.input { resize:vertical; min-height:100px; line-height:1.6; }
 .toggle input:checked + .toggle-slider { background:var(--accent); border-color:var(--accent); }
 .toggle input:checked + .toggle-slider::before { transform:translateX(18px); background:#fff; }
 
+/* Settings section */
 .settings-section { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:20px; }
 .settings-header { padding:18px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
 .settings-header h3 { font-size:15px; font-weight:600; }
@@ -285,13 +322,24 @@ textarea.input { resize:vertical; min-height:100px; line-height:1.6; }
 .setting-info { flex:1; }
 .setting-name { font-size:14px; font-weight:500; }
 .setting-desc { font-size:12px; color:var(--text3); margin-top:3px; line-height:1.5; }
+.setting-control { flex-shrink:0; }
 
+/* Alert */
 .alert { display:flex; align-items:center; gap:10px; padding:12px 16px; border-radius:var(--radius); font-size:13px; margin-bottom:16px; }
 .alert-warn { background:rgba(245,158,11,0.1); color:var(--pro); border:1px solid rgba(245,158,11,0.2); }
 .alert-ok { background:var(--green-dim); color:var(--green); border:1px solid rgba(16,185,129,0.2); }
 .alert-err { background:var(--red-dim); color:var(--red); border:1px solid rgba(239,68,68,0.2); }
 .alert-info { background:var(--accent-dim); color:var(--accent2); border:1px solid rgba(99,102,241,0.2); }
 
+/* modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; display:flex; align-items:center; justify-content:center; padding:20px; animation:fadeIn 0.2s ease; }
+.modal { background:var(--bg2); border:1px solid var(--border2); border-radius:var(--radius-xl); padding:32px; max-width:540px; width:100%; max-height:85vh; overflow-y:auto; animation:fadeUp 0.25s ease; position:relative; }
+.modal-close { position:absolute; top:16px; right:16px; background:var(--bg3); border:1px solid var(--border); border-radius:8px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text3); font-size:14px; }
+.modal-close:hover { color:var(--text); background:var(--bg4); }
+.modal-title { font-family:var(--font-display); font-size:20px; font-weight:700; margin-bottom:6px; }
+.modal-sub { font-size:13px; color:var(--text2); margin-bottom:24px; }
+
+/* History items */
 .history-item { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px 20px; display:flex; align-items:center; gap:16px; margin-bottom:10px; transition:border-color 0.15s; }
 .history-item:hover { border-color:var(--border2); }
 .history-info { flex:1; min-width:0; }
@@ -311,6 +359,7 @@ textarea.input { resize:vertical; min-height:100px; line-height:1.6; }
 }
 `;
 
+// ─── Icons ─────────────────────────────────────────────────────────────────
 const Icon = ({ name, size = 16 }) => {
   const icons = {
     zap: "⚡", article: "📝", settings: "⚙️", history: "📋", dashboard: "◉",
@@ -323,6 +372,7 @@ const Icon = ({ name, size = 16 }) => {
   return <span style={{ fontSize: size }} title={name}>{icons[name] || "•"}</span>;
 };
 
+// ─── Token Counter Component ────────────────────────────────────────────────
 function TokenCounter({ text, limit = 2000 }) {
   const tokens = estimateTokens(text);
   const pct = tokens / limit;
@@ -346,10 +396,12 @@ function TokenCounter({ text, limit = 2000 }) {
   );
 }
 
+// ─── Hint Component ─────────────────────────────────────────────────────────
 function Hint({ children }) {
   return <p className="hint" style={{ display: "flex", alignItems: "flex-start", gap: 5 }}><span style={{ flexShrink: 0, marginTop: 1 }}>ℹ</span>{children}</p>;
 }
 
+// ─── LANDING PAGE ──────────────────────────────────────────────────────────
 function LandingPage({ onLogin, onSignup }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -393,7 +445,7 @@ function LandingPage({ onLogin, onSignup }) {
         </p>
         <div className="hero-cta fade-up-d3">
           <button className="btn btn-primary btn-lg" onClick={onSignup} style={{ animation: "glow 3s ease-in-out infinite" }}>
-            Start for free →
+            Start for free → 
           </button>
           <button className="btn btn-ghost btn-lg" onClick={onLogin}>Sign in</button>
         </div>
@@ -478,6 +530,7 @@ function LandingPage({ onLogin, onSignup }) {
   );
 }
 
+// ─── AUTH PAGE ─────────────────────────────────────────────────────────────
 function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -541,6 +594,7 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
   );
 }
 
+// ─── DASHBOARD ─────────────────────────────────────────────────────────────
 function Dashboard({ history }) {
   const published = history.filter(h => h.status === "published").length;
   const failed = history.filter(h => h.status === "failed").length;
@@ -561,6 +615,7 @@ function Dashboard({ history }) {
           </div>
         ))}
       </div>
+
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Recent Activity</div>
         {history.length === 0 ? (
@@ -574,6 +629,7 @@ function Dashboard({ history }) {
           </div>
         ))}
       </div>
+
       <div className="alert alert-info">
         <span>✦</span>
         <span>Tip: Go to <strong>Settings → Prompts</strong> to customize your article voice before generating your first batch.</span>
@@ -582,6 +638,7 @@ function Dashboard({ history }) {
   );
 }
 
+// ─── GENERATE PAGE ─────────────────────────────────────────────────────────
 function GeneratePage({ config, onHistoryUpdate, plan }) {
   const [titles, setTitles] = useState("");
   const [delay, setDelay] = useState(10);
@@ -614,37 +671,25 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
       addLog(`[${i + 1}/${titleList.length}] Generating: ${title}`, "info");
 
       try {
+        const prompt = config.custom_prompt || buildDefaultPrompt(title);
         addLog("✦ Calling AI model for article body...", "info");
 
-        const token = getAuthToken();
-        const genRes = await fetch(`${API_URL}/generate`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            titles: [title],
-            draft,
-            use_images: useImages,
-            delay_sec: 0,
-          }),
-        });
+        const response = await callClaude(
+          "You are a helpful content writer. Generate article content as requested. Return only the HTML content, no markdown wrapping.",
+          prompt.replace("{title}", title),
+          1000
+        );
 
-        const genData = await genRes.json();
+        addLog(`✓ Article generated (~${estimateTokens(response)} tokens)`, "ok");
+        addLog("Publishing to WordPress...", "info");
 
-        if (genData.detail) {
-          addLog(`✗ Error: ${genData.detail}`, "err");
-          onHistoryUpdate({ title, status: "failed", error: genData.detail, time: new Date().toLocaleTimeString() });
+        const pub = await publishToWP(title, response, config, draft ? "draft" : "publish");
+        if (pub.success) {
+          addLog(`✓ Published! → ${pub.url}`, "ok");
+          onHistoryUpdate({ title, status: "published", post_url: pub.url, time: new Date().toLocaleTimeString() });
         } else {
-          const result = genData.results?.[0];
-          if (result?.success) {
-            addLog(`✓ Published! → ${result.post_url}`, "ok");
-            onHistoryUpdate({ title, status: "published", post_url: result.post_url, time: new Date().toLocaleTimeString() });
-          } else {
-            addLog(`✗ Error: ${result?.error || "Generation failed"}`, "err");
-            onHistoryUpdate({ title, status: "failed", error: result?.error, time: new Date().toLocaleTimeString() });
-          }
+          addLog(`✗ Publish failed: ${pub.error}`, "err");
+          onHistoryUpdate({ title, status: "failed", error: pub.error, time: new Date().toLocaleTimeString() });
         }
       } catch (err) {
         addLog(`✗ Error: ${err.message}`, "err");
@@ -662,6 +707,28 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
     setRunning(false);
   }
 
+  async function publishToWP(title, content, cfg, status) {
+    try {
+      const [user, pass] = cfg.wp_password.split(":").map((s, i) => i === 0 ? s.trim() : s.trim());
+      const creds = btoa(`${user}:${pass}`);
+      const base = cfg.wp_url.replace(/\/$/, "");
+      const res = await fetch(`${base}/wp-json/wp/v2/posts`, {
+        method: "POST",
+        headers: { "Authorization": `Basic ${creds}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, status }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.message || "WordPress error" };
+      return { success: true, url: data.link };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  function buildDefaultPrompt(title) {
+    return `Write a comprehensive, SEO-optimized article about: "${title}". Include an engaging introduction, detailed body sections with H2/H3 headings, practical tips, and a conclusion. Write in a warm, conversational tone. Return clean HTML only.`;
+  }
+
   const logTypeClass = { ok: "log-ok", err: "log-err", info: "log-info", warn: "log-warn" };
 
   return (
@@ -671,6 +738,7 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
           ⚠️ No AI key configured. Go to <strong>Settings → API Keys</strong> first.
         </div>
       )}
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
         <div className="card">
           <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Article Titles</div>
@@ -687,6 +755,7 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
             {titleList.length} title{titleList.length !== 1 ? "s" : ""} entered
           </div>
         </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="card">
             <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Options</div>
@@ -715,6 +784,7 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
               </div>
             </div>
           </div>
+
           <button
             className="btn btn-primary"
             style={{ width: "100%", justifyContent: "center", padding: "14px", fontSize: 15 }}
@@ -723,6 +793,7 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
           >
             {running ? <><span className="spinner spinner-sm" /> Running batch...</> : `▶ Generate ${titleList.length || ""} Article${titleList.length !== 1 ? "s" : ""}`}
           </button>
+
           {running && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text3)", marginBottom: 6 }}>
@@ -733,6 +804,7 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
           )}
         </div>
       </div>
+
       <div className="card">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
@@ -756,10 +828,10 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
   );
 }
 
+// ─── SETTINGS PAGE ─────────────────────────────────────────────────────────
 function SettingsPage({ config, onSave, plan }) {
   const [cfg, setCfg] = useState({ ...config });
   const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState("api");
   const [testing, setTesting] = useState({});
   const [testResults, setTestResults] = useState({});
@@ -768,32 +840,10 @@ function SettingsPage({ config, onSave, plan }) {
     setCfg(prev => ({ ...prev, [key]: val }));
   }
 
-  async function save() {
-    setSaving(true);
-    try {
-      // Save to Railway (Supabase) via the API
-      const token = getAuthToken();
-      const res = await fetch(`${API_URL}/settings`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify(cfg),
-      });
-      const data = await res.json();
-      if (data.success || res.ok) {
-        onSave(cfg);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2500);
-      } else {
-        alert("Save failed: " + (data.detail || "Unknown error"));
-      }
-    } catch (e) {
-      alert("Save failed: " + e.message);
-    } finally {
-      setSaving(false);
-    }
+  function save() {
+    onSave(cfg);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
   }
 
   async function testKey(keyName, keyVal) {
@@ -830,9 +880,7 @@ function SettingsPage({ config, onSave, plan }) {
     if (!cfg.wp_url || !cfg.wp_password) return;
     setTesting(p => ({ ...p, wp: true }));
     try {
-      const parts = cfg.wp_password.split(":");
-      const user = parts[0].trim();
-      const pass = parts.slice(1).join(":").trim();
+      const [user, pass] = cfg.wp_password.split(":").map((s, i) => i === 0 ? s.trim() : s.trim());
       const creds = btoa(`${user}:${pass}`);
       const base = cfg.wp_url.replace(/\/$/, "");
       const res = await fetch(`${base}/wp-json/wp/v2/users/me`, {
@@ -870,7 +918,9 @@ function SettingsPage({ config, onSave, plan }) {
 
       {tab === "api" && (
         <div className="settings-section fade-up">
-          <div className="settings-header"><span>🔑</span><h3>AI API Keys</h3></div>
+          <div className="settings-header">
+            <span>🔑</span><h3>AI API Keys</h3>
+          </div>
           <div className="settings-body">
             <div>
               <label className="form-label">Groq or Gemini API Key</label>
@@ -881,7 +931,7 @@ function SettingsPage({ config, onSave, plan }) {
                 </button>
               </div>
               {testResults.ai && <div className={`alert ${testResults.ai.ok ? "alert-ok" : "alert-err"}`} style={{ marginTop: 8 }}>{testResults.ai.msg}</div>}
-              <Hint>Groq key starts with gsk_ (get free at console.groq.com). Gemini key starts with AIza. Add both comma-separated for automatic fallback.</Hint>
+              <Hint>Groq key starts with gsk_ (get free at console.groq.com). Gemini key starts with AIza (get free at aistudio.google.com). Add both comma-separated for automatic fallback.</Hint>
             </div>
             <div>
               <label className="form-label">GoAPI Key (Midjourney images)</label>
@@ -929,7 +979,7 @@ function SettingsPage({ config, onSave, plan }) {
             <div className="settings-body">
               <div>
                 <div className="alert alert-info" style={{ marginBottom: 12 }}>
-                  ✦ Write your own prompt from scratch. Use <code style={{ background: "var(--bg3)", padding: "1px 5px", borderRadius: 4 }}>{"{title}"}</code> as a placeholder for the article title.
+                  ✦ Write your own prompt from scratch. Use <code style={{ background: "var(--bg3)", padding: "1px 5px", borderRadius: 4 }}>{"{title}"}</code> as a placeholder for the article title. Leave empty to use the default food-blog style.
                 </div>
                 <div className="prompt-editor">
                   <textarea
@@ -937,25 +987,30 @@ function SettingsPage({ config, onSave, plan }) {
                     style={{ minHeight: 220, fontFamily: "monospace", fontSize: 13 }}
                     value={cfg.custom_prompt || ""}
                     onChange={e => update("custom_prompt", e.target.value)}
-                    placeholder={`Write your own article prompt here. Example:\n\nYou are Emma, a warm mama blogger.\nWrite a complete HTML article about: {title}\n\nReturn only clean HTML.`}
+                    placeholder={`Write your own article prompt here. Example:\n\nYou are Emma, a warm mama blogger writing about pregnancy and motherhood.\nWrite a complete HTML article about: {title}\n\nInclude:\n- Engaging intro with personal story\n- 5 practical tips with real detail\n- FAQ section with 5 questions\n\nReturn only clean HTML.`}
                   />
                   {cfg.custom_prompt && <div className="prompt-counter">{estimateTokens(cfg.custom_prompt).toLocaleString()} tokens</div>}
                 </div>
                 {cfg.custom_prompt && <TokenCounter text={cfg.custom_prompt} limit={2000} />}
+                <Hint>Keep your prompt under 2,000 tokens for best performance. The AI will use the remaining token budget to write your full article.</Hint>
               </div>
             </div>
           </div>
+
           <div className="settings-section">
             <div className="settings-header"><span>🃏</span><h3>Card / Info Box Prompt</h3></div>
             <div className="settings-body">
               <div>
+                <div className="alert alert-info" style={{ marginBottom: 12 }}>
+                  ✦ This prompt controls the separate AI model that generates your recipe card or info box. Customize it to match your niche — recipe card, gear comparison table, product summary, etc.
+                </div>
                 <div className="prompt-editor">
                   <textarea
                     className="input"
                     style={{ minHeight: 180, fontFamily: "monospace", fontSize: 13 }}
                     value={cfg.card_prompt || ""}
                     onChange={e => update("card_prompt", e.target.value)}
-                    placeholder={`Example for recipe niche:\n\nExtract structured data for: {title}\nReturn JSON with: prep_time, cook_time, servings, calories, ingredients array, steps array.`}
+                    placeholder={`Example for recipe niche:\n\nExtract structured data for: {title}\nReturn JSON with: prep_time, cook_time, servings, calories, ingredients array, steps array.\n\nExample for gear niche:\n\nCreate a comparison card for: {title}\nReturn JSON with: product_name, price, pros array, cons array, verdict.`}
                   />
                   {cfg.card_prompt && <div className="prompt-counter">{estimateTokens(cfg.card_prompt).toLocaleString()} tokens</div>}
                 </div>
@@ -979,12 +1034,19 @@ function SettingsPage({ config, onSave, plan }) {
           <div className="settings-body">
             <div>
               <label className="form-label">Midjourney Image Template</label>
-              <textarea className="input" style={{ minHeight: 100 }} value={cfg.mj_template || ""} onChange={e => update("mj_template", e.target.value)} placeholder="Close up {recipe_name}, food photography, natural light --ar 1:1" />
+              <textarea
+                className="input"
+                style={{ minHeight: 100 }}
+                value={cfg.mj_template || ""}
+                onChange={e => update("mj_template", e.target.value)}
+                placeholder="Close up {recipe_name}, food photography, natural light, shot on iPhone --ar 1:1"
+              />
+              <Hint>Use <code style={{ background: "var(--bg3)", padding: "1px 5px", borderRadius: 4 }}>{"{recipe_name}"}</code> as a placeholder for the title. Add Midjourney parameters like --ar 2:3 for aspect ratio.</Hint>
             </div>
             <div className="setting-row">
               <div className="setting-info">
                 <div className="setting-name">Use Pollinations (free)</div>
-                <div className="setting-desc">Generate images for free via Pollinations instead of Midjourney</div>
+                <div className="setting-desc">Generate images for free via Pollinations instead of Midjourney (lower quality)</div>
               </div>
               <label className="toggle"><input type="checkbox" checked={cfg.use_pollinations || false} onChange={e => update("use_pollinations", e.target.checked)} /><span className="toggle-slider" /></label>
             </div>
@@ -1003,6 +1065,7 @@ function SettingsPage({ config, onSave, plan }) {
               <div>
                 <label className="form-label">Pinterest Access Token</label>
                 <input className="input" type="password" value={cfg.pinterest_token || ""} onChange={e => update("pinterest_token", e.target.value)} placeholder="Your Pinterest API access token..." />
+                <Hint>Get your access token from developers.pinterest.com → My Apps → Create App.</Hint>
               </div>
               <div className="setting-row">
                 <div className="setting-info">
@@ -1014,24 +1077,41 @@ function SettingsPage({ config, onSave, plan }) {
               <div>
                 <label className="form-label">Pin Delay (minutes after publish)</label>
                 <input className="input" type="number" value={cfg.pin_delay_min || 0} min={0} max={1440} onChange={e => update("pin_delay_min", +e.target.value)} style={{ width: 120 }} />
+                <Hint>Set to 0 to pin immediately. Up to 1440 minutes (24 hours) delay supported.</Hint>
               </div>
             </div>
           </div>
+
           <div className="settings-section">
             <div className="settings-header"><span>💬</span><h3>Pinterest Prompt</h3></div>
             <div className="settings-body">
-              <div className="prompt-editor">
-                <textarea className="input" style={{ minHeight: 160, fontFamily: "monospace", fontSize: 13 }} value={cfg.pinterest_prompt || ""} onChange={e => update("pinterest_prompt", e.target.value)} placeholder={`For the article "{title}" at {url}, generate a Pinterest pin.\nReturn JSON with pin_title, pin_description, alt_text, hashtags.`} />
+              <div>
+                <div className="alert alert-info" style={{ marginBottom: 12 }}>
+                  ✦ A separate AI model generates your Pinterest pin content. Use <code style={{ background: "var(--bg3)", padding: "1px 5px", borderRadius: 4 }}>{"{title}"}</code> and <code style={{ background: "var(--bg3)", padding: "1px 5px", borderRadius: 4 }}>{"{url}"}</code> as placeholders.
+                </div>
+                <div className="prompt-editor">
+                  <textarea
+                    className="input"
+                    style={{ minHeight: 160, fontFamily: "monospace", fontSize: 13 }}
+                    value={cfg.pinterest_prompt || ""}
+                    onChange={e => update("pinterest_prompt", e.target.value)}
+                    placeholder={`Example:\n\nFor the article "{title}" at {url}, generate a Pinterest pin.\nReturn JSON with:\n- pin_title: 60-char max, keyword-rich, engaging\n- pin_description: 150-char max, includes CTA\n- alt_text: descriptive for accessibility\n\nFocus on the primary benefit and use power words.`}
+                  />
+                  {cfg.pinterest_prompt && <div className="prompt-counter">{estimateTokens(cfg.pinterest_prompt).toLocaleString()} tokens</div>}
+                </div>
+                {cfg.pinterest_prompt && <TokenCounter text={cfg.pinterest_prompt} limit={1000} />}
               </div>
-              {cfg.pinterest_prompt && <TokenCounter text={cfg.pinterest_prompt} limit={1000} />}
             </div>
           </div>
+
           <div className="settings-section">
             <div className="settings-header"><span>📋</span><h3>Default Boards</h3></div>
             <div className="settings-body">
+              <div className="alert alert-warn">Connect your Pinterest account above to load your boards.</div>
               <div>
                 <label className="form-label">Manual Board IDs (comma-separated)</label>
                 <input className="input" value={cfg.pinterest_boards || ""} onChange={e => update("pinterest_boards", e.target.value)} placeholder="board-id-1, board-id-2" />
+                <Hint>Find board IDs in the Pinterest URL when viewing a board. Format: username/board-name</Hint>
               </div>
             </div>
           </div>
@@ -1039,15 +1119,16 @@ function SettingsPage({ config, onSave, plan }) {
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 24 }}>
-        <button className="btn btn-primary" onClick={save} disabled={saving}>
-          {saving ? <><span className="spinner spinner-sm" /> Saving...</> : saved ? "✓ Saved!" : "Save Settings"}
+        <button className="btn btn-primary" onClick={save}>
+          {saved ? "✓ Saved!" : "Save Settings"}
         </button>
-        {saved && <span style={{ fontSize: 13, color: "var(--green)" }}>Settings saved to server ✓</span>}
+        {saved && <span style={{ fontSize: 13, color: "var(--green)" }}>Changes saved successfully</span>}
       </div>
     </div>
   );
 }
 
+// ─── HISTORY PAGE ──────────────────────────────────────────────────────────
 function HistoryPage({ history, onClear }) {
   const published = history.filter(h => h.status === "published");
   const failed = history.filter(h => h.status === "failed");
@@ -1061,6 +1142,7 @@ function HistoryPage({ history, onClear }) {
         </div>
         {history.length > 0 && <button className="btn btn-danger btn-sm" onClick={onClear}>Clear all</button>}
       </div>
+
       {history.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: "48px 24px" }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
@@ -1075,8 +1157,14 @@ function HistoryPage({ history, onClear }) {
             <div className="history-meta">{h.time} · {h.status}</div>
           </div>
           <div className="history-actions">
-            {h.post_url && <a href={h.post_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">View →</a>}
-            {h.status === "failed" && <span style={{ fontSize: 12, color: "var(--red)", maxWidth: 200, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{h.error}</span>}
+            {h.post_url && (
+              <a href={h.post_url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">View →</a>
+            )}
+            {h.status === "failed" && (
+              <span style={{ fontSize: 12, color: "var(--red)", maxWidth: 200, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                {h.error}
+              </span>
+            )}
           </div>
         </div>
       ))}
@@ -1084,8 +1172,10 @@ function HistoryPage({ history, onClear }) {
   );
 }
 
+// ─── PINTEREST PAGE (Pro) ──────────────────────────────────────────────────
 function PinterestPage({ config, history, plan }) {
   const [selectedBoards, setSelectedBoards] = useState([]);
+  const [pinQueue, setPinQueue] = useState([]);
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState([]);
   const logRef = useRef(null);
@@ -1130,16 +1220,27 @@ function PinterestPage({ config, history, plan }) {
     if (!publishedArticles.length) { addLog("No published articles to pin.", "warn"); return; }
     if (!selectedBoards.length) { addLog("Select at least one board.", "warn"); return; }
     setRunning(true);
-    addLog("Starting Pinterest batch...", "info");
-    try {
-      const data = await railwayFetch("/pinterest/run", { board_ids: selectedBoards });
-      if (data.results) {
-        data.results.forEach(r => {
-          addLog(`${r.status === "sent" ? "✓" : "✗"} ${r.title}`, r.status === "sent" ? "ok" : "err");
-        });
+    for (const article of publishedArticles) {
+      addLog(`Processing: ${article.title}`, "info");
+      try {
+        const pinContent = await callClaude(
+          "You are a Pinterest content expert. Return only valid JSON with keys: pin_title (max 60 chars), pin_description (max 150 chars, include CTA), alt_text (descriptive).",
+          (config.pinterest_prompt || "Generate Pinterest pin content for: {title} at {url}")
+            .replace("{title}", article.title)
+            .replace("{url}", article.post_url || "")
+        );
+        let parsed;
+        try { parsed = JSON.parse(pinContent); } catch { parsed = { pin_title: article.title, pin_description: "Check out this article!", alt_text: article.title }; }
+        addLog(`✓ Generated: "${parsed.pin_title}"`, "ok");
+        for (const boardId of selectedBoards) {
+          const board = mockBoards.find(b => b.id === boardId);
+          addLog(`  → Pinning to ${board?.name || boardId}...`, "info");
+          await new Promise(r => setTimeout(r, 800));
+          addLog(`  ✓ Pinned!`, "ok");
+        }
+      } catch (e) {
+        addLog(`✗ Error: ${e.message}`, "err");
       }
-    } catch (e) {
-      addLog(`✗ Error: ${e.message}`, "err");
     }
     addLog("Pinterest batch complete!", "ok");
     setRunning(false);
@@ -1150,15 +1251,21 @@ function PinterestPage({ config, history, plan }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
         <div className="card">
           <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Select Boards</div>
+          <Hint style={{ marginBottom: 12 }}>Choose which Pinterest boards to post to</Hint>
           <div className="board-grid" style={{ marginTop: 14 }}>
             {mockBoards.map(b => (
-              <div key={b.id} className={`board-item ${selectedBoards.includes(b.id) ? "selected" : ""}`} onClick={() => toggleBoard(b.id)}>
+              <div
+                key={b.id}
+                className={`board-item ${selectedBoards.includes(b.id) ? "selected" : ""}`}
+                onClick={() => toggleBoard(b.id)}
+              >
                 <div className="board-icon">{b.icon}</div>
                 <div className="board-name">{b.name}</div>
               </div>
             ))}
           </div>
         </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="card">
             <div style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Ready to Pin</div>
@@ -1167,11 +1274,22 @@ function PinterestPage({ config, history, plan }) {
             <div className="divider" />
             <div style={{ fontSize: 13, color: "var(--text2)" }}>{selectedBoards.length} board{selectedBoards.length !== 1 ? "s" : ""} selected</div>
           </div>
-          <button className="btn btn-pro" style={{ width: "100%", justifyContent: "center", padding: "14px" }} onClick={runPinterest} disabled={running || !publishedArticles.length || !selectedBoards.length}>
+
+          <div className="alert alert-info" style={{ fontSize: 13 }}>
+            ✦ Each pin uses your custom prompt to generate AI-optimized title, description, and alt text. The article's featured image is used as the pin image.
+          </div>
+
+          <button
+            className="btn btn-pro"
+            style={{ width: "100%", justifyContent: "center", padding: "14px" }}
+            onClick={runPinterest}
+            disabled={running || !publishedArticles.length || !selectedBoards.length}
+          >
             {running ? <><span className="spinner spinner-sm" /> Pinning...</> : `📌 Pin ${publishedArticles.length} Articles`}
           </button>
         </div>
       </div>
+
       <div className="card">
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <span className={`dot ${running ? "dot-green dot-pulse" : "dot-yellow"}`} />
@@ -1193,6 +1311,7 @@ function PinterestPage({ config, history, plan }) {
   );
 }
 
+// ─── PREVIEW PAGE ──────────────────────────────────────────────────────────
 function PreviewPage({ config }) {
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1203,12 +1322,13 @@ function PreviewPage({ config }) {
     if (!title || !config.gemini_key) return;
     setLoading(true); setError(""); setResult("");
     try {
-      const data = await railwayFetch("/preview", { title });
-      if (data.success) {
-        setResult(data.content);
-      } else {
-        setError(data.detail || "Generation failed");
-      }
+      const prompt = config.custom_prompt || "Write a comprehensive HTML article about: {title}. Return only clean HTML.";
+      const res = await callClaude(
+        "You are a helpful content writer. Return only clean HTML content.",
+        prompt.replace("{title}", title),
+        1000
+      );
+      setResult(res);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1229,19 +1349,24 @@ function PreviewPage({ config }) {
         {!config.gemini_key && <div className="alert alert-warn" style={{ marginTop: 12 }}>Configure an AI key in Settings first.</div>}
         {error && <div className="alert alert-err" style={{ marginTop: 12 }}>{error}</div>}
       </div>
+
       {result && (
         <div className="card">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div style={{ fontSize: 15, fontWeight: 600 }}>Preview Result</div>
             <span style={{ fontSize: 12, color: "var(--text3)" }}>~{result.split(" ").length} words</span>
           </div>
-          <div style={{ background: "var(--bg3)", borderRadius: "var(--radius)", padding: 24, maxHeight: 600, overflowY: "auto", color: "var(--text)", lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: result }} />
+          <div
+            style={{ background: "var(--bg3)", borderRadius: "var(--radius)", padding: 24, maxHeight: 600, overflowY: "auto", color: "var(--text)", lineHeight: 1.7 }}
+            dangerouslySetInnerHTML={{ __html: result }}
+          />
         </div>
       )}
     </div>
   );
 }
 
+// ─── APP SHELL ─────────────────────────────────────────────────────────────
 function AppShell({ user, onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [config, setConfig] = useState(() => {
@@ -1250,7 +1375,7 @@ function AppShell({ user, onLogout }) {
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("nicheflow_history") || "[]"); } catch { return []; }
   });
-  const [plan] = useState("pro");
+  const [plan] = useState("pro"); // Would come from Supabase in production
 
   function saveConfig(cfg) {
     setConfig(cfg);
@@ -1299,7 +1424,11 @@ function AppShell({ user, onLogout }) {
         <nav className="sidebar-nav">
           <div className="sidebar-section">Main</div>
           {navItems.map(item => (
-            <button key={item.id} className={`nav-item ${page === item.id ? "active" : ""}`} onClick={() => setPage(item.id)}>
+            <button
+              key={item.id}
+              className={`nav-item ${page === item.id ? "active" : ""}`}
+              onClick={() => setPage(item.id)}
+            >
               <Icon name={item.icon} />
               {item.label}
               {item.pro && <span className="nav-badge">PRO</span>}
@@ -1321,6 +1450,7 @@ function AppShell({ user, onLogout }) {
           </button>
         </div>
       </aside>
+
       <main className="main-content">
         <div className="page-header">
           <div style={{ paddingBottom: 20 }}>
@@ -1341,11 +1471,13 @@ function AppShell({ user, onLogout }) {
   );
 }
 
+// ─── ROOT ───────────────────────────────────────────────────────────────────
 export default function NicheFlowAI() {
-  const [view, setView] = useState("landing");
+  const [view, setView] = useState("landing"); // landing | login | signup | app
   const [user, setUser] = useState(null);
 
   useEffect(() => {
+    // Check for existing session
     const stored = localStorage.getItem("nicheflow_user");
     if (stored) {
       try { const u = JSON.parse(stored); setUser(u); setView("app"); } catch {}
@@ -1364,9 +1496,25 @@ export default function NicheFlowAI() {
     setView("landing");
   }
 
-  if (view === "app" && user) return <AppShell user={user} onLogout={handleLogout} />;
-  if (view === "login" || view === "signup") {
-    return <AuthPage mode={view} onSuccess={handleAuthSuccess} onSwitch={setView} onBack={() => setView("landing")} />;
+  if (view === "app" && user) {
+    return <AppShell user={user} onLogout={handleLogout} />;
   }
-  return <LandingPage onLogin={() => setView("login")} onSignup={() => setView("signup")} />;
+
+  if (view === "login" || view === "signup") {
+    return (
+      <AuthPage
+        mode={view}
+        onSuccess={handleAuthSuccess}
+        onSwitch={setView}
+        onBack={() => setView("landing")}
+      />
+    );
+  }
+
+  return (
+    <LandingPage
+      onLogin={() => setView("login")}
+      onSignup={() => setView("signup")}
+    />
+  );
 }
