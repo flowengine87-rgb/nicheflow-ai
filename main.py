@@ -493,6 +493,15 @@ def get_profile(auth=Depends(get_current_user)):
         rows = resp.json()
         return {"profile": rows[0] if rows else {}}
     return {"profile": {}}
+@app.post("/generate-proxy")
+async def generate_proxy(body: dict, auth=Depends(get_current_user)):
+    user, token = auth
+    cfg = get_user_settings(user["id"], token)
+    if not cfg.get("gemini_key"):
+        raise HTTPException(status_code=400, detail="No AI key configured")
+    from generator import ai_call
+    result = ai_call(cfg["gemini_key"], body.get("userMessage", ""))
+    return {"text": result}
 
 
 @app.get("/health")

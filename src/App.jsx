@@ -36,19 +36,15 @@ async function supaAuth(action, email, password) {
 
 // ─── Claude API ────────────────────────────────────────────────────────────
 async function callClaude(systemPrompt, userMessage, maxTokens = 1000) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("`${API_URL}/generate-proxy`", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
-    }),
+    body: JSON.stringify({ systemPrompt, userMessage, maxTokens }),
   });
   const data = await res.json();
-  return data.content?.[0]?.text || "";
+  return data.text || "";
 }
+
 
 // ─── Token Counter ─────────────────────────────────────────────────────────
 function estimateTokens(text) {
