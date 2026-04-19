@@ -239,52 +239,25 @@ def save_settings_to_db():
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _nav_js():
-    """JS injected into every iframe page. Sends postMessage to parent."""
+    """
+    JS injected into every iframe page.
+    window.top.location.href is allowed on user-initiated clicks by
+    Streamlit's iframe sandbox (allow-top-navigation-by-user-activation).
+    This navigates the real browser window directly — reliable on every click.
+    """
     return """
 <script>
 function goPage(p) {
-  window.parent.postMessage({type: 'nicheflow_nav', page: p}, '*');
+  var base = window.top.location.href.split('?')[0];
+  window.top.location.href = base + '?nav=' + p;
 }
 </script>"""
 
 def _nav_listener():
-    """
-    Zero-height component rendered OUTSIDE the iframe (in Streamlit itself).
-    It listens for postMessage from the child iframe and redirects the real
-    browser window via query param — which Streamlit picks up on next rerun.
-    """
-    components.html("""
-<script>
-window.addEventListener('message', function(e) {
-  if (e.data && e.data.type === 'nicheflow_nav') {
-    var page = e.data.page;
-    var url = new URL(window.location.href);
-    url.searchParams.set('nav', page);
-    window.location.href = url.toString();
-  }
-});
-</script>
-""", height=0)
+    pass  # not needed — window.top handles it directly
 
 def _nav_listener_with_forms():
-    """
-    Same as _nav_listener but also handles login/signup form submissions
-    that pass email/password via postMessage.
-    """
-    components.html("""
-<script>
-window.addEventListener('message', function(e) {
-  if (!e.data || e.data.type !== 'nicheflow_nav') return;
-  var page  = e.data.page;
-  var url   = new URL(window.location.href);
-  url.searchParams.set('nav', page);
-  if (e.data.email)   url.searchParams.set('email',   encodeURIComponent(e.data.email));
-  if (e.data.pass)    url.searchParams.set('pass',    encodeURIComponent(e.data.pass));
-  if (e.data.confirm) url.searchParams.set('confirm', encodeURIComponent(e.data.confirm));
-  window.location.href = url.toString();
-});
-</script>
-""", height=0)
+    pass  # not needed — window.top handles it directly
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  HANDLE FORM SUBMISSIONS (login / signup via query params)
@@ -614,7 +587,8 @@ function submitLogin(e) {{
   e.preventDefault();
   var email = document.getElementById('email').value;
   var pass  = document.getElementById('pass').value;
-  window.parent.postMessage({{type:'nicheflow_nav', page:'login', email:email, pass:pass}}, '*');
+  var base  = window.top.location.href.split('?')[0];
+  window.top.location.href = base + '?nav=login&email=' + encodeURIComponent(email) + '&pass=' + encodeURIComponent(pass);
 }}
 </script>
 </body></html>"""
@@ -676,7 +650,8 @@ function submitSignup(e) {{
   var email   = document.getElementById('email').value;
   var pass    = document.getElementById('pass').value;
   var confirm = document.getElementById('confirm').value;
-  window.parent.postMessage({{type:'nicheflow_nav', page:'signup', email:email, pass:pass, confirm:confirm}}, '*');
+  var base    = window.top.location.href.split('?')[0];
+  window.top.location.href = base + '?nav=signup&email=' + encodeURIComponent(email) + '&pass=' + encodeURIComponent(pass) + '&confirm=' + encodeURIComponent(confirm);
 }}
 </script>
 </body></html>"""
