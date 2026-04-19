@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-NicheFlow AI — main.py
-FastAPI backend: auth proxy, settings CRUD, article pipeline, Pinterest bot
-Deploy on Railway or Render (free tier)
+NicheFlow AI — main.py  (FIXED v2)
+FastAPI backend — deploy on Railway
+KEY FIX: added /pipeline endpoint that React frontend calls directly
 """
 
 from fastapi import FastAPI, HTTPException, Header, Depends
@@ -11,12 +11,11 @@ from pydantic import BaseModel
 from typing import Optional, List
 import requests
 import os
-import json
+import time
 
 from generator import (
     run_full_pipeline,
     generate_article,
-    generate_card,
     run_pinterest_bot,
     get_pinterest_boards,
     test_gemini_key,
@@ -33,9 +32,8 @@ from generator import (
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://gfulpvqqpakcgubkilwc.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_U9zJp_BBd-jkJCwvGimNmw_E4NyynFN")
-SUPABASE_SECRET = os.getenv("SUPABASE_SECRET", "sb_secret_u_ZtMx7jmUBxXgOxhxYmaw_izKuJCyC")
 
-app = FastAPI(title="NicheFlow AI API", version="1.0.0")
+app = FastAPI(title="NicheFlow AI API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -101,6 +99,29 @@ def get_user_plan(user_id: str, token: str) -> str:
     return "basic"
 
 
+def save_article_to_db(user_id: str, token: str, title: str, result: dict, publish_status: str):
+    article_data = {
+        "user_id": user_id,
+        "title": title,
+        "post_url": result.get("post_url", ""),
+        "post_id": str(result.get("post_id", "")),
+        "featured_image_url": result.get("featured_image_url", ""),
+        "status": "published" if result.get("success") else "failed",
+        "wp_status": publish_status,
+        "error": result.get("error", ""),
+    }
+    db_resp = requests.post(
+        f"{SUPABASE_URL}/rest/v1/articles",
+        headers=supa_headers(token),
+        json=article_data,
+        timeout=10,
+    )
+    if db_resp.status_code in (200, 201):
+        rows = db_resp.json()
+        return rows[0]["id"] if rows else None
+    return None
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  Pydantic models
 # ─────────────────────────────────────────────────────────────────────────────
@@ -127,6 +148,27 @@ class SettingsUpdate(BaseModel):
     pinterest_boards: Optional[str] = ""
 
 
+# ── The model the React frontend sends to /pipeline ──────────────────────────
+class PipelineRequest(BaseModel):
+    title: str
+    # Config passed directly from the React frontend's local state
+    gemini_key: Optional[str] = ""
+    goapi_key: Optional[str] = ""
+    wp_url: Optional[str] = ""
+    wp_password: Optional[str] = ""
+    custom_prompt: Optional[str] = ""
+    card_prompt: Optional[str] = ""
+    mj_template: Optional[str] = ""
+    publish_status: Optional[str] = "publish"
+    use_images: Optional[bool] = False
+    use_pollinations: Optional[bool] = False
+    pollinations_prompt: Optional[str] = ""
+    show_card: Optional[bool] = True
+    category_ids: Optional[List[int]] = None
+    use_internal_links: Optional[bool] = True
+    max_links: Optional[int] = 4
+
+
 class GenerateRequest(BaseModel):
     titles: List[str]
     draft: Optional[bool] = False
@@ -140,18 +182,28 @@ class PreviewRequest(BaseModel):
 
 
 class TestRequest(BaseModel):
-    key_type: str   # "ai" | "goapi" | "wp" | "pinterest"
+    key_type: str
     value: str
     wp_password: Optional[str] = ""
 
 
 class PinterestRunRequest(BaseModel):
-    article_ids: Optional[List[str]] = None   # Supabase article IDs; None = all published
+    article_ids: Optional[List[str]] = None
     board_ids: List[str]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  AUTH ROUTES
+#  HEALTH
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/")
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "NicheFlow AI", "version": "2.0.0"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  AUTH
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/auth/signup")
@@ -178,37 +230,27 @@ def login(body: dict):
     )
     data = resp.json()
     if resp.status_code == 200:
-        return {
-            "success": True,
-            "access_token": data["access_token"],
-            "user": data["user"],
-        }
+        return {"success": True, "access_token": data["access_token"], "user": data["user"]}
     raise HTTPException(status_code=401, detail=data.get("error_description", "Login failed"))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  SETTINGS ROUTES
+#  SETTINGS
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/settings")
 def get_settings(auth=Depends(get_current_user)):
     user, token = auth
-    user_id = user["id"]
-    cfg = get_user_settings(user_id, token)
-    plan = get_user_plan(user_id, token)
+    cfg = get_user_settings(user["id"], token)
+    plan = get_user_plan(user["id"], token)
     return {"settings": cfg, "plan": plan}
 
 
 @app.post("/settings")
 def save_settings(body: SettingsUpdate, auth=Depends(get_current_user)):
     user, token = auth
-    user_id = user["id"]
-
     data = body.dict()
-    data["user_id"] = user_id
-    data["updated_at"] = "now()"
-
-    # Upsert
+    data["user_id"] = user["id"]
     resp = requests.post(
         f"{SUPABASE_URL}/rest/v1/settings",
         headers={**supa_headers(token), "Prefer": "resolution=merge-duplicates,return=representation"},
@@ -217,11 +259,11 @@ def save_settings(body: SettingsUpdate, auth=Depends(get_current_user)):
     )
     if resp.status_code in (200, 201):
         return {"success": True}
-    raise HTTPException(status_code=500, detail=f"Failed to save settings: {resp.text[:200]}")
+    raise HTTPException(status_code=500, detail=f"Save failed: {resp.text[:200]}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  TEST ROUTES
+#  TEST
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/test")
@@ -238,7 +280,7 @@ def test_connection(body: TestRequest, auth=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  WORDPRESS HELPERS ROUTES
+#  WORDPRESS
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/wp/categories")
@@ -258,7 +300,76 @@ def wp_posts(auth=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  GENERATE ROUTE
+#  /pipeline — THE MAIN ENDPOINT CALLED BY REACT FRONTEND
+#  Config comes in the request body (from local storage / settings page)
+#  No DB lookup needed for config — it's all in the body
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/pipeline")
+def pipeline_direct(body: PipelineRequest, authorization: str = Header(None)):
+    """
+    Called by React frontend GeneratePage.
+    All config is passed in the body (from the user's saved settings in local state).
+    Optionally saves to DB if a valid auth token is provided.
+    """
+    # Validate required fields
+    if not body.gemini_key or not body.gemini_key.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="No AI key provided. Go to Settings, enter your Groq or Gemini key, and click Save."
+        )
+    if not body.wp_url or not body.wp_url.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="No WordPress URL provided. Go to Settings and enter your site URL."
+        )
+    if not body.wp_password or not body.wp_password.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="No WordPress password provided. Go to Settings and enter your App Password."
+        )
+
+    # Run the full pipeline
+    result = run_full_pipeline(
+        title=body.title,
+        gemini_key=body.gemini_key.strip(),
+        goapi_key=(body.goapi_key or "").strip(),
+        wp_url=body.wp_url.strip(),
+        wp_password=body.wp_password.strip(),
+        publish_status=body.publish_status or "publish",
+        mj_template=(body.mj_template or "").strip(),
+        custom_prompt=(body.custom_prompt or "").strip(),
+        card_prompt=(body.card_prompt or "").strip(),
+        show_card=body.show_card if body.show_card is not None else True,
+        use_images=body.use_images or False,
+        use_pollinations=body.use_pollinations or False,
+        pollinations_prompt=(body.pollinations_prompt or "").strip(),
+        category_ids=body.category_ids,
+        max_links=body.max_links or 4,
+        use_internal_links=body.use_internal_links if body.use_internal_links is not None else True,
+    )
+
+    # Optionally save to Supabase if user is logged in
+    if authorization and authorization.startswith("Bearer "):
+        try:
+            token = authorization.split(" ", 1)[1]
+            user = supa_get_user(token)
+            save_article_to_db(user["id"], token, body.title, result, body.publish_status or "publish")
+        except Exception:
+            pass  # Don't fail the request if DB save fails
+
+    return {
+        "success": result.get("success", False),
+        "post_url": result.get("post_url", ""),
+        "post_id": result.get("post_id", ""),
+        "featured_image_url": result.get("featured_image_url", ""),
+        "error": result.get("error", "Unknown error occurred"),
+        "title": body.title,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  /generate — authenticated, reads config from DB
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/generate")
@@ -268,12 +379,11 @@ def generate(body: GenerateRequest, auth=Depends(get_current_user)):
     cfg = get_user_settings(user_id, token)
 
     if not cfg.get("gemini_key"):
-        raise HTTPException(status_code=400, detail="No AI key configured. Go to Settings.")
+        raise HTTPException(status_code=400, detail="No AI key configured in Settings.")
     if not cfg.get("wp_url"):
-        raise HTTPException(status_code=400, detail="No WordPress URL configured. Go to Settings.")
+        raise HTTPException(status_code=400, detail="No WordPress URL configured.")
 
     results = []
-
     for title in body.titles:
         publish_status = "draft" if body.draft else cfg.get("publish_status", "publish")
 
@@ -296,26 +406,7 @@ def generate(body: GenerateRequest, auth=Depends(get_current_user)):
             use_internal_links=cfg.get("use_internal_links", True),
         )
 
-        # Save to Supabase articles table
-        article_data = {
-            "user_id": user_id,
-            "title": title,
-            "post_url": result.get("post_url", ""),
-            "post_id": str(result.get("post_id", "")),
-            "status": "published" if result.get("success") else "failed",
-            "wp_status": publish_status,
-            "error": result.get("error", ""),
-        }
-        db_resp = requests.post(
-            f"{SUPABASE_URL}/rest/v1/articles",
-            headers=supa_headers(token),
-            json=article_data,
-            timeout=10,
-        )
-        article_id = None
-        if db_resp.status_code in (200, 201):
-            rows = db_resp.json()
-            article_id = rows[0]["id"] if rows else None
+        article_id = save_article_to_db(user_id, token, title, result, publish_status)
 
         results.append({
             "title": title,
@@ -326,7 +417,7 @@ def generate(body: GenerateRequest, auth=Depends(get_current_user)):
             "featured_image_url": result.get("featured_image_url", ""),
         })
 
-        # Auto-pin if Pro and enabled
+        # Auto-pin (Pro only)
         plan = get_user_plan(user_id, token)
         if (plan == "pro" and cfg.get("auto_pin") and
                 result.get("success") and cfg.get("pinterest_token") and
@@ -345,17 +436,15 @@ def generate(body: GenerateRequest, auth=Depends(get_current_user)):
                 pin_delay_min=cfg.get("pin_delay_min", 0),
             )
 
-        # Delay between articles
         delay = body.delay_sec or cfg.get("delay_sec", 10)
         if delay > 0 and title != body.titles[-1]:
-            import time
             time.sleep(delay)
 
     return {"results": results}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  PREVIEW ROUTE
+#  PREVIEW
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/preview")
@@ -371,7 +460,7 @@ def preview(body: PreviewRequest, auth=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  HISTORY ROUTES
+#  HISTORY
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/history")
@@ -382,9 +471,7 @@ def get_history(auth=Depends(get_current_user)):
         headers=supa_headers(token),
         timeout=10,
     )
-    if resp.status_code == 200:
-        return {"articles": resp.json()}
-    return {"articles": []}
+    return {"articles": resp.json() if resp.status_code == 200 else []}
 
 
 @app.delete("/history/{article_id}")
@@ -410,40 +497,41 @@ def clear_history(auth=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  PINTEREST ROUTES
+#  PINTEREST — PRO ONLY
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/pinterest/boards")
 def pinterest_boards(auth=Depends(get_current_user)):
     user, token = auth
-    cfg = get_user_settings(user["id"], token)
     plan = get_user_plan(user["id"], token)
     if plan != "pro":
-        raise HTTPException(status_code=403, detail="Pinterest is a Pro feature")
-    boards = get_pinterest_boards(cfg.get("pinterest_token", ""))
-    return {"boards": boards}
+        raise HTTPException(status_code=403, detail="Pinterest requires the Pro plan ($40/mo).")
+    cfg = get_user_settings(user["id"], token)
+    if not cfg.get("pinterest_token"):
+        raise HTTPException(status_code=400, detail="No Pinterest token in Settings → Pinterest tab.")
+    return {"boards": get_pinterest_boards(cfg["pinterest_token"])}
 
 
 @app.post("/pinterest/run")
 def pinterest_run(body: PinterestRunRequest, auth=Depends(get_current_user)):
     user, token = auth
-    cfg = get_user_settings(user["id"], token)
     plan = get_user_plan(user["id"], token)
     if plan != "pro":
-        raise HTTPException(status_code=403, detail="Pinterest is a Pro feature")
-    if not cfg.get("pinterest_token"):
-        raise HTTPException(status_code=400, detail="No Pinterest token configured")
+        raise HTTPException(status_code=403, detail="Pinterest requires the Pro plan ($40/mo).")
 
-    # Fetch articles from Supabase
+    cfg = get_user_settings(user["id"], token)
+    if not cfg.get("pinterest_token"):
+        raise HTTPException(status_code=400, detail="No Pinterest token in Settings → Pinterest tab.")
+    if not cfg.get("gemini_key"):
+        raise HTTPException(status_code=400, detail="No AI key configured.")
+
     query = f"{SUPABASE_URL}/rest/v1/articles?user_id=eq.{user['id']}&status=eq.published"
     if body.article_ids:
-        ids = ",".join(body.article_ids)
-        query += f"&id=in.({ids})"
+        query += f"&id=in.({','.join(body.article_ids)})"
     art_resp = requests.get(query, headers=supa_headers(token), timeout=10)
     articles = art_resp.json() if art_resp.status_code == 200 else []
-
     if not articles:
-        raise HTTPException(status_code=404, detail="No published articles found")
+        raise HTTPException(status_code=404, detail="No published articles found.")
 
     results = run_pinterest_bot(
         api_key=cfg["gemini_key"],
@@ -454,23 +542,21 @@ def pinterest_run(body: PinterestRunRequest, auth=Depends(get_current_user)):
         pin_delay_min=cfg.get("pin_delay_min", 0),
     )
 
-    # Save pins to Supabase
     for r in results:
-        for board_result in r.get("boards", []):
-            pin_data = {
-                "user_id": user["id"],
-                "pin_title": r.get("pin_title", ""),
-                "pin_desc": r.get("pin_description", ""),
-                "alt_text": r.get("alt_text", ""),
-                "board_ids": board_result.get("board_id", ""),
-                "pin_id": board_result.get("pin_id", ""),
-                "status": "sent" if board_result.get("success") else "failed",
-                "error": board_result.get("error", ""),
-            }
+        for br in r.get("boards", []):
             requests.post(
                 f"{SUPABASE_URL}/rest/v1/pinterest_pins",
                 headers=supa_headers(token),
-                json=pin_data,
+                json={
+                    "user_id": user["id"],
+                    "pin_title": r.get("pin_title", ""),
+                    "pin_desc": r.get("pin_description", ""),
+                    "alt_text": r.get("alt_text", ""),
+                    "board_ids": br.get("board_id", ""),
+                    "pin_id": br.get("pin_id", ""),
+                    "status": "sent" if br.get("success") else "failed",
+                    "error": br.get("error", ""),
+                },
                 timeout=10,
             )
 
@@ -478,7 +564,7 @@ def pinterest_run(body: PinterestRunRequest, auth=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  PROFILE / PLAN
+#  PROFILE
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/profile")
@@ -489,12 +575,5 @@ def get_profile(auth=Depends(get_current_user)):
         headers=supa_headers(token),
         timeout=10,
     )
-    if resp.status_code == 200:
-        rows = resp.json()
-        return {"profile": rows[0] if rows else {}}
-    return {"profile": {}}
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "service": "NicheFlow AI"}
+    rows = resp.json() if resp.status_code == 200 else []
+    return {"profile": rows[0] if rows else {}}
