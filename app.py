@@ -1327,7 +1327,7 @@ def render_dashboard():
 page = st.session_state.page
 
 if page == "home":
-    components.html(HOME_HTML(), height=4600, scrolling=True)
+    components.html(HOME_HTML(), height=8000, scrolling=True)
 
 elif page == "login":
     components.html(
