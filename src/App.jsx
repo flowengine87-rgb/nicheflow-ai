@@ -36,7 +36,7 @@ async function supaAuth(action, email, password) {
 
 // ─── Claude API ────────────────────────────────────────────────────────────
 async function callClaude(systemPrompt, userMessage, maxTokens = 1000) {
-  const res = await fetch("https://web-production-1f143.up.railway.app/generate", {
+  const res = await fetch("https://web-production-1f143.up.railway.app/pipeline", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ system: systemPrompt, message: userMessage, max_tokens: maxTokens }),
@@ -666,30 +666,34 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
       addLog(`[${i + 1}/${titleList.length}] Generating: ${title}`, "info");
 
       try {
-        const prompt = config.custom_prompt || buildDefaultPrompt(title);
-        addLog("✦ Calling AI model for article body...", "info");
-
-        const response = await callClaude(
-          "You are a helpful content writer. Generate article content as requested. Return only the HTML content, no markdown wrapping.",
-          prompt.replace("{title}", title),
-          1000
-        );
-
-        addLog(`✓ Article generated (~${estimateTokens(response)} tokens)`, "ok");
-        addLog("Publishing to WordPress...", "info");
-
-        const pub = await publishToWP(title, response, config, draft ? "draft" : "publish");
-        if (pub.success) {
-          addLog(`✓ Published! → ${pub.url}`, "ok");
-          onHistoryUpdate({ title, status: "published", post_url: pub.url, time: new Date().toLocaleTimeString() });
-        } else {
-          addLog(`✗ Publish failed: ${pub.error}`, "err");
-          onHistoryUpdate({ title, status: "failed", error: pub.error, time: new Date().toLocaleTimeString() });
-        }
-      } catch (err) {
-        addLog(`✗ Error: ${err.message}`, "err");
-        onHistoryUpdate({ title, status: "failed", error: err.message, time: new Date().toLocaleTimeString() });
-      }
+  addLog(`✦ Calling pipeline...`, "info");
+  const res = await fetch("https://web-production-1f143.up.railway.app/pipeline", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title,
+      gemini_key: config.gemini_key,
+      goapi_key: config.goapi_key,
+      wp_url: config.wp_url,
+      wp_password: config.wp_password,
+      custom_prompt: config.custom_prompt,
+      card_prompt: config.card_prompt,
+      mj_template: config.mj_template,
+      publish_status: draft ? "draft" : "publish",
+    }),
+  });
+  const data = await res.json();
+  if (data.success) {
+    addLog(`✓ Published! → ${data.post_url}`, "ok");
+    onHistoryUpdate({ title, status: "published", post_url: data.post_url, time: new Date().toLocaleTimeString() });
+  } else {
+    addLog(`✗ Failed: ${data.error}`, "err");
+    onHistoryUpdate({ title, status: "failed", error: data.error, time: new Date().toLocaleTimeString() });
+  }
+} catch (err) {
+  addLog(`✗ Error: ${err.message}`, "err");
+  onHistoryUpdate({ title, status: "failed", error: err.message, time: new Date().toLocaleTimeString() });
+}
 
       if (i < titleList.length - 1 && delay > 0) {
         addLog(`Waiting ${delay}s before next...`, "info");
