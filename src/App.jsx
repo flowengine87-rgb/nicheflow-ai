@@ -36,13 +36,14 @@ async function supaAuth(action, email, password) {
 
 // ─── Claude API ────────────────────────────────────────────────────────────
 async function callClaude(systemPrompt, userMessage, maxTokens = 1000) {
-  const res = await fetch("https://web-production-1f143.up.railway.app/pipeline", {
+  const token = JSON.parse(localStorage.getItem("nicheflow_user") || "{}").access_token || "";
+  const res = await fetch("https://web-production-1f143.up.railway.app/generate", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system: systemPrompt, message: userMessage, max_tokens: maxTokens }),
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    body: JSON.stringify({ titles: [userMessage], draft: false, use_images: false }),
   });
   const data = await res.json();
-  return data.text || "";
+  return data.results?.[0] || {};
 }
 
 // ─── Token Counter ─────────────────────────────────────────────────────────
