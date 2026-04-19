@@ -1,36 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 NicheFlow AI — app.py
-Beautiful multi-page SaaS with Supabase auth and full generator backend.
+Full SaaS: Supabase auth + real generator + working navigation via st.query_params
 """
 
 import streamlit as st
-import streamlit.components.v1 as components
-import hashlib, json, time
+import hashlib, json, time, re
 from datetime import datetime
 
-# ─── Supabase ───────────────────────────────────────────────────────────────
-try:
-    from supabase import create_client, Client
-    SUPABASE_URL = st.secrets["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    DB_OK = True
-except Exception:
-    DB_OK = False
-    supabase = None
-
-# ─── Generator ──────────────────────────────────────────────────────────────
-try:
-    from generator import (
-        run_full_pipeline, test_groq_key, test_goapi_key, test_wordpress,
-        fetch_wp_categories, generate_pinterest_pin, fetch_internal_links
-    )
-    GEN_OK = True
-except Exception:
-    GEN_OK = False
-
-# ─── Page config ────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="NicheFlow AI",
     page_icon="✦",
@@ -38,1318 +15,1073 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# ─── GLOBAL CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-#MainMenu,footer,header,
-[data-testid="stToolbar"],[data-testid="stDecoration"],
-[data-testid="stStatusWidget"],[data-testid="collapsedControl"],
-section[data-testid="stSidebar"]{display:none!important;}
-.block-container{padding:0!important;max-width:100%!important;}
-.stApp{background:#faf6ef!important;overflow:hidden;}
-iframe{border:none!important;display:block;}
+#MainMenu, footer, header, [data-testid="stToolbar"],
+[data-testid="stDecoration"], [data-testid="stStatusWidget"] { display:none !important; }
+.block-container { padding:0 !important; max-width:100% !important; }
+.stApp { background:#0a0a0a; }
+section[data-testid="stSidebar"] { display:none !important; }
+div[data-testid="stVerticalBlock"] > div { padding:0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  SESSION STATE
-# ─────────────────────────────────────────────────────────────────────────────
-def init_state():
-    defaults = {
-        "page": "home",
-        "dash_tab": "overview",
-        "user_id": None,
-        "user_email": None,
-        "user_plan": "basic",
-        "settings": {},
-        "gen_logs": [],
-        "gen_running": False,
-        "gen_results": [],
-        "wp_categories": [],
-        "internal_links": [],
-        "auth_error": "",
-        "auth_success": "",
-        "save_ok": False,
-    }
-    for k, v in defaults.items():
+# ─── SUPABASE via requests (no supabase package needed) ───────────────────────
+import requests as _req
+
+def _sb_url():
+    try: return st.secrets["SUPABASE_URL"].rstrip("/")
+    except: return "MISSING"
+
+def _sb_secret():
+    try: return st.secrets["SUPABASE_SECRET"]
+    except:
+        try: return st.secrets["SUPABASE_KEY"]
+        except: return "MISSING"
+
+def _sb_h():
+    k = _sb_secret()
+    return {"apikey": k, "Authorization": f"Bearer {k}",
+            "Content-Type": "application/json", "Prefer": "return=representation"}
+
+def sb_select(table, qs=""):
+    try:
+        r = _req.get(f"{_sb_url()}/rest/v1/{table}?{qs}", headers=_sb_h(), timeout=10)
+        return r.json() if r.status_code == 200 else []
+    except: return []
+
+def sb_insert(table, data):
+    try:
+        r = _req.post(f"{_sb_url()}/rest/v1/{table}", headers=_sb_h(), json=data, timeout=10)
+        j = r.json()
+        return j[0] if isinstance(j, list) and j else j if isinstance(j, dict) else None
+    except: return None
+
+def sb_update(table, qs, data):
+    try:
+        r = _req.patch(f"{_sb_url()}/rest/v1/{table}?{qs}", headers=_sb_h(), json=data, timeout=10)
+        return r.status_code in [200, 204]
+    except: return False
+
+# ─── AUTH ─────────────────────────────────────────────────────────────────────
+def hash_pw(p): return hashlib.sha256(p.encode()).hexdigest()
+
+def signup_user(email, pw):
+    if not email or "@" not in email: return {"ok": False, "err": "Invalid email"}
+    if len(pw) < 6: return {"ok": False, "err": "Password must be at least 6 characters"}
+    ex = sb_select("users", f"email=eq.{email}&select=id")
+    if ex: return {"ok": False, "err": "Email already registered"}
+    u = sb_insert("users", {"email": email, "password_hash": hash_pw(pw), "plan": "basic"})
+    if u and u.get("id"):
+        sb_insert("user_settings", {"user_id": u["id"]})
+        return {"ok": True, "user": u}
+    return {"ok": False, "err": "Signup failed — check Supabase connection"}
+
+def login_user(email, pw):
+    rows = sb_select("users", f"email=eq.{email}&select=id,email,plan,password_hash")
+    if not rows: return {"ok": False, "err": "Email not found"}
+    u = rows[0]
+    if u.get("password_hash") != hash_pw(pw): return {"ok": False, "err": "Wrong password"}
+    return {"ok": True, "user": u}
+
+def get_settings(user_id):
+    rows = sb_select("user_settings", f"user_id=eq.{user_id}&select=*")
+    return rows[0] if rows else {}
+
+def save_settings(user_id, data):
+    data["user_id"] = user_id
+    data["updated_at"] = datetime.utcnow().isoformat()
+    existing = sb_select("user_settings", f"user_id=eq.{user_id}&select=id")
+    if existing:
+        return sb_update("user_settings", f"user_id=eq.{user_id}", data)
+    else:
+        return sb_insert("user_settings", data)
+
+# ─── SESSION STATE ─────────────────────────────────────────────────────────────
+def init_session():
+    for k, v in {
+        "user": None, "page": "home", "gen_logs": [],
+        "gen_result": None, "last_settings": {},
+        "wp_categories": [], "pinterest_boards": [],
+    }.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
-init_state()
+init_session()
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  URL NAVIGATION (works reliably — no postMessage issues)
-# ─────────────────────────────────────────────────────────────────────────────
-query_params = st.query_params
-if "nav" in query_params:
-    nav_target = query_params["nav"]
-    if nav_target in ("login", "signup", "docs", "home", "dashboard"):
-        if nav_target == "dashboard" and not st.session_state.user_id:
-            st.session_state.page = "login"
-        else:
-            st.session_state.page = nav_target
-    st.query_params.clear()
+# ─── NAVIGATION via query params (no iframe — works on Streamlit Cloud!) ───────
+nav_param = st.query_params.get("nav", "home")
+if nav_param != st.session_state.page:
+    st.session_state.page = nav_param
+
+def go(page):
+    st.query_params["nav"] = page
+    st.session_state.page = page
     st.rerun()
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  DB HELPERS
-# ─────────────────────────────────────────────────────────────────────────────
-def hash_password(pw: str) -> str:
-    return hashlib.sha256(pw.encode()).hexdigest()
+# ─── TOKEN COUNTER ────────────────────────────────────────────────────────────
+def count_tokens(text):
+    return max(1, len(text.split()) * 4 // 3) if text else 0
 
-def db_create_user(email: str, password: str, plan: str = "basic"):
-    if not DB_OK: return {"success": False, "error": "Database not connected"}
-    try:
-        existing = supabase.table("users").select("id").eq("email", email).execute()
-        if existing.data:
-            return {"success": False, "error": "Email already registered"}
-        result = supabase.table("users").insert({
-            "email": email,
-            "password_hash": hash_password(password),
-            "plan": plan
-        }).execute()
-        user_id = result.data[0]["id"]
-        supabase.table("user_settings").insert({"user_id": user_id}).execute()
-        return {"success": True, "user_id": user_id, "plan": plan}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+def token_warning(text, label="Prompt"):
+    n = count_tokens(text)
+    if n >= 3000:
+        st.error(f"🚨 **{label} is very long (~{n} tokens).** Groq limit is 4096 tokens — trim your prompt or it WILL fail!")
+    elif n >= 2000:
+        st.warning(f"⚠️ **{label} is getting long (~{n} tokens).** Consider shortening to stay safely under the 4096 token limit.")
 
-def db_login_user(email: str, password: str):
-    if not DB_OK: return {"success": False, "error": "Database not connected"}
-    try:
-        result = supabase.table("users").select("*").eq("email", email).eq(
-            "password_hash", hash_password(password)
-        ).execute()
-        if not result.data:
-            return {"success": False, "error": "Invalid email or password"}
-        user = result.data[0]
-        return {"success": True, "user_id": user["id"], "email": user["email"], "plan": user.get("plan","basic")}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+# ─── COLORS ───────────────────────────────────────────────────────────────────
+GOLD   = "#c9a84c"
+CREAM  = "#f5f0e8"
+DARK   = "#0a0a0a"
+DARK2  = "#111111"
+DARK3  = "#1a1a1a"
+CARD   = "#141414"
+BORDER = "#2a2a2a"
+GREEN  = "#22c55e"
+RED    = "#ef4444"
 
-def db_load_settings(user_id: str) -> dict:
-    if not DB_OK or not user_id: return {}
-    try:
-        result = supabase.table("user_settings").select("*").eq("user_id", user_id).execute()
-        if result.data:
-            row = result.data[0]
-            s = {}
-            for key in ["groq_key","wp_url","wp_password","mj_key","mj_template",
-                        "article_prompt","html_structure","card_prompt","pinterest_token",
-                        "pinterest_board","pinterest_prompt","publish_status","show_card",
-                        "card_clickable","use_images","use_internal_links","max_links",
-                        "schedule_days","schedule_time","schedule_timezone",
-                        "design_main_color","design_accent_color","design_font_family",
-                        "articles_generated","images_created","posts_published","pins_posted"]:
-                if key in row and row[key] is not None:
-                    s[key] = row[key]
-            return s
-        return {}
-    except Exception:
-        return {}
-
-def db_save_settings(user_id: str, settings: dict) -> bool:
-    if not DB_OK or not user_id: return False
-    try:
-        existing = supabase.table("user_settings").select("id").eq("user_id", user_id).execute()
-        payload = {"user_id": user_id, **settings, "updated_at": datetime.utcnow().isoformat()}
-        if existing.data:
-            supabase.table("user_settings").update(payload).eq("user_id", user_id).execute()
-        else:
-            supabase.table("user_settings").insert(payload).execute()
-        return True
-    except Exception:
-        return False
-
-def db_increment_stat(user_id: str, field: str, amount: int = 1):
-    if not DB_OK or not user_id: return
-    try:
-        current = db_load_settings(user_id).get(field, 0) or 0
-        db_save_settings(user_id, {field: int(current) + amount})
-    except Exception:
-        pass
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  AUTH ACTIONS
-# ─────────────────────────────────────────────────────────────────────────────
-def do_login(email, password):
-    result = db_login_user(email.strip().lower(), password)
-    if result["success"]:
-        st.session_state.user_id    = result["user_id"]
-        st.session_state.user_email = result["email"]
-        st.session_state.user_plan  = result["plan"]
-        st.session_state.settings   = db_load_settings(result["user_id"])
-        st.session_state.page       = "dashboard"
-        st.session_state.dash_tab   = "overview"
-        st.session_state.auth_error = ""
-    else:
-        st.session_state.auth_error = result["error"]
-
-def do_signup(email, password, confirm):
-    if password != confirm:
-        st.session_state.auth_error = "Passwords do not match"; return
-    if len(password) < 6:
-        st.session_state.auth_error = "Password must be at least 6 characters"; return
-    result = db_create_user(email.strip().lower(), password)
-    if result["success"]:
-        st.session_state.auth_error   = ""
-        st.session_state.auth_success = "Account created! You can now sign in."
-        st.session_state.page         = "login"
-    else:
-        st.session_state.auth_error = result["error"]
-
-def do_logout():
-    for key in ["user_id","user_email","user_plan","settings","gen_logs","gen_results","wp_categories","internal_links"]:
-        if key in ["gen_logs","gen_results","wp_categories","internal_links"]:
-            st.session_state[key] = []
-        elif key in ["user_id","user_email"]:
-            st.session_state[key] = None
-        elif key == "user_plan":
-            st.session_state[key] = "basic"
-        else:
-            st.session_state[key] = {}
-    st.session_state.page = "home"
-
-def save_settings_to_db():
-    db_save_settings(st.session_state.user_id, st.session_state.settings)
-    st.session_state.save_ok = True
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  FULL HTML PAGES (Home, Login, Signup, Docs)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _nav_js():
-    """JS that navigates by setting a query param — works 100% reliably."""
-    return """
-<script>
-function goPage(p) {
-  var url = new URL(window.parent.location.href);
-  url.searchParams.set('nav', p);
-  window.parent.location.href = url.toString();
-}
-</script>"""
-
-def _common_styles():
-    return """
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,800;9..144,900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+# ═══════════════════════════════════════════════════════════════════════════════
+#  LANDING PAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+def page_home():
+    st.markdown(f"""
 <style>
-:root{
-  --cream:#faf6ef;--cream2:#f2e8d4;--gold:#c9892a;--gold2:#e8a83e;
-  --dark:#0f0d09;--dark2:#1c1810;--text:#1a1510;--text2:#5a5040;
-  --text3:#8a7a60;--border:#dfd4bc;--white:#ffffff;
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{scroll-behavior:smooth;}
-body{font-family:'Outfit',sans-serif;background:var(--cream);color:var(--text);overflow-x:hidden;}
-nav{position:sticky;top:0;z-index:999;display:flex;align-items:center;justify-content:space-between;
-    padding:0 5vw;height:66px;background:rgba(250,246,239,0.96);backdrop-filter:blur(14px);
-    border-bottom:1px solid var(--border);}
-.nav-logo{font-family:'Fraunces',serif;font-size:21px;font-weight:800;color:var(--text);cursor:pointer;}
-.nav-logo em{color:var(--gold);font-style:normal;}
-.nav-links{display:flex;align-items:center;gap:28px;}
-.nav-links a{font-size:14px;font-weight:500;color:var(--text2);text-decoration:none;cursor:pointer;transition:color .2s;}
-.nav-links a:hover{color:var(--gold);}
-.nav-cta{background:var(--dark)!important;color:#fff!important;padding:9px 22px;border-radius:100px;
-         font-weight:600!important;font-size:13px!important;transition:all .2s!important;}
-.nav-cta:hover{background:var(--dark2)!important;transform:translateY(-1px);}
-.btn-primary{background:var(--dark);color:#fff;padding:14px 30px;border-radius:100px;font-size:15px;
-             font-weight:600;border:none;cursor:pointer;font-family:'Outfit',sans-serif;transition:all .2s;}
-.btn-primary:hover{background:var(--dark2);transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.18);}
-.btn-outline{background:transparent;color:var(--text);padding:14px 30px;border-radius:100px;font-size:15px;
-             font-weight:600;border:1.5px solid var(--border);cursor:pointer;font-family:'Outfit',sans-serif;transition:all .2s;}
-.btn-outline:hover{border-color:var(--gold);color:var(--gold);transform:translateY(-2px);}
-.back-nav{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--text3);
-          cursor:pointer;padding:8px 14px;border-radius:100px;border:1px solid var(--border);
-          background:rgba(255,255,255,.8);transition:all .2s;margin:16px 0 0 16px;text-decoration:none;}
-.back-nav:hover{color:var(--gold);border-color:var(--gold);}
-.back-nav svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5;
-              stroke-linecap:round;stroke-linejoin:round;}
-footer{text-align:center;padding:clamp(36px,5vw,56px);border-top:1px solid var(--border);background:var(--cream);}
-footer .f-logo{font-family:'Fraunces',serif;font-size:21px;font-weight:800;color:var(--text);margin-bottom:9px;}
-footer p{font-size:13px;color:var(--text3);margin-bottom:3px;}
-@media(max-width:768px){.nav-links{display:none;}}
-</style>"""
-
-# ── HOME PAGE ────────────────────────────────────────────────────────────────
-HOME_HTML = lambda: f"""<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>NicheFlow AI</title>
-{_common_styles()}
-<style>
-.hero{{background:linear-gradient(160deg,#fdfaf4 0%,#f5e8cc 55%,#ecdbb8 100%);
-       padding:96px 5vw 80px;text-align:center;border-bottom:1px solid var(--border);
-       position:relative;overflow:hidden;}}
-.hero::before{{content:'';position:absolute;top:-220px;left:-180px;width:560px;height:560px;
-               background:radial-gradient(circle,rgba(201,137,42,.15) 0%,transparent 65%);border-radius:50%;}}
-.hero::after{{content:'';position:absolute;bottom:-150px;right:-150px;width:480px;height:480px;
-              background:radial-gradient(circle,rgba(201,137,42,.1) 0%,transparent 65%);border-radius:50%;}}
-.hero-badge{{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.7);
-             border:1px solid rgba(201,137,42,.35);color:#8a6020;padding:7px 18px;border-radius:100px;
-             font-size:12.5px;font-weight:600;letter-spacing:.4px;margin-bottom:28px;position:relative;z-index:1;}}
-.hero h1{{font-family:'Fraunces',serif;font-size:clamp(46px,8vw,90px);font-weight:900;line-height:1.03;
-          color:var(--text);margin-bottom:24px;position:relative;z-index:1;}}
-.hero h1 em{{font-style:normal;color:var(--gold);}}
-.hero p{{font-size:clamp(15px,1.7vw,19px);color:var(--text2);max-width:580px;margin:0 auto 44px;
-         line-height:1.78;position:relative;z-index:1;}}
-.hero-btns{{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;position:relative;z-index:1;}}
-.hero-stats{{display:flex;flex-wrap:wrap;justify-content:center;gap:clamp(24px,5vw,68px);
-             margin-top:60px;padding-top:48px;border-top:1px solid rgba(0,0,0,.09);position:relative;z-index:1;}}
-.stat-num{{font-family:'Fraunces',serif;font-size:clamp(32px,4.5vw,48px);font-weight:800;color:var(--gold);}}
-.stat-lbl{{font-size:13px;color:var(--text3);margin-top:5px;font-weight:500;}}
-.section{{padding:clamp(60px,8vw,108px) clamp(24px,6vw,96px);background:var(--cream);}}
-.section-alt{{background:var(--cream2);padding:clamp(60px,8vw,108px) clamp(24px,6vw,96px);}}
-.section-dark{{background:var(--dark);padding:clamp(60px,8vw,108px) clamp(24px,6vw,96px);}}
-.section-center{{text-align:center;}}
-.eyebrow{{font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:3.5px;margin-bottom:14px;display:block;}}
-.eyebrow-light{{color:rgba(201,137,42,.9)!important;}}
-.section-title{{font-family:'Fraunces',serif;font-size:clamp(30px,4.5vw,52px);font-weight:800;line-height:1.12;color:var(--text);margin-bottom:14px;}}
-.section-title-light{{font-family:'Fraunces',serif;font-size:clamp(30px,4.5vw,52px);font-weight:800;line-height:1.12;color:#fdf6e8;margin-bottom:14px;}}
-.section-sub{{font-size:clamp(14px,1.4vw,17px);color:var(--text2);line-height:1.72;margin-bottom:clamp(36px,6vw,68px);max-width:560px;}}
-.section-sub-light{{font-size:clamp(14px,1.4vw,17px);color:rgba(253,246,232,.5);line-height:1.72;margin-bottom:clamp(36px,6vw,68px);max-width:560px;}}
-.section-center .section-sub,.section-center .section-sub-light{{margin-left:auto;margin-right:auto;}}
-.feat-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}}
-@media(max-width:900px){{.feat-grid{{grid-template-columns:1fr 1fr;}}}}
-@media(max-width:560px){{.feat-grid{{grid-template-columns:1fr;}}}}
-.feat-card{{background:#fff;border:1px solid var(--border);border-radius:20px;padding:clamp(22px,3vw,36px);
-            transition:transform .25s,box-shadow .25s,border-color .25s;}}
-.feat-card:hover{{transform:translateY(-4px);box-shadow:0 14px 44px rgba(0,0,0,.07);border-color:rgba(201,137,42,.45);}}
-.feat-icon{{width:50px;height:50px;background:#fff8ec;border:1px solid rgba(201,137,42,.2);border-radius:13px;
-            display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:16px;}}
-.feat-card h3{{font-size:15.5px;font-weight:700;color:var(--text);margin-bottom:8px;}}
-.feat-card p{{font-size:13.5px;color:var(--text3);line-height:1.76;}}
-.pricing-grid{{display:grid;grid-template-columns:1fr 1fr;gap:22px;max-width:840px;margin:0 auto;}}
-@media(max-width:640px){{.pricing-grid{{grid-template-columns:1fr;}}}}
-.plan-card{{background:#fff;border:2px solid var(--border);border-radius:26px;padding:clamp(30px,4vw,50px) clamp(26px,3.5vw,42px);text-align:center;transition:transform .25s,box-shadow .25s;}}
-.plan-card:hover{{transform:translateY(-3px);box-shadow:0 14px 44px rgba(0,0,0,.07);}}
-.plan-card.pro{{background:linear-gradient(158deg,#211808,#0f0d09);border-color:rgba(201,137,42,.55);box-shadow:0 8px 44px rgba(201,137,42,.2);}}
-.plan-label{{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:2.5px;margin-bottom:16px;}}
-.plan-card.pro .plan-label{{color:rgba(232,168,62,.75);}}
-.plan-price{{font-family:'Fraunces',serif;font-size:clamp(50px,7vw,70px);font-weight:900;color:var(--text);line-height:1;}}
-.plan-card.pro .plan-price{{color:#fff;}}
-.plan-period{{font-size:14px;color:var(--text3);margin-bottom:28px;margin-top:4px;}}
-.plan-card.pro .plan-period{{color:rgba(253,246,232,.4);}}
-.plan-feats{{text-align:left;}}
-.plan-feat{{font-size:13.5px;color:var(--text2);padding:10px 0;border-bottom:1px solid #f0e8d8;}}
-.plan-card.pro .plan-feat{{color:rgba(253,246,232,.8);border-bottom-color:rgba(255,255,255,.07);}}
-.plan-feat.no{{color:#b8a888;opacity:.6;}}
-.plan-card.pro .plan-feat.no{{color:rgba(253,246,232,.25);}}
-.plan-btn{{width:100%;margin-top:26px;padding:13px;border-radius:100px;font-size:14px;font-weight:700;
-           cursor:pointer;border:2px solid var(--dark);background:transparent;color:var(--dark);
-           font-family:'Outfit',sans-serif;transition:all .2s;}}
-.plan-btn:hover{{background:var(--dark);color:#fff;}}
-.plan-card.pro .plan-btn{{background:var(--gold);border-color:var(--gold);color:#fff;}}
-.plan-card.pro .plan-btn:hover{{background:var(--gold2);border-color:var(--gold2);}}
-.steps-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;}}
-@media(max-width:900px){{.steps-grid{{grid-template-columns:1fr 1fr;}}}}
-@media(max-width:520px){{.steps-grid{{grid-template-columns:1fr;}}}}
-.step-card{{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.11);border-radius:20px;padding:clamp(24px,3vw,36px);}}
-.step-num{{font-family:'Fraunces',serif;font-size:clamp(44px,5.5vw,60px);font-weight:900;color:var(--gold);line-height:1;margin-bottom:16px;}}
-.step-card h4{{font-size:16px;font-weight:700;color:#fdf6e8;margin-bottom:9px;}}
-.step-card p{{font-size:13.5px;color:rgba(253,246,232,.5);line-height:1.76;}}
-.cta-banner{{background:var(--dark);border-radius:26px;padding:clamp(52px,7vw,92px) clamp(28px,6vw,80px);
-             text-align:center;margin:0 clamp(14px,4vw,60px) clamp(52px,6vw,80px);position:relative;overflow:hidden;}}
-.cta-banner::before{{content:'';position:absolute;top:-80px;left:50%;transform:translateX(-50%);width:500px;
-                     height:280px;background:radial-gradient(circle,rgba(201,137,42,.2) 0%,transparent 65%);pointer-events:none;}}
+.nf-nav{{display:flex;align-items:center;justify-content:space-between;
+         padding:20px 60px;border-bottom:1px solid {BORDER};background:{DARK};}}
+.nf-logo{{font-size:22px;font-weight:900;color:{CREAM};letter-spacing:-0.5px;}}
+.nf-logo span{{color:{GOLD};}}
+.nf-hero{{text-align:center;padding:120px 40px 80px;background:{DARK};}}
+.nf-hero h1{{font-size:clamp(40px,6vw,80px);font-weight:900;color:{CREAM};
+             margin:0 0 24px;line-height:1.05;letter-spacing:-2px;}}
+.nf-hero h1 em{{color:{GOLD};font-style:normal;}}
+.nf-hero p{{font-size:20px;color:#888;max-width:600px;margin:0 auto 48px;line-height:1.6;}}
+.nf-btn{{display:inline-block;background:{GOLD};color:{DARK};
+         padding:16px 40px;border-radius:50px;font-weight:800;
+         font-size:16px;text-decoration:none;margin:8px;}}
+.nf-btn-outline{{background:transparent;color:{CREAM};border:2px solid {BORDER};}}
+.nf-features{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+              gap:24px;padding:80px 60px;background:{DARK2};}}
+.nf-feat{{background:{CARD};border:1px solid {BORDER};border-radius:16px;padding:32px;}}
+.nf-feat .icon{{font-size:36px;margin-bottom:16px;}}
+.nf-feat h3{{color:{CREAM};font-size:18px;font-weight:700;margin:0 0 10px;}}
+.nf-feat p{{color:#666;font-size:14px;line-height:1.6;margin:0;}}
+.nf-pricing{{padding:80px 60px;background:{DARK};}}
+.nf-pricing h2{{text-align:center;color:{CREAM};font-size:42px;
+                font-weight:900;margin:0 0 60px;letter-spacing:-1px;}}
+.nf-plans{{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:800px;margin:0 auto;}}
+.nf-plan{{background:{CARD};border:1px solid {BORDER};border-radius:20px;padding:40px;text-align:center;}}
+.nf-plan.pro{{border-color:{GOLD};}}
+.nf-plan .badge{{background:{GOLD};color:{DARK};font-size:11px;font-weight:800;
+                 padding:4px 14px;border-radius:50px;display:inline-block;margin-bottom:20px;}}
+.nf-plan h3{{color:{CREAM};font-size:24px;font-weight:800;margin:0 0 8px;}}
+.nf-plan .price{{font-size:56px;font-weight:900;color:{GOLD};margin:16px 0 8px;}}
+.nf-plan .price span{{font-size:18px;color:#666;font-weight:400;}}
+.nf-plan ul{{list-style:none;padding:0;margin:24px 0 32px;text-align:left;}}
+.nf-plan ul li{{color:#999;font-size:14px;padding:8px 0;border-bottom:1px solid {BORDER};}}
+.nf-plan ul li::before{{content:"✦ ";color:{GOLD};}}
+.nf-footer{{background:{DARK2};border-top:1px solid {BORDER};
+            padding:40px 60px;text-align:center;color:#444;font-size:14px;}}
 </style>
-</head><body>
-{_nav_js()}
-<nav>
-  <div class="nav-logo" onclick="goPage('home')">✦ <em>Niche</em>Flow AI</div>
-  <div class="nav-links">
-    <a href="#features">Features</a>
-    <a href="#pricing">Pricing</a>
-    <a href="#how">How It Works</a>
-    <a onclick="goPage('docs')">Documentation</a>
-    <a class="nav-cta" onclick="goPage('login')">Sign In →</a>
-  </div>
-</nav>
 
-<section class="hero">
-  <div class="hero-badge">✦ AI-Powered Content Platform</div>
-  <h1>Write Less.<br>Publish More.<br><em>Grow on Autopilot.</em></h1>
-  <p>NicheFlow AI writes full SEO blog articles, generates stunning Midjourney images, publishes to WordPress, and pins to Pinterest — completely automatically. You paste a title. We handle everything.</p>
-  <div class="hero-btns">
-    <button class="btn-primary" onclick="goPage('signup')">Get Started Free →</button>
-    <button class="btn-outline" onclick="goPage('docs')">View Documentation</button>
-  </div>
-  <div class="hero-stats">
-    <div><div class="stat-num">3×</div><div class="stat-lbl">Faster Publishing</div></div>
-    <div><div class="stat-num">100%</div><div class="stat-lbl">Autopilot Content</div></div>
-    <div><div class="stat-num">4</div><div class="stat-lbl">Images Per Article</div></div>
-    <div><div class="stat-num">2</div><div class="stat-lbl">Platforms at Once</div></div>
-  </div>
-</section>
-
-<section class="section" id="features">
-  <div class="section-center">
-    <span class="eyebrow">Features</span>
-    <h2 class="section-title">Everything Your Blog Needs</h2>
-    <p class="section-sub">One platform handles your entire content pipeline — from idea to published post, images included.</p>
-  </div>
-  <div class="feat-grid">
-    <div class="feat-card"><div class="feat-icon">✍️</div><h3>AI Article Writer</h3><p>Groq AI writes full long-form SEO articles in seconds. Your prompt, your niche, your voice — zero defaults forced on you.</p></div>
-    <div class="feat-card"><div class="feat-icon">🎨</div><h3>Midjourney Images</h3><p>4 stunning images auto-generated per article. Converted to WebP and uploaded directly to your WordPress media library.</p></div>
-    <div class="feat-card"><div class="feat-icon">🌐</div><h3>WordPress Publisher</h3><p>Articles publish directly to your site with images and full formatting. No copy-pasting or manual uploads — ever.</p></div>
-    <div class="feat-card"><div class="feat-icon">📌</div><h3>Pinterest Auto-Post</h3><p>After every WordPress publish, automatically create and post optimized Pins using the article's featured image. Pro plan.</p></div>
-    <div class="feat-card"><div class="feat-icon">🃏</div><h3>Custom Niche Cards</h3><p>Add beautifully styled cards to every article — recipe, travel, health, or any niche. Fully customizable per user.</p></div>
-    <div class="feat-card"><div class="feat-icon">🎨</div><h3>Article Design Studio</h3><p>Control your article colors, fonts, and HTML structure. Every article matches your brand — not a generic template.</p></div>
-  </div>
-</section>
-
-<section class="section-alt" id="pricing">
-  <div class="section-center">
-    <span class="eyebrow">Pricing</span>
-    <h2 class="section-title">Simple, Honest Pricing</h2>
-    <p class="section-sub">No hidden fees. No shared quotas. Cancel anytime — no contracts or lock-in.</p>
-  </div>
-  <div class="pricing-grid">
-    <div class="plan-card">
-      <div class="plan-label">Basic</div>
-      <div class="plan-price">$30</div>
-      <div class="plan-period">per month</div>
-      <div class="plan-feats">
-        <div class="plan-feat">✅&nbsp; AI Article Generation</div>
-        <div class="plan-feat">✅&nbsp; Midjourney Images (4/article)</div>
-        <div class="plan-feat">✅&nbsp; WordPress Auto-Publish</div>
-        <div class="plan-feat">✅&nbsp; Custom Article &amp; Card Prompts</div>
-        <div class="plan-feat">✅&nbsp; Article Design Studio</div>
-        <div class="plan-feat">✅&nbsp; Draft or Live Publishing</div>
-        <div class="plan-feat no">✗&nbsp; Pinterest Auto-Post</div>
-      </div>
-      <button class="plan-btn" onclick="goPage('signup')">Get Started →</button>
-    </div>
-    <div class="plan-card pro">
-      <div class="plan-label">Pro · Most Popular</div>
-      <div class="plan-price">$40</div>
-      <div class="plan-period">per month</div>
-      <div class="plan-feats">
-        <div class="plan-feat">✅&nbsp; Everything in Basic</div>
-        <div class="plan-feat">✅&nbsp; Pinterest Auto-Post</div>
-        <div class="plan-feat">✅&nbsp; Pinterest Keyword Optimizer</div>
-        <div class="plan-feat">✅&nbsp; Custom Pinterest Prompt</div>
-        <div class="plan-feat">✅&nbsp; Auto Pin from Featured Image</div>
-        <div class="plan-feat">✅&nbsp; Pinterest Post Scheduler</div>
-        <div class="plan-feat">✅&nbsp; Priority Support</div>
-      </div>
-      <button class="plan-btn" onclick="goPage('signup')">Get Pro →</button>
-    </div>
-  </div>
-</section>
-
-<section class="section-dark" id="how">
-  <div class="section-center">
-    <span class="eyebrow eyebrow-light">How It Works</span>
-    <h2 class="section-title-light">From Zero to Published in Minutes</h2>
-    <p class="section-sub-light" style="margin-left:auto;margin-right:auto;">No technical skills needed. If you can paste a title, you can use NicheFlow AI.</p>
-  </div>
-  <div class="steps-grid">
-    <div class="step-card"><div class="step-num">01</div><h4>Sign Up &amp; Choose Plan</h4><p>Create your account and pick Basic or Pro — depending on whether you need Pinterest auto-posting.</p></div>
-    <div class="step-card"><div class="step-num">02</div><h4>Add Your Credentials</h4><p>Enter your Groq API key, Midjourney key, and WordPress app password once in Settings.</p></div>
-    <div class="step-card"><div class="step-num">03</div><h4>Write Your Prompts</h4><p>Customize your article and card prompts to match your niche voice, style, and target audience.</p></div>
-    <div class="step-card"><div class="step-num">04</div><h4>Paste Titles &amp; Go</h4><p>Drop in your article titles and hit Generate. NicheFlow writes, designs, and publishes everything.</p></div>
-  </div>
-</section>
-
-<section class="section">
-  <div class="cta-banner">
-    <span class="eyebrow eyebrow-light">Start Today</span>
-    <h2 class="section-title" style="color:#fdf6e8;position:relative;z-index:1;">Ready to Automate Your Content?</h2>
-    <p class="section-sub" style="color:rgba(253,246,232,.5);margin:0 auto 36px;position:relative;z-index:1;">Join bloggers who publish more, stress less, and grow faster with NicheFlow AI.</p>
-    <button class="btn-primary" style="background:var(--gold);position:relative;z-index:1;" onclick="goPage('signup')">Get Started Free →</button>
-  </div>
-</section>
-
-<footer>
-  <div class="f-logo">✦ NicheFlow AI</div>
-  <p>AI-powered blog &amp; Pinterest content generator</p>
-  <p style="color:#b0a080;margin-top:14px;">© 2026 NicheFlow AI · All rights reserved</p>
-</footer>
-</body></html>"""
-
-# ── LOGIN PAGE ───────────────────────────────────────────────────────────────
-def LOGIN_HTML(error="", success=""):
-    err_html = f'<div style="background:#fff0f0;border:1px solid #ffd0d0;color:#c03030;border-radius:9px;padding:10px 14px;font-size:13.5px;margin-bottom:14px;">❌ {error}</div>' if error else ""
-    suc_html = f'<div style="background:#f0faf4;border:1px solid #a4d8b8;color:#1a6e38;border-radius:9px;padding:10px 14px;font-size:13.5px;margin-bottom:14px;">✅ {success}</div>' if success else ""
-    return f"""<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Sign In — NicheFlow AI</title>
-{_common_styles()}
-<style>
-body{{min-height:100vh;background:linear-gradient(160deg,#fdfaf4 0%,#f0e3c8 100%);display:flex;flex-direction:column;}}
-.login-wrap{{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 20px;}}
-.login-card{{background:#fff;border:1px solid var(--border);border-radius:26px;padding:clamp(36px,5vw,56px) clamp(30px,4.5vw,52px);
-             width:100%;max-width:450px;box-shadow:0 12px 56px rgba(0,0,0,.08);}}
-.login-logo{{font-family:'Fraunces',serif;font-size:20px;font-weight:800;color:var(--text);margin-bottom:28px;text-align:center;}}
-.login-logo em{{color:var(--gold);font-style:normal;}}
-.login-card h2{{font-family:'Fraunces',serif;font-size:30px;font-weight:800;color:var(--text);margin-bottom:5px;text-align:center;}}
-.sub{{font-size:14.5px;color:var(--text3);text-align:center;margin-bottom:28px;}}
-.field{{margin-bottom:16px;}}
-.field label{{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px;}}
-.field input{{width:100%;padding:12px 15px;border:1.5px solid var(--border);border-radius:11px;font-size:14.5px;
-              font-family:'Outfit',sans-serif;background:#fdfaf5;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;}}
-.field input:focus{{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,137,42,.12);}}
-.login-btn{{width:100%;padding:13px;background:var(--dark);color:#fff;border:none;border-radius:11px;
-            font-size:15px;font-weight:700;font-family:'Outfit',sans-serif;cursor:pointer;transition:all .2s;margin-top:6px;}}
-.login-btn:hover{{background:var(--dark2);transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,0,0,.14);}}
-.login-foot{{text-align:center;margin-top:18px;font-size:13.5px;color:var(--text3);}}
-.login-foot a{{color:var(--gold);font-weight:600;cursor:pointer;text-decoration:none;}}
-.back-link{{display:block;text-align:center;margin-top:16px;font-size:13px;color:var(--text3);cursor:pointer;}}
-.back-link:hover{{color:var(--gold);}}
-</style>
-</head><body>
-{_nav_js()}
-<a class="back-nav" onclick="goPage('home')" style="display:inline-flex;">
-  <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-  Back to Home
-</a>
-<div class="login-wrap">
-  <div class="login-card">
-    <div class="login-logo">✦ <em>NicheFlow</em> AI</div>
-    <h2>Welcome Back</h2>
-    <p class="sub">Sign in to your NicheFlow AI account</p>
-    {err_html}{suc_html}
-    <form onsubmit="submitLogin(event)">
-      <div class="field"><label>Email Address</label><input type="email" id="email" placeholder="your@email.com" required></div>
-      <div class="field"><label>Password</label><input type="password" id="pass" placeholder="Your password" required></div>
-      <button type="submit" class="login-btn">Sign In →</button>
-    </form>
-    <p class="login-foot">Don't have an account? <a onclick="goPage('signup')">Sign Up Free</a></p>
-    <a class="back-link" onclick="goPage('home')">← Back to Home</a>
-  </div>
-</div>
-<script>
-function submitLogin(e) {{
-  e.preventDefault();
-  var email = document.getElementById('email').value;
-  var pass  = document.getElementById('pass').value;
-  var url = new URL(window.parent.location.href);
-  url.searchParams.set('nav', 'login');
-  url.searchParams.set('email', encodeURIComponent(email));
-  url.searchParams.set('pass', encodeURIComponent(pass));
-  window.parent.location.href = url.toString();
-}}
-</script>
-</body></html>"""
-
-# ── SIGNUP PAGE ──────────────────────────────────────────────────────────────
-def SIGNUP_HTML(error=""):
-    err_html = f'<div style="background:#fff0f0;border:1px solid #ffd0d0;color:#c03030;border-radius:9px;padding:10px 14px;font-size:13.5px;margin-bottom:14px;">❌ {error}</div>' if error else ""
-    return f"""<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Sign Up — NicheFlow AI</title>
-{_common_styles()}
-<style>
-body{{min-height:100vh;background:linear-gradient(160deg,#fdfaf4 0%,#f0e3c8 100%);display:flex;flex-direction:column;}}
-.login-wrap{{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 20px;}}
-.login-card{{background:#fff;border:1px solid var(--border);border-radius:26px;padding:clamp(36px,5vw,56px) clamp(30px,4.5vw,52px);
-             width:100%;max-width:450px;box-shadow:0 12px 56px rgba(0,0,0,.08);}}
-.login-logo{{font-family:'Fraunces',serif;font-size:20px;font-weight:800;color:var(--text);margin-bottom:28px;text-align:center;}}
-.login-logo em{{color:var(--gold);font-style:normal;}}
-.login-card h2{{font-family:'Fraunces',serif;font-size:30px;font-weight:800;color:var(--text);margin-bottom:5px;text-align:center;}}
-.sub{{font-size:14.5px;color:var(--text3);text-align:center;margin-bottom:28px;}}
-.field{{margin-bottom:16px;}}
-.field label{{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px;}}
-.field input{{width:100%;padding:12px 15px;border:1.5px solid var(--border);border-radius:11px;font-size:14.5px;
-              font-family:'Outfit',sans-serif;background:#fdfaf5;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;}}
-.field input:focus{{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,137,42,.12);}}
-.login-btn{{width:100%;padding:13px;background:var(--dark);color:#fff;border:none;border-radius:11px;
-            font-size:15px;font-weight:700;font-family:'Outfit',sans-serif;cursor:pointer;transition:all .2s;margin-top:6px;}}
-.login-btn:hover{{background:var(--dark2);transform:translateY(-1px);}}
-.login-foot{{text-align:center;margin-top:18px;font-size:13.5px;color:var(--text3);}}
-.login-foot a{{color:var(--gold);font-weight:600;cursor:pointer;}}
-.back-link{{display:block;text-align:center;margin-top:16px;font-size:13px;color:var(--text3);cursor:pointer;}}
-.back-link:hover{{color:var(--gold);}}
-</style>
-</head><body>
-{_nav_js()}
-<a class="back-nav" onclick="goPage('home')" style="display:inline-flex;">
-  <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-  Back to Home
-</a>
-<div class="login-wrap">
-  <div class="login-card">
-    <div class="login-logo">✦ <em>NicheFlow</em> AI</div>
-    <h2>Create Account</h2>
-    <p class="sub">Start automating your content today</p>
-    {err_html}
-    <form onsubmit="submitSignup(event)">
-      <div class="field"><label>Email Address</label><input type="email" id="email" placeholder="your@email.com" required></div>
-      <div class="field"><label>Password</label><input type="password" id="pass" placeholder="At least 6 characters" required></div>
-      <div class="field"><label>Confirm Password</label><input type="password" id="confirm" placeholder="Repeat password" required></div>
-      <button type="submit" class="login-btn">Create Account →</button>
-    </form>
-    <p class="login-foot">Already have an account? <a onclick="goPage('login')">Sign In</a></p>
-    <a class="back-link" onclick="goPage('home')">← Back to Home</a>
-  </div>
-</div>
-<script>
-function submitSignup(e) {{
-  e.preventDefault();
-  var email   = document.getElementById('email').value;
-  var pass    = document.getElementById('pass').value;
-  var confirm = document.getElementById('confirm').value;
-  var url = new URL(window.parent.location.href);
-  url.searchParams.set('nav', 'signup');
-  url.searchParams.set('email', encodeURIComponent(email));
-  url.searchParams.set('pass', encodeURIComponent(pass));
-  url.searchParams.set('confirm', encodeURIComponent(confirm));
-  window.parent.location.href = url.toString();
-}}
-</script>
-</body></html>"""
-
-# ── DOCS PAGE ────────────────────────────────────────────────────────────────
-def DOCS_HTML(logged_in=False):
-    return f"""<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Documentation — NicheFlow AI</title>
-{_common_styles()}
-<style>
-.docs-layout{{display:grid;grid-template-columns:210px 1fr;gap:24px;align-items:start;
-              padding:32px clamp(24px,6vw,96px) 80px;max-width:1200px;margin:0 auto;}}
-@media(max-width:740px){{.docs-layout{{grid-template-columns:1fr;}}}}
-.docs-toc{{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px;position:sticky;top:80px;}}
-.docs-toc h4{{font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;}}
-.docs-toc a{{display:block;font-size:13px;color:var(--text2);padding:7px 9px;border-radius:7px;cursor:pointer;
-             text-decoration:none;transition:all .2s;margin-bottom:1px;}}
-.docs-toc a:hover,.docs-toc a.active{{background:#fff8ec;color:var(--gold);font-weight:600;}}
-.docs-sec{{background:#fff;border:1px solid var(--border);border-radius:18px;padding:26px 30px;margin-bottom:16px;}}
-.docs-sec h2{{font-family:'Fraunces',serif;font-size:19px;font-weight:800;color:var(--text);margin-bottom:14px;
-              padding-bottom:12px;border-bottom:1px solid #f0e6d4;display:flex;align-items:center;gap:10px;}}
-.docs-sec h3{{font-size:14px;font-weight:700;color:var(--text);margin:16px 0 7px;}}
-.docs-sec p{{font-size:13.5px;color:var(--text2);line-height:1.8;margin-bottom:10px;}}
-.docs-sec ol,.docs-sec ul{{padding-left:20px;margin:7px 0 10px;}}
-.docs-sec li{{font-size:13.5px;color:var(--text2);line-height:1.8;margin-bottom:4px;}}
-.docs-sec strong{{color:var(--text);}}
-.doc-note{{background:#fff8ec;border-left:3px solid var(--gold);border-radius:0 9px 9px 0;
-           padding:10px 14px;margin:10px 0;font-size:13px;color:#7a5820;line-height:1.7;}}
-.doc-eg{{background:#f8f3ea;border:1px solid #e4d8c4;border-radius:10px;padding:13px 16px;
-         margin:9px 0;font-size:13px;color:#5a4a34;line-height:1.75;font-style:italic;}}
-.step-badge{{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
-             min-width:26px;background:var(--dark);color:var(--cream);border-radius:50%;font-size:12px;font-weight:700;}}
-.docs-header{{padding:32px clamp(24px,6vw,96px) 0;max-width:1200px;margin:0 auto;}}
-</style>
-</head><body>
-{_nav_js()}
-<nav>
-  <div class="nav-logo" onclick="goPage('home')">✦ <em>Niche</em>Flow AI</div>
-  <div class="nav-links">
-    <a onclick="goPage('home')">← Home</a>
-    {'<a onclick="goPage(\'dashboard\')">Dashboard</a>' if logged_in else ''}
-    <a class="nav-cta" onclick="goPage('{'dashboard' if logged_in else 'login'}')">{'Dashboard →' if logged_in else 'Sign In →'}</a>
-  </div>
-</nav>
-<a class="back-nav" onclick="goPage('home')">
-  <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-  Back to Home
-</a>
-<div class="docs-header">
-  <span style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:3.5px;">Documentation</span>
-  <h2 style="font-family:'Fraunces',serif;font-size:clamp(28px,4vw,44px);font-weight:800;color:var(--text);margin:8px 0 6px;">Setup Guide</h2>
-  <p style="font-size:16px;color:var(--text2);margin-bottom:32px;">Everything you need to get fully set up and publishing in under 10 minutes.</p>
-</div>
-<div class="docs-layout">
-  <div class="docs-toc">
-    <h4>On This Page</h4>
-    <a onclick="sDoc('d-groq',this)" class="active">1. Groq API Key</a>
-    <a onclick="sDoc('d-mj',this)">2. Midjourney Key</a>
-    <a onclick="sDoc('d-wp',this)">3. WordPress Setup</a>
-    <a onclick="sDoc('d-pin',this)">4. Pinterest (Pro)</a>
-    <a onclick="sDoc('d-prompt',this)">5. Article Prompts</a>
-    <a onclick="sDoc('d-card',this)">6. Niche Cards</a>
-    <a onclick="sDoc('d-pprompt',this)">7. Pinterest Prompt</a>
-    <a onclick="sDoc('d-tips',this)">8. Best Practices</a>
-  </div>
+<div class="nf-nav">
+  <div class="nf-logo">Niche<span>Flow</span> AI</div>
   <div>
-    <div class="docs-sec" id="d-groq">
-      <h2><span class="step-badge">1</span> Get Your Groq API Key (Free)</h2>
-      <p>Groq is the AI engine that writes your articles. The free tier provides more than enough requests for daily publishing.</p>
-      <ol>
-        <li>Go to <strong>console.groq.com</strong> and create a free account</li>
-        <li>In the left sidebar, click <strong>API Keys</strong></li>
-        <li>Click <strong>Create API Key</strong> and name it "NicheFlow"</li>
-        <li>Copy the key — it begins with <strong>gsk_</strong></li>
-        <li>Paste it in your dashboard under <strong>Settings → Groq API Key</strong></li>
-      </ol>
-      <div class="doc-note">Groq's free tier provides 14,400 requests per day — more than enough for regular daily publishing.</div>
-    </div>
-    <div class="docs-sec" id="d-mj">
-      <h2><span class="step-badge">2</span> Get Your Midjourney API Key</h2>
-      <p>GoAPI connects NicheFlow to Midjourney so 4 images are generated and uploaded automatically for every article.</p>
-      <ol>
-        <li>Go to <strong>goapi.ai</strong> and create an account</li>
-        <li>Choose a plan — pay-as-you-go works well for most users</li>
-        <li>Navigate to <strong>Dashboard → API Keys</strong></li>
-        <li>Copy your key and paste it in <strong>Settings → Midjourney API Key</strong></li>
-      </ol>
-      <div class="doc-note">Images cost a few cents each on GoAPI's pay-as-you-go plan. Each article generates 4 images.</div>
-    </div>
-    <div class="docs-sec" id="d-wp">
-      <h2><span class="step-badge">3</span> Connect Your WordPress Site</h2>
-      <p>This allows NicheFlow to publish articles directly to your WordPress site, including images and formatting.</p>
-      <ol>
-        <li>Log in to your <strong>WordPress Dashboard</strong></li>
-        <li>Go to <strong>Users → Your Profile</strong></li>
-        <li>Scroll down to <strong>Application Passwords</strong></li>
-        <li>Enter a name: <strong>NicheFlow AI</strong> — then click <strong>Add New Application Password</strong></li>
-        <li>Copy the generated password (format: xxxx xxxx xxxx xxxx)</li>
-        <li>In Settings enter your URL as <strong>https://yoursite.com</strong></li>
-        <li>Enter the password as <strong>YourUsername:xxxx xxxx xxxx xxxx</strong></li>
-      </ol>
-      <div class="doc-note">Make sure your URL includes https:// and does not have a trailing slash at the end.</div>
-    </div>
-    <div class="docs-sec" id="d-pin">
-      <h2><span class="step-badge">4</span> Set Up Pinterest Auto-Post &nbsp;<span style="font-size:12px;font-weight:700;color:var(--gold);background:#fff8ec;padding:3px 10px;border-radius:100px;">Pro Plan</span></h2>
-      <p>The Pinterest module automatically creates and posts an optimized Pin for every article you publish.</p>
-      <ol>
-        <li>Go to <strong>developers.pinterest.com</strong> and log in</li>
-        <li>Create a new app under your account</li>
-        <li>Enable permissions: <strong>boards:read</strong> and <strong>pins:write</strong></li>
-        <li>Generate a <strong>User Access Token</strong></li>
-        <li>Find your <strong>Board ID</strong> from your Pinterest board URL</li>
-        <li>Paste both into the Pinterest tab, along with your custom Pinterest prompt</li>
-      </ol>
-      <div class="doc-note">The Pin image is automatically taken from your article's featured image — no extra steps needed.</div>
-    </div>
-    <div class="docs-sec" id="d-prompt">
-      <h2><span class="step-badge">5</span> Write a Great Article Prompt</h2>
-      <p>Your article prompt is the single most impactful setting. It tells the AI how to write for your specific niche and audience. <strong>You write it — no defaults imposed.</strong></p>
-      <h3>Food Blog Example</h3>
-      <div class="doc-eg">Write a warm, personal recipe article in first person. Open with a nostalgic story. Include a "Why You'll Love This" section, 8 expert tips, variations, storage instructions, and 3 FAQs. Friendly tone for home cooks. Target 1200–1500 words.</div>
-      <h3>Travel Blog Example</h3>
-      <div class="doc-eg">Write an inspiring travel guide in second person. Open with a vivid sensory scene. Cover top 5 attractions, local food, best time to visit, budget breakdown, and 5 practical tips. Target budget adventurers aged 25–40.</div>
-      <div class="doc-note">⚠️ Keep prompts under 2000 tokens (roughly 1500 words) to stay within Groq's rate limits.</div>
-    </div>
-    <div class="docs-sec" id="d-card">
-      <h2><span class="step-badge">6</span> Customize Your Niche Card</h2>
-      <p>The niche card is a styled visual block added inside every article — recipe card, destination summary, or any format that fits your niche.</p>
-      <h3>Recipe Card Example</h3>
-      <div class="doc-eg">Create a recipe card with: prep time, cook time, total time, servings, calories per serving, a list of ingredients with quantities, and step-by-step instructions.</div>
-      <h3>Travel Card Example</h3>
-      <div class="doc-eg">Create a destination card with: best time to visit, average daily budget (USD), language, currency, visa required (yes/no), and top 3 attractions.</div>
-      <div class="doc-note">You can toggle the niche card on or off per session from the Generate tab. Your card colors follow your Design Studio settings.</div>
-    </div>
-    <div class="docs-sec" id="d-pprompt">
-      <h2><span class="step-badge">7</span> Write Your Pinterest Prompt &nbsp;<span style="font-size:12px;font-weight:700;color:var(--gold);background:#fff8ec;padding:3px 10px;border-radius:100px;">Pro Plan</span></h2>
-      <p>Your Pinterest prompt tells the AI about your niche and audience so it generates optimized Pin titles, descriptions, and keywords for every article.</p>
-      <h3>Example</h3>
-      <div class="doc-eg">My audience is busy moms who love quick weeknight dinner recipes. Write Pinterest pin descriptions that are warm and conversational, using keywords like family dinner, easy recipes, weeknight meals. Keep under 200 characters with a call to action.</div>
-    </div>
-    <div class="docs-sec" id="d-tips">
-      <h2><span class="step-badge">8</span> Best Practices</h2>
+    <a class="nf-btn nf-btn-outline" href="?nav=docs" style="color:{CREAM};text-decoration:none;padding:10px 24px;font-size:14px;">Docs</a>
+    <a class="nf-btn nf-btn-outline" href="?nav=login" style="color:{CREAM};text-decoration:none;padding:10px 24px;font-size:14px;margin-left:8px;">Login</a>
+    <a class="nf-btn" href="?nav=signup" style="color:{DARK};text-decoration:none;padding:10px 24px;font-size:14px;margin-left:8px;">Get Started Free</a>
+  </div>
+</div>
+
+<div class="nf-hero">
+  <h1>AI Content Engine<br>for <em>Niche Sites</em></h1>
+  <p>Generate SEO articles, info cards, and Midjourney images — published directly to WordPress. On autopilot.</p>
+  <a class="nf-btn" href="?nav=signup" style="color:{DARK};text-decoration:none;">Start Free Today ✦</a>
+  <a class="nf-btn nf-btn-outline" href="?nav=docs" style="color:{CREAM};text-decoration:none;">See How It Works</a>
+</div>
+
+<div class="nf-features">
+  <div class="nf-feat"><div class="icon">✍️</div><h3>AI Article Generator</h3><p>Write complete SEO-optimized articles using Groq's fastest models. Customize the HTML structure or just use a prompt — your choice.</p></div>
+  <div class="nf-feat"><div class="icon">🖼️</div><h3>Midjourney Images</h3><p>Generate 4 professional images per article with GoAPI. Auto-uploaded to your WordPress media library.</p></div>
+  <div class="nf-feat"><div class="icon">🃏</div><h3>Custom Info Cards</h3><p>Beautiful recipe cards, travel cards, product cards — fully customizable design and fields for any niche.</p></div>
+  <div class="nf-feat"><div class="icon">🔗</div><h3>Internal Linking</h3><p>Automatically links to your existing posts, loaded fresh from WordPress each run to stay always up to date.</p></div>
+  <div class="nf-feat"><div class="icon">📌</div><h3>Pinterest Publisher</h3><p>Auto-generate optimized pins and publish directly to your boards. Schedule posts for maximum reach. (Pro)</p></div>
+  <div class="nf-feat"><div class="icon">⚡</div><h3>Zero Setup</h3><p>Add your API keys once. Generate and publish in one click. No technical knowledge required.</p></div>
+</div>
+
+<div class="nf-pricing">
+  <h2>Simple Pricing</h2>
+  <div class="nf-plans">
+    <div class="nf-plan">
+      <div class="badge">BASIC</div>
+      <h3>Basic</h3>
+      <div class="price">$30<span>/mo</span></div>
       <ul>
-        <li><strong>Use descriptive titles</strong> — "Easy Creamy Tuscan Chicken Pasta" gets far better results than just "Pasta"</li>
-        <li><strong>Set a 5–10 second delay</strong> between articles during bulk generation to stay within Groq's rate limits</li>
-        <li><strong>Start with Draft status</strong> so you can review each article before it goes live</li>
-        <li><strong>Customize your article prompt</strong> — this single setting has the biggest impact on quality</li>
-        <li><strong>Test with one article first</strong> before running a bulk batch of 10 or more</li>
-        <li><strong>Keep your API keys private</strong> — never share them or include them in screenshots</li>
-        <li><strong>Pinterest descriptions</strong> should reference your specific audience for the most relevant pin content</li>
+        <li>Unlimited article generation</li>
+        <li>3 Groq AI models auto-fallback</li>
+        <li>Midjourney images via GoAPI</li>
+        <li>WordPress auto-publish</li>
+        <li>Custom HTML templates</li>
+        <li>Internal linking system</li>
       </ul>
+      <a class="nf-btn" href="?nav=signup" style="color:{DARK};text-decoration:none;display:block;">Get Started</a>
+    </div>
+    <div class="nf-plan pro">
+      <div class="badge">⭐ PRO</div>
+      <h3>Pro</h3>
+      <div class="price">$40<span>/mo</span></div>
+      <ul>
+        <li>Everything in Basic</li>
+        <li>Pinterest auto-publishing</li>
+        <li>Pinterest board scheduler</li>
+        <li>Pinterest prompt customizer</li>
+        <li>Pinterest post status tracking</li>
+        <li>Priority support</li>
+      </ul>
+      <a class="nf-btn" href="?nav=signup" style="color:{DARK};text-decoration:none;display:block;">Go Pro</a>
     </div>
   </div>
 </div>
-<footer>
-  <div class="f-logo">✦ NicheFlow AI</div>
-  <p>AI-powered blog &amp; Pinterest content generator</p>
-  <p style="color:#b0a080;margin-top:14px;">© 2026 NicheFlow AI · All rights reserved</p>
-</footer>
-<script>
-function sDoc(id, el) {{
-  document.getElementById(id).scrollIntoView({{behavior:'smooth',block:'start'}});
-  document.querySelectorAll('.docs-toc a').forEach(x => x.classList.remove('active'));
-  el.classList.add('active');
-}}
-</script>
-</body></html>"""
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  HANDLE FORM SUBMISSIONS FROM IFRAMES (login / signup via query params)
-# ─────────────────────────────────────────────────────────────────────────────
-if "nav" in st.query_params:
-    nav_target = st.query_params.get("nav","")
-    email      = st.query_params.get("email","")
-    password   = st.query_params.get("pass","")
-    confirm    = st.query_params.get("confirm","")
+<div class="nf-footer">✦ NicheFlow AI — Built for content creators worldwide</div>
+""", unsafe_allow_html=True)
 
-    from urllib.parse import unquote
-    email    = unquote(email)
-    password = unquote(password)
-    confirm  = unquote(confirm)
 
-    if nav_target == "login" and email and password:
-        do_login(email, password)
-        st.query_params.clear()
-        st.rerun()
-    elif nav_target == "signup" and email and password and confirm:
-        do_signup(email, password, confirm)
-        st.query_params.clear()
-        st.rerun()
-    elif nav_target in ("home","login","signup","docs","dashboard"):
-        if nav_target == "dashboard" and not st.session_state.user_id:
-            st.session_state.page = "login"
-        else:
-            st.session_state.page = nav_target
-        st.query_params.clear()
-        st.rerun()
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  DASHBOARD HELPERS
-# ─────────────────────────────────────────────────────────────────────────────
-def stat_card(title, value, icon, color="#c9892a"):
+# ═══════════════════════════════════════════════════════════════════════════════
+#  LOGIN PAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+def page_login():
     st.markdown(f"""
-    <div style="background:#fff;border:1px solid #dfd4bc;border-radius:14px;padding:20px;text-align:center;">
-      <div style="font-size:22px;margin-bottom:8px;">{icon}</div>
-      <div style="font-family:Georgia,serif;font-size:32px;font-weight:800;color:{color};line-height:1;">{value}</div>
-      <div style="font-size:11.5px;color:#8a7a60;margin-top:4px;">{title}</div>
-    </div>""", unsafe_allow_html=True)
+<style>.stApp{{background:{DARK};}}</style>
+<div style="background:{DARK};min-height:100vh;padding:40px 20px;">
+<a href="?nav=home" style="color:{GOLD};text-decoration:none;font-size:14px;
+   display:block;text-align:center;margin-bottom:24px;">← Back to Home</a>
+<div style="background:{CARD};border:1px solid {BORDER};border-radius:24px;
+            padding:48px;max-width:440px;margin:0 auto;">
+<div style="text-align:center;font-size:28px;font-weight:900;color:{CREAM};margin-bottom:8px;">
+  Niche<span style="color:{GOLD};">Flow</span> AI</div>
+<div style="text-align:center;color:#666;font-size:14px;margin-bottom:36px;">
+  Welcome back — sign in to your workspace</div>
+""", unsafe_allow_html=True)
 
-def section_header(title, subtitle=""):
-    st.markdown(f"""
-    <div style="padding:20px 0 16px 0;border-bottom:1px solid #dfd4bc;margin-bottom:24px;">
-      <h1 style="font-family:Georgia,serif;font-size:22px;font-weight:800;color:#1a1510;margin:0;">{title}</h1>
-      {f'<p style="font-size:13px;color:#8a7a60;margin:4px 0 0 0;">{subtitle}</p>' if subtitle else ''}
-    </div>""", unsafe_allow_html=True)
-
-def info_box(msg):
-    st.markdown(f'<div style="background:#fff8ec;border-left:4px solid #c9892a;border-radius:0 8px 8px 0;padding:10px 14px;font-size:13px;color:#7a5820;margin-bottom:12px;">{msg}</div>', unsafe_allow_html=True)
-
-def success_box(msg):
-    st.markdown(f'<div style="background:#f0faf4;border:1px solid #a4d8b8;color:#1a6e38;border-radius:9px;padding:10px 14px;font-size:13px;margin-bottom:12px;">✅ {msg}</div>', unsafe_allow_html=True)
-
-def error_box(msg):
-    st.markdown(f'<div style="background:#fff0f0;border:1px solid #ffd0d0;color:#c03030;border-radius:9px;padding:10px 14px;font-size:13px;margin-bottom:12px;">❌ {msg}</div>', unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  SIDEBAR
-# ─────────────────────────────────────────────────────────────────────────────
-def render_sidebar():
-    s = st.session_state
-    plan_label = "Pro Plan · $40/mo" if s.user_plan == "pro" else "Basic Plan · $30/mo"
-    plan_color = "#e8a83e" if s.user_plan == "pro" else "rgba(253,246,232,.4)"
-    with st.sidebar:
-        st.markdown(f"""
-        <style>
-        section[data-testid="stSidebar"]{{display:flex!important;}}
-        [data-testid="stSidebarContent"]{{background:#0f0d09!important;}}
-        </style>
-        <div style="padding:22px 22px 18px;font-family:Georgia,serif;font-size:19px;font-weight:800;
-             color:#fdf6e8;border-bottom:1px solid rgba(255,255,255,.07);">
-          ✦ <em style="color:#c9892a;font-style:normal;">Niche</em>Flow AI</div>
-        <div style="padding:15px 22px;border-bottom:1px solid rgba(255,255,255,.07);">
-          <div style="font-size:13.5px;font-weight:600;color:#fdf6e8;">{s.user_email or 'User'}</div>
-          <div style="font-size:11.5px;color:{plan_color};margin-top:3px;">{plan_label}</div>
-        </div>""", unsafe_allow_html=True)
-
-        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
-        tabs = [
-            ("overview",  "📊", "Overview"),
-            ("generate",  "✍️", "Generate"),
-            ("settings",  "⚙️", "Settings"),
-            ("prompts",   "📝", "Prompts"),
-            ("design",    "🎨", "Design Studio"),
-            ("pinterest", "📌", "Pinterest"),
-            ("billing",   "💳", "Billing"),
-            ("docs",      "📖", "Documentation"),
-        ]
-        for key, icon, label in tabs:
-            active = s.dash_tab == key
-            if st.button(f"{icon}  {label}", key=f"nav_{key}", use_container_width=True):
-                s.dash_tab = key; st.rerun()
-
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-        if st.button("🚪  Sign Out", use_container_width=True, key="nav_logout"):
-            do_logout(); st.rerun()
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  DASHBOARD TABS
-# ─────────────────────────────────────────────────────────────────────────────
-def tab_overview():
-    section_header("Overview", "Your NicheFlow AI dashboard")
-    s = st.session_state.settings
-    c1,c2,c3,c4 = st.columns(4)
-    with c1: stat_card("Articles Generated", s.get("articles_generated",0), "✍️")
-    with c2: stat_card("Images Created",      s.get("images_created",0),     "🎨")
-    with c3: stat_card("Posts Published",     s.get("posts_published",0),    "🌐")
-    with c4: stat_card("Pins Posted",         s.get("pins_posted",0),        "📌")
-    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
-    c1,c2 = st.columns(2)
-    with c1:
-        st.markdown("""
-        <div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;">
-          <h3 style="font-size:14.5px;font-weight:700;color:#1a1510;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid #f0e6d4;">🚀 Quick Start</h3>
-          <p style="font-size:13.5px;color:#5a5040;line-height:2;">
-            1. Add your API keys in <strong>Settings</strong><br>
-            2. Write your prompts in <strong>Prompts</strong><br>
-            3. Style your articles in <strong>Design Studio</strong><br>
-            4. Go to <strong>Generate</strong> and paste titles
-          </p>
-        </div>""", unsafe_allow_html=True)
-    with c2:
-        plan = st.session_state.user_plan
-        st.markdown(f"""
-        <div style="background:linear-gradient(135deg,#1c1810,#0f0d09);border:1px solid rgba(201,137,42,.3);
-             border-radius:18px;padding:24px;color:#fdf6e8;">
-          <h3 style="font-size:14.5px;font-weight:700;color:#e8a83e;margin:0 0 12px 0;">
-            {'⭐ Pro Plan' if plan=='pro' else '📦 Basic Plan'}</h3>
-          <p style="font-size:13px;color:rgba(253,246,232,.6);line-height:1.7;">
-            {'All features unlocked including Pinterest Auto-Post and Scheduler.' if plan=='pro'
-             else 'Upgrade to Pro ($40/mo) to unlock Pinterest Auto-Post, Scheduler, and priority support.'}</p>
-        </div>""", unsafe_allow_html=True)
-
-
-def tab_settings():
-    section_header("Settings", "API credentials and publishing preferences")
-    s = st.session_state.settings
-
-    if st.session_state.save_ok:
-        success_box("Settings saved successfully!")
-        st.session_state.save_ok = False
-
-    c1,c2 = st.columns(2)
-    with c1:
-        st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;">', unsafe_allow_html=True)
-        st.markdown('<h3 style="font-size:14.5px;font-weight:700;color:#1a1510;margin:0 0 18px 0;padding-bottom:13px;border-bottom:1px solid #f0e6d4;">🔑 API Credentials</h3>', unsafe_allow_html=True)
-        groq_key   = st.text_input("Groq API Key",             value=s.get("groq_key",""),   type="password", placeholder="gsk_...", help="Free at console.groq.com")
-        c1a,c1b    = st.columns([1,2])
-        with c1a:
-            if st.button("Test Groq", key="test_groq"):
-                r = test_groq_key(groq_key) if (GEN_OK and groq_key) else {"success":False,"message":"Enter a key first"}
-                st.session_state["groq_test"] = r
-        with c1b:
-            if "groq_test" in st.session_state:
-                r = st.session_state.groq_test
-                st.markdown(f'<div style="font-size:12px;padding:6px 0;color:{"#1a6e38" if r["success"] else "#c03030"};">{r["message"]}</div>', unsafe_allow_html=True)
-
-        goapi_key  = st.text_input("Midjourney API Key (GoAPI)", value=s.get("mj_key",""),  type="password", placeholder="Your GoAPI key")
-        c2a,c2b    = st.columns([1,2])
-        with c2a:
-            if st.button("Test GoAPI", key="test_goapi"):
-                r = test_goapi_key(goapi_key) if (GEN_OK and goapi_key) else {"success":False,"message":"Enter a key first"}
-                st.session_state["goapi_test"] = r
-        with c2b:
-            if "goapi_test" in st.session_state:
-                r = st.session_state.goapi_test
-                st.markdown(f'<div style="font-size:12px;padding:6px 0;color:{"#1a6e38" if r["success"] else "#c03030"};">{r["message"]}</div>', unsafe_allow_html=True)
-
-        wp_url      = st.text_input("WordPress Site URL",       value=s.get("wp_url",""),     placeholder="https://yoursite.com")
-        wp_password = st.text_input("WordPress App Password",   value=s.get("wp_password",""), type="password", placeholder="Username:xxxx xxxx xxxx xxxx")
-        c3a,c3b     = st.columns([1,2])
-        with c3a:
-            if st.button("Test WordPress", key="test_wp"):
-                r = test_wordpress(wp_url, wp_password) if (GEN_OK and wp_url and wp_password) else {"success":False,"message":"Enter URL and password first"}
-                st.session_state["wp_test"] = r
-                if r["success"] and GEN_OK:
-                    st.session_state.wp_categories = fetch_wp_categories(wp_url, wp_password)
-        with c3b:
-            if "wp_test" in st.session_state:
-                r = st.session_state.wp_test
-                st.markdown(f'<div style="font-size:12px;padding:6px 0;color:{"#1a6e38" if r["success"] else "#c03030"};">{r["message"]}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with c2:
-        st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;">', unsafe_allow_html=True)
-        st.markdown('<h3 style="font-size:14.5px;font-weight:700;color:#1a1510;margin:0 0 18px 0;padding-bottom:13px;border-bottom:1px solid #f0e6d4;">⚙️ Publishing Preferences</h3>', unsafe_allow_html=True)
-        publish_status = st.selectbox("Publish Status", ["draft","publish"],
-                                       index=0 if s.get("publish_status","draft")=="draft" else 1)
-        info_box("💡 Start with <strong>Draft</strong> — review articles before they go live.")
-        use_images = st.toggle("Generate Midjourney Images", value=bool(s.get("use_images",True)))
-        show_card  = st.toggle("Include Info Card in Articles", value=bool(s.get("show_card",True)))
-        card_click = st.toggle("Card Clickable in WordPress", value=bool(s.get("card_clickable",False)))
-
-        st.markdown('<h3 style="font-size:13.5px;font-weight:700;color:#1a1510;margin:18px 0 10px 0;">🎞️ Midjourney Prompt Template</h3>', unsafe_allow_html=True)
-        mj_template = st.text_area("Midjourney Template", value=s.get("mj_template",""), height=80,
-                                    placeholder="Close up {recipe_name}, food photography, natural light --ar 2:3 --v 6.1",
-                                    help="Use {recipe_name} as placeholder for article title")
-
-        st.markdown('<h3 style="font-size:13.5px;font-weight:700;color:#1a1510;margin:18px 0 10px 0;">🔗 Internal Links</h3>', unsafe_allow_html=True)
-        use_int_links = st.toggle("Enable Internal Linking", value=bool(s.get("use_internal_links",False)))
-        max_links = int(s.get("max_links",4))
-        if use_int_links:
-            max_links = st.slider("Max links per article", 1, 8, max_links)
-
-        cats = st.session_state.wp_categories
-        selected_cats = []
-        if cats:
-            st.markdown('<h3 style="font-size:13.5px;font-weight:700;color:#1a1510;margin:18px 0 10px 0;">📁 WordPress Categories</h3>', unsafe_allow_html=True)
-            cat_options = {c["name"]: c["id"] for c in cats}
-            sel_names   = st.multiselect("Assign to categories", options=list(cat_options.keys()))
-            selected_cats = [cat_options[n] for n in sel_names]
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-    if st.button("💾 Save Settings", type="primary"):
-        st.session_state.settings.update({
-            "groq_key": groq_key, "mj_key": goapi_key,
-            "wp_url": wp_url, "wp_password": wp_password,
-            "publish_status": publish_status,
-            "use_images": use_images, "show_card": show_card,
-            "card_clickable": card_click, "mj_template": mj_template,
-            "use_internal_links": use_int_links, "max_links": max_links,
-        })
-        save_settings_to_db(); st.rerun()
-
-
-def tab_prompts():
-    section_header("Prompts", "Customize how your content is generated")
-    s = st.session_state.settings
-
-    if st.session_state.save_ok:
-        success_box("Prompts saved successfully!")
-        st.session_state.save_ok = False
-
-    info_box("⚠️ <strong>Token Warning:</strong> Keep your article prompt under 2000 tokens (roughly 1500 words) to avoid Groq rate limits. Short, clear instructions work best.")
-
-    t1, t2, t3 = st.tabs(["✍️ Article Prompt", "🃏 Card Prompt", "📌 Pinterest Prompt"])
-
-    with t1:
-        st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;">', unsafe_allow_html=True)
-        st.markdown('<p style="font-size:13.5px;color:#5a5040;line-height:1.7;margin-bottom:16px;">Write your article prompt. This tells the AI exactly how to write for your niche, audience, and style. <strong>Your prompt, your rules — no defaults.</strong></p>', unsafe_allow_html=True)
-        article_prompt = st.text_area("Your Article Prompt", value=s.get("article_prompt",""), height=200,
-            placeholder="Example — Travel blog:\nWrite an inspiring travel guide in second person. Open with a vivid sensory scene. Cover top 5 attractions, local food, best time to visit, budget, and 5 practical tips. Target budget adventurers aged 25-40. Use H2 headings for each section. 1200-1500 words.\n\nExample — Recipe blog:\nWrite a warm, personal recipe article in first person. Open with a nostalgic story. Include a 'Why You'll Love This' section, 6 expert tips, variations, and 3 FAQs. Friendly tone for home cooks. 1200 words.")
-        st.markdown('<h3 style="font-size:13.5px;font-weight:700;color:#1a1510;margin:20px 0 10px 0;">🏗️ Custom HTML Structure (optional)</h3>', unsafe_allow_html=True)
-        st.markdown('<p style="font-size:13px;color:#8a7a60;margin-bottom:10px;">Paste your HTML/CSS style template. The AI will follow this structure for every article.</p>', unsafe_allow_html=True)
-        html_structure = st.text_area("HTML Structure Template", value=s.get("html_structure",""), height=140,
-            placeholder='<h2 style="color:MAIN_COLOR;">Section Title</h2>\n<div style="background:#f9f9f9;border-left:4px solid MAIN_COLOR;padding:16px;">...</div>')
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with t2:
-        st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;">', unsafe_allow_html=True)
-        st.markdown('<p style="font-size:13.5px;color:#5a5040;line-height:1.7;margin-bottom:16px;">Describe the card you want in every article — recipe card, travel card, health summary, product card, anything. The AI generates the data, you control the structure.</p>', unsafe_allow_html=True)
-        card_prompt = st.text_area("Your Card Prompt", value=s.get("card_prompt",""), height=180,
-            placeholder="Example — Recipe card:\nCreate a recipe card with prep time, cook time, total time, servings, calories per serving, protein, carbs, fat, a list of ingredients with quantities, and step-by-step instructions.\n\nExample — Travel card:\nCreate a destination quick-reference card with best time to visit, average daily budget in USD, official language, currency, visa required (yes/no), and top 3 must-see attractions.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with t3:
-        if st.session_state.user_plan != "pro":
-            st.markdown("""
-            <div style="background:linear-gradient(135deg,#1c1810,#0f0d09);border:1px solid rgba(201,137,42,.38);
-                 border-radius:18px;padding:28px;text-align:center;color:#fdf6e8;">
-              <div style="font-size:34px;margin-bottom:10px;">📌</div>
-              <h3 style="font-family:Georgia,serif;font-size:22px;font-weight:800;color:#fdf6e8;margin:0 0 8px 0;">Pinterest Prompt</h3>
-              <p style="font-size:13.5px;color:rgba(253,246,232,.5);line-height:1.7;">
-                Available on the <span style="color:#e8a83e;font-weight:600;">Pro plan ($40/month)</span>.<br>
-                Upgrade to write your Pinterest prompt and auto-post optimized pins after every article.</p>
-            </div>""", unsafe_allow_html=True)
-            pinterest_prompt = s.get("pinterest_prompt","")
-        else:
-            st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;">', unsafe_allow_html=True)
-            st.markdown('<p style="font-size:13.5px;color:#5a5040;line-height:1.7;margin-bottom:16px;">Describe your Pinterest niche and audience. The AI uses this to generate optimized Pin titles, descriptions, and alt text after every article is published.</p>', unsafe_allow_html=True)
-            pinterest_prompt = st.text_area("Your Pinterest Prompt", value=s.get("pinterest_prompt",""), height=160,
-                placeholder="My audience is busy moms who love quick weeknight dinner recipes. Write warm, conversational pin descriptions using keywords like family dinner, easy recipes, weeknight meals. Keep under 200 characters with a call to action.")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-    if st.button("💾 Save Prompts", type="primary"):
-        updates = {"article_prompt": article_prompt, "html_structure": html_structure, "card_prompt": card_prompt}
-        if st.session_state.user_plan == "pro":
-            updates["pinterest_prompt"] = pinterest_prompt
-        st.session_state.settings.update(updates)
-        save_settings_to_db(); st.rerun()
-
-
-def tab_design():
-    section_header("Design Studio", "Customize how your articles look")
-    s = st.session_state.settings
-
-    if st.session_state.save_ok:
-        success_box("Design settings saved!")
-        st.session_state.save_ok = False
-
-    c1,c2 = st.columns(2)
-    with c1:
-        st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;">', unsafe_allow_html=True)
-        st.markdown('<h3 style="font-size:14.5px;font-weight:700;color:#1a1510;margin:0 0 18px 0;padding-bottom:13px;border-bottom:1px solid #f0e6d4;">🎨 Color Theme</h3>', unsafe_allow_html=True)
-        main_color   = st.color_picker("Main Color (headings, accents)", value=s.get("design_main_color","#333333"))
-        accent_color = st.color_picker("Accent / Highlight Color",        value=s.get("design_accent_color","#ea580c"))
-        font_opts    = ["inherit","'Georgia',serif","'Arial',sans-serif","'Verdana',sans-serif",
-                        "'Trebuchet MS',sans-serif","'Times New Roman',serif","'Courier New',monospace"]
-        font_labels  = ["Site default","Georgia (serif)","Arial","Verdana","Trebuchet MS","Times New Roman","Courier New"]
-        cur_font     = s.get("design_font_family","inherit")
-        font_idx     = font_opts.index(cur_font) if cur_font in font_opts else 0
-        font_family  = font_opts[st.selectbox("Article Font", options=range(len(font_labels)),
-                                               format_func=lambda i: font_labels[i], index=font_idx)]
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with c2:
-        st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;">', unsafe_allow_html=True)
-        st.markdown('<h3 style="font-size:14.5px;font-weight:700;color:#1a1510;margin:0 0 18px 0;padding-bottom:13px;border-bottom:1px solid #f0e6d4;">👁️ Live Preview</h3>', unsafe_allow_html=True)
-        st.markdown(f"""
-        <div style="font-family:{font_family};border:1px solid #eee;border-radius:12px;padding:20px;background:#fafafa;">
-          <h2 style="color:{main_color};font-size:18px;font-weight:800;margin:0 0 10px 0;">Your Article Title Here</h2>
-          <p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px 0;">This is how your article body text and intro paragraphs will look with your chosen font and color settings applied.</p>
-          <div style="background:#f9f9f9;border-left:4px solid {accent_color};border-radius:0 8px 8px 0;padding:12px 16px;">
-            <ul style="margin:0;padding-left:16px;line-height:2.2;font-size:13px;color:#444;">
-              <li>Key tip or expert insight</li>
-              <li>Why readers will love this</li>
-              <li>Important detail or fact</li>
-            </ul>
-          </div>
-        </div>""", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-    if st.button("💾 Save Design", type="primary"):
-        st.session_state.settings.update({
-            "design_main_color": main_color, "design_accent_color": accent_color, "design_font_family": font_family,
-        })
-        save_settings_to_db(); st.rerun()
-
-
-def tab_generate():
-    section_header("Generate Articles", "Paste titles and publish automatically")
-    s = st.session_state.settings
-
-    missing = []
-    if not s.get("groq_key"):     missing.append("Groq API key")
-    if not s.get("wp_url"):       missing.append("WordPress URL")
-    if not s.get("wp_password"):  missing.append("WordPress App Password")
-    if not s.get("article_prompt"): missing.append("Article Prompt (Prompts tab)")
-
-    if missing:
-        error_box(f"Please configure first: <strong>{', '.join(missing)}</strong>")
-        return
-
-    st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;margin-bottom:18px;">', unsafe_allow_html=True)
-    st.markdown('<h3 style="font-size:14.5px;font-weight:700;color:#1a1510;margin:0 0 6px 0;">📋 Article Titles</h3>', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:13px;color:#8a7a60;margin-bottom:16px;">One title per line. NicheFlow writes, designs, and publishes each article automatically.</p>', unsafe_allow_html=True)
-
-    titles_input = st.text_area("Titles", height=160,
-        placeholder="How to Travel Europe on a Budget\n10 Best Hiking Trails in Colorado\nMediterranean Grilled Chicken Recipe",
-        label_visibility="collapsed")
-
-    c1,c2,c3,c4 = st.columns(4)
-    with c1: gen_images = st.toggle("Generate Images",  value=bool(s.get("use_images",True)),           key="gen_use_images")
-    with c2: gen_card   = st.toggle("Include Card",     value=bool(s.get("show_card",True)),             key="gen_show_card")
-    with c3: gen_links  = st.toggle("Internal Links",   value=bool(s.get("use_internal_links",False)),   key="gen_int_links")
-    with c4: delay_sec  = st.number_input("Delay (sec)", min_value=0, max_value=30, value=5, key="gen_delay")
-
-    show_logs = st.checkbox("Show processing logs", value=False)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    if st.button("🚀 Generate & Publish All", type="primary") and titles_input.strip():
-        titles = [t.strip() for t in titles_input.strip().splitlines() if t.strip()]
-        if not titles: error_box("Enter at least one title."); return
-
-        log_container = st.empty()
-        pipeline_settings = {
-            "groq_key": s.get("groq_key",""), "goapi_key": s.get("mj_key",""),
-            "wp_url": s.get("wp_url",""), "wp_password": s.get("wp_password",""),
-            "publish_status": s.get("publish_status","draft"),
-            "mj_template": s.get("mj_template",""),
-            "use_images": gen_images and bool(s.get("mj_key","")),
-            "show_card": gen_card, "card_clickable": bool(s.get("card_clickable",False)),
-            "use_internal_links": gen_links, "max_links": int(s.get("max_links",4)),
-            "user_article_prompt": s.get("article_prompt",""),
-            "user_html_structure": s.get("html_structure",""),
-            "user_card_prompt": s.get("card_prompt",""),
-            "user_design": {
-                "main_color":   s.get("design_main_color","#333333"),
-                "accent_color": s.get("design_accent_color","#ea580c"),
-                "font_family":  s.get("design_font_family","inherit"),
-            },
-        }
-        all_logs = []
-        for i, title in enumerate(titles):
-            st.markdown(f'<div style="background:#fff8ec;border-left:4px solid #c9892a;border-radius:0 8px 8px 0;padding:10px 14px;font-size:13px;color:#7a5820;margin-bottom:8px;">⏳ Processing <strong>{i+1}/{len(titles)}</strong>: {title}</div>', unsafe_allow_html=True)
-
-            def log_fn(msg, _logs=all_logs, _c=log_container, _show=show_logs):
-                _logs.append(msg)
-                if _show:
-                    _c.markdown(
-                        '<div style="background:#1a1510;border-radius:10px;padding:14px;font-family:monospace;font-size:12px;color:#a0c080;max-height:200px;overflow-y:auto;">'
-                        + '<br>'.join(_logs[-20:]) + '</div>', unsafe_allow_html=True)
-
-            result = run_full_pipeline(title, pipeline_settings, log_fn=log_fn) if GEN_OK else {"success":False,"error":"Generator not available"}
-
-            if result.get("success"):
-                st.markdown(f'<div style="background:#f0faf4;border:1px solid #a4d8b8;color:#1a6e38;border-radius:9px;padding:10px 14px;font-size:13px;margin-bottom:8px;">✅ <strong>{title}</strong> → <a href="{result.get("post_url","")}" target="_blank">{result.get("post_url","view post")}</a></div>', unsafe_allow_html=True)
-                db_increment_stat(st.session_state.user_id, "articles_generated")
-                db_increment_stat(st.session_state.user_id, "posts_published")
-                ic = result.get("image_count",0)
-                if ic: db_increment_stat(st.session_state.user_id, "images_created", ic)
+    with st.form("login_form"):
+        email = st.text_input("Email", placeholder="you@example.com")
+        pw    = st.text_input("Password", type="password", placeholder="••••••••")
+        sub   = st.form_submit_button("Sign In ✦", use_container_width=True)
+        if sub:
+            if not email or not pw:
+                st.error("Please fill in all fields")
             else:
-                error_box(f"<strong>{title}</strong>: {result.get('error','Unknown error')}")
+                with st.spinner("Signing in..."):
+                    res = login_user(email.strip().lower(), pw)
+                if res["ok"]:
+                    st.session_state.user = res["user"]
+                    st.session_state.last_settings = {}
+                    go("dashboard")
+                else:
+                    st.error(f"❌ {res['err']}")
 
-            if i < len(titles)-1 and delay_sec > 0:
-                time.sleep(delay_sec)
+    st.markdown(f"""
+<div style="text-align:center;margin-top:24px;color:#666;font-size:14px;">
+  Don't have an account?
+  <a href="?nav=signup" style="color:{GOLD};text-decoration:none;">Sign up free</a>
+</div></div></div>""", unsafe_allow_html=True)
 
-        st.session_state.settings = db_load_settings(st.session_state.user_id)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  SIGNUP PAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+def page_signup():
+    st.markdown(f"""
+<style>.stApp{{background:{DARK};}}</style>
+<div style="background:{DARK};min-height:100vh;padding:40px 20px;">
+<a href="?nav=home" style="color:{GOLD};text-decoration:none;font-size:14px;
+   display:block;text-align:center;margin-bottom:24px;">← Back to Home</a>
+<div style="background:{CARD};border:1px solid {BORDER};border-radius:24px;
+            padding:48px;max-width:440px;margin:0 auto;">
+<div style="text-align:center;font-size:28px;font-weight:900;color:{CREAM};margin-bottom:8px;">
+  Niche<span style="color:{GOLD};">Flow</span> AI</div>
+<div style="text-align:center;color:#666;font-size:14px;margin-bottom:36px;">
+  Create your free account — no credit card required</div>
+""", unsafe_allow_html=True)
+
+    with st.form("signup_form"):
+        email = st.text_input("Email", placeholder="you@example.com")
+        pw    = st.text_input("Password", type="password", placeholder="Min 6 characters")
+        pw2   = st.text_input("Confirm Password", type="password", placeholder="Repeat password")
+        sub   = st.form_submit_button("Create Account ✦", use_container_width=True)
+        if sub:
+            if not email or not pw:
+                st.error("Please fill in all fields")
+            elif pw != pw2:
+                st.error("Passwords do not match")
+            else:
+                with st.spinner("Creating account..."):
+                    res = signup_user(email.strip().lower(), pw)
+                if res["ok"]:
+                    st.session_state.user = res["user"]
+                    st.session_state.last_settings = {}
+                    st.success("✅ Account created! Welcome!")
+                    time.sleep(1)
+                    go("dashboard")
+                else:
+                    st.error(f"❌ {res['err']}")
+
+    st.markdown(f"""
+<div style="text-align:center;margin-top:24px;color:#666;font-size:14px;">
+  Already have an account?
+  <a href="?nav=login" style="color:{GOLD};text-decoration:none;">Sign in</a>
+</div></div></div>""", unsafe_allow_html=True)
 
 
-def tab_pinterest():
-    section_header("Pinterest Auto-Post", "Configure Pinterest integration")
-    s = st.session_state.settings
+# ═══════════════════════════════════════════════════════════════════════════════
+#  DOCS PAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+def page_docs():
+    st.markdown(f"""
+<style>.stApp{{background:{DARK};}}</style>
+<div style="background:{DARK};min-height:100vh;padding:40px 60px;max-width:900px;margin:0 auto;">
+<a href="?nav=home" style="color:{GOLD};text-decoration:none;font-size:14px;
+   display:inline-block;margin-bottom:32px;">← Back to Home</a>
+<h1 style="color:{CREAM};font-size:42px;font-weight:900;margin:0 0 16px;letter-spacing:-1px;">Documentation</h1>
+<p style="color:#666;font-size:16px;margin:0 0 48px;">Everything you need to set up and use NicheFlow AI.</p>
+""", unsafe_allow_html=True)
 
-    if st.session_state.user_plan != "pro":
-        st.markdown("""
-        <div style="background:linear-gradient(135deg,#1c1810,#0f0d09);border:1px solid rgba(201,137,42,.38);
-             border-radius:18px;padding:32px;text-align:center;color:#fdf6e8;margin-bottom:22px;">
-          <div style="font-size:40px;margin-bottom:12px;">📌</div>
-          <h3 style="font-family:Georgia,serif;font-size:24px;font-weight:800;color:#fdf6e8;margin:0 0 10px 0;">Pinterest Auto-Post</h3>
-          <p style="font-size:14px;color:rgba(253,246,232,.5);line-height:1.7;max-width:480px;margin:0 auto 20px;">
-            Available on the <span style="color:#e8a83e;font-weight:700;">Pro plan ($40/month)</span>.<br>
-            Automatically post optimized Pins after every WordPress publish.</p>
-          <div style="background:rgba(201,137,42,.15);border:1px solid rgba(201,137,42,.3);border-radius:10px;padding:16px;max-width:360px;margin:0 auto;">
-            <p style="font-size:13px;color:rgba(253,246,232,.7);margin:0;line-height:2;">✅ Pinterest Keyword Optimizer<br>✅ Custom Pinterest Prompt<br>✅ Post Scheduler (day + time)<br>✅ Auto Pin from Featured Image</p>
-          </div>
-        </div>""", unsafe_allow_html=True)
-        if st.button("⬆️ Upgrade to Pro", type="primary"):
-            st.session_state.dash_tab = "billing"; st.rerun()
+    sections = [
+        ("🔑 Groq API Key (Free)", f"""
+<b style="color:{CREAM};">What it is:</b> Your AI writing engine. Free at <a href="https://console.groq.com" target="_blank" style="color:{GOLD};">console.groq.com</a><br><br>
+<b style="color:{CREAM};">How to get it:</b><br>
+1. Go to console.groq.com → sign up free<br>
+2. Click "API Keys" in the left sidebar<br>
+3. Click "Create API Key" → copy it (starts with <code>gsk_</code>)<br>
+4. Paste in Settings tab → Groq API Key field<br><br>
+<b style="color:{CREAM};">Free limits:</b> 14,400 requests/day · 6,000 tokens/min per model<br>
+<b style="color:{CREAM};">Auto-fallback:</b> If one model is rate-limited, the app automatically tries the next one.
+        """),
+        ("🖼️ GoAPI Key (Midjourney Images)", f"""
+<b style="color:{CREAM};">What it is:</b> API for generating Midjourney images. Paid at <a href="https://goapi.ai" target="_blank" style="color:{GOLD};">goapi.ai</a><br><br>
+<b style="color:{CREAM};">How to get it:</b><br>
+1. Create account at goapi.ai<br>
+2. Add credits to your account<br>
+3. Go to API Keys → copy your key<br>
+4. Paste in Settings → GoAPI Key field<br><br>
+<b style="color:{CREAM};">Optional:</b> Leave empty to generate articles without images. Everything else still works.
+        """),
+        ("🌐 WordPress Connection", f"""
+<b style="color:{CREAM};">Format:</b> WordPress URL + Application Password<br><br>
+<b style="color:{CREAM};">Create an Application Password:</b><br>
+1. Go to WP Admin → Users → Your Profile<br>
+2. Scroll to "Application Passwords" section<br>
+3. Enter name "NicheFlow" → click "Add New Application Password"<br>
+4. Copy the generated password (only shown once!)<br><br>
+<b style="color:{CREAM};">Enter in Settings as:</b><br>
+<code style="background:{DARK3};padding:4px 8px;border-radius:6px;">YourUsername:xxxx xxxx xxxx xxxx xxxx xxxx</code><br><br>
+<b style="color:{CREAM};">URL format:</b> <code>https://yoursite.com</code> (no trailing slash)
+        """),
+        ("✍️ Article Prompt", f"""
+<b style="color:{CREAM};">What it does:</b> Tells the AI your niche, style, and what to include in every article.<br><br>
+<b style="color:{CREAM};">Example:</b> "Write a detailed food blog post. Use a warm friendly tone. Include preparation tips, variations, and serving suggestions. Target home cooks. Use short paragraphs and subheadings."<br><br>
+<b style="color:{CREAM};">HTML Mode:</b> Enable "Custom HTML Structure" to paste your own HTML template. The AI fills it with real content following your exact design.<br><br>
+<b style="color:{CREAM};">⚠️ Token limit:</b> Keep under 2000 tokens (~1500 words). A warning appears at 2000, and error at 3000.
+        """),
+        ("🃏 Card Prompt", f"""
+<b style="color:{CREAM};">What it does:</b> Tells the AI what info to extract for the styled card below each article.<br><br>
+<b style="color:{CREAM};">Recipe card example:</b> "Extract recipe name, prep time, cook time, total time, servings, calories, all ingredients, step-by-step instructions."<br><br>
+<b style="color:{CREAM};">Travel card example:</b> "Extract best time to visit, budget estimate, language, currency, top 5 attractions."<br><br>
+<b style="color:{CREAM};">Custom card:</b> You can use the color pickers to match your brand colors. The card renders inside the article with interactive ingredient checkboxes.<br><br>
+<b style="color:{CREAM};">No card:</b> Uncheck "Show Info Card" to skip it entirely.
+        """),
+        ("🔗 Internal Links", f"""
+<b style="color:{CREAM};">What it does:</b> Automatically adds links to your existing published posts inside new articles.<br><br>
+<b style="color:{CREAM};">How it works:</b><br>
+1. System fetches your last 100 published posts from WordPress (fresh each run)<br>
+2. Finds relevant phrases in the new article matching your post titles<br>
+3. Adds clickable links styled in your brand color<br><br>
+<b style="color:{CREAM};">Setting:</b> Enable in Settings → choose max links per article (1-10, default 4).
+        """),
+        ("📌 Pinterest (Pro Only)", f"""
+<b style="color:{CREAM};">What it does:</b> After publishing to WordPress, auto-creates and posts a Pinterest pin.<br><br>
+<b style="color:{CREAM};">Pinterest Token:</b><br>
+1. Go to <a href="https://developers.pinterest.com/apps/" target="_blank" style="color:{GOLD};">developers.pinterest.com/apps</a><br>
+2. Create an app → Go to Access tokens<br>
+3. Enable scopes: <code>boards:read, pins:write, pins:read</code><br>
+4. Copy token → paste in Pinterest tab<br><br>
+<b style="color:{CREAM};">Boards:</b> Click "Load Boards" to see all your boards → select which to post to.<br><br>
+<b style="color:{CREAM};">Pinterest Prompt:</b> Tell the AI how to write pins. E.g. "Casual inspiring tone. 5 hashtags. Target home cooks 25-45."<br><br>
+<b style="color:{CREAM};">Scheduler:</b> Choose days + time + timezone for auto-posting.
+        """),
+    ]
+
+    for title, content in sections:
+        with st.expander(title, expanded=False):
+            st.markdown(f"<div style='color:#aaa;font-size:14px;line-height:1.8;'>{content}</div>",
+                       unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  DASHBOARD
+# ═══════════════════════════════════════════════════════════════════════════════
+def page_dashboard():
+    user = st.session_state.user
+    if not user:
+        go("login")
         return
 
-    if st.session_state.save_ok:
-        success_box("Pinterest settings saved!")
-        st.session_state.save_ok = False
+    uid    = user["id"]
+    plan   = user.get("plan", "basic")
+    email  = user.get("email", "")
+    is_pro = plan == "pro"
 
-    c1,c2 = st.columns(2)
-    with c1:
-        st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;">', unsafe_allow_html=True)
-        st.markdown('<h3 style="font-size:14.5px;font-weight:700;color:#1a1510;margin:0 0 18px 0;padding-bottom:13px;border-bottom:1px solid #f0e6d4;">🔑 Pinterest Credentials</h3>', unsafe_allow_html=True)
-        pin_token = st.text_input("Pinterest Access Token", value=s.get("pinterest_token",""), type="password")
-        pin_board = st.text_input("Pinterest Board ID",     value=s.get("pinterest_board",""), placeholder="Your board ID")
-        st.markdown('</div>', unsafe_allow_html=True)
-    with c2:
-        st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;">', unsafe_allow_html=True)
-        st.markdown('<h3 style="font-size:14.5px;font-weight:700;color:#1a1510;margin:0 0 18px 0;padding-bottom:13px;border-bottom:1px solid #f0e6d4;">📌 Pinterest Prompt</h3>', unsafe_allow_html=True)
-        pin_prompt = st.text_area("Your Pinterest Prompt", value=s.get("pinterest_prompt",""), height=160,
-            placeholder="My audience is busy moms who love quick dinner recipes. Write warm, conversational pin descriptions using family food keywords.")
-        st.markdown('</div>', unsafe_allow_html=True)
+    # Load settings once per session
+    if not st.session_state.last_settings:
+        st.session_state.last_settings = get_settings(uid)
+    sett = st.session_state.last_settings
 
-    st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:26px;margin-top:18px;">', unsafe_allow_html=True)
-    st.markdown('<h3 style="font-size:14.5px;font-weight:700;color:#1a1510;margin:0 0 6px 0;padding-bottom:13px;border-bottom:1px solid #f0e6d4;">📅 Pinterest Post Scheduler</h3>', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:13px;color:#8a7a60;margin-bottom:16px;">Choose which days and time your Pins are posted after each article is published.</p>', unsafe_allow_html=True)
+    # ── TOP NAV ────────────────────────────────────────────────────────────────
+    st.markdown(f"""
+<style>
+.stTabs [data-baseweb="tab-list"]{{
+  background:{DARK2};gap:0;border-bottom:1px solid {BORDER};padding:0 40px;}}
+.stTabs [data-baseweb="tab"]{{
+  background:transparent;color:#666;padding:14px 24px;font-size:14px;
+  font-weight:600;border:none;border-bottom:2px solid transparent;}}
+.stTabs [aria-selected="true"]{{
+  color:{GOLD};border-bottom:2px solid {GOLD} !important;background:transparent;}}
+.stTabs [data-baseweb="tab-panel"]{{background:{DARK};padding:0;}}
+.stTextInput input,.stTextArea textarea{{
+  background:{DARK3} !important;border:1px solid {BORDER} !important;
+  color:{CREAM} !important;border-radius:10px !important;}}
+.stSelectbox [data-baseweb="select"]{{background:{DARK3} !important;border:1px solid {BORDER} !important;}}
+.stButton>button{{
+  background:{GOLD} !important;color:{DARK} !important;
+  border:none !important;border-radius:10px !important;font-weight:700 !important;}}
+.stButton>button:hover{{background:{CREAM} !important;}}
+.stCheckbox span{{color:{CREAM} !important;}}
+.metric-card{{background:{CARD};border:1px solid {BORDER};border-radius:14px;
+              padding:20px 24px;margin-bottom:16px;}}
+.metric-card h4{{color:#666;font-size:11px;font-weight:700;
+                 text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;}}
+.guide-box{{background:{DARK3};border-left:3px solid {GOLD};
+            border-radius:0 10px 10px 0;padding:14px 18px;
+            margin:8px 0 20px;font-size:13px;color:#888;line-height:1.7;}}
+.log-box{{background:{DARK3};border:1px solid {BORDER};border-radius:10px;
+          padding:16px;font-family:monospace;font-size:12px;
+          color:#aaa;max-height:320px;overflow-y:auto;white-space:pre-wrap;}}
+</style>
+<div style="display:flex;align-items:center;justify-content:space-between;
+            padding:16px 40px;border-bottom:1px solid {BORDER};background:{DARK2};
+            position:sticky;top:0;z-index:100;">
+  <div style="font-size:20px;font-weight:900;color:{CREAM};">
+    Niche<span style="color:{GOLD};">Flow</span> AI</div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <span style="color:#666;font-size:13px;">{email}</span>
+    <span style="background:{'#c9a84c' if is_pro else DARK3};
+                 color:{'#0a0a0a' if is_pro else GOLD};
+                 border:1px solid {GOLD}40;padding:4px 12px;
+                 border-radius:50px;font-size:12px;font-weight:700;">
+      {'⭐ PRO' if is_pro else 'BASIC'} — ${'40' if is_pro else '30'}/mo</span>
+    <a href="?nav=home" style="color:#555;text-decoration:none;font-size:13px;">← Exit</a>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
-    days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-    saved_days_str = s.get("schedule_days","")
-    saved_days = saved_days_str.split(",") if saved_days_str else []
-    st.markdown("**Post on these days:**")
-    day_cols = st.columns(7)
-    selected_days = []
-    for i, day in enumerate(days):
-        with day_cols[i]:
-            if st.checkbox(day[:3], value=(day in saved_days), key=f"day_{day}"):
-                selected_days.append(day)
+    # ── TABS ───────────────────────────────────────────────────────────────────
+    tab_labels = ["🏠 Overview", "⚙️ Settings", "✍️ Generate", "📊 History"]
+    if is_pro:
+        tab_labels.append("📌 Pinterest")
 
-    tc1,tc2 = st.columns(2)
-    with tc1:
-        schedule_time = st.time_input("Posting Time", value=datetime.strptime(s.get("schedule_time","09:00"),"%H:%M").time())
-    with tc2:
-        tz_options = ["UTC","America/New_York","America/Los_Angeles","Europe/London",
-                      "Europe/Paris","Asia/Dubai","Africa/Casablanca","Asia/Tokyo"]
-        cur_tz = s.get("schedule_timezone","UTC")
-        tz_idx = tz_options.index(cur_tz) if cur_tz in tz_options else 0
-        schedule_tz = st.selectbox("Timezone", tz_options, index=tz_idx)
-    st.markdown('</div>', unsafe_allow_html=True)
+    tabs = st.tabs(tab_labels)
 
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-    if st.button("💾 Save Pinterest Settings", type="primary"):
-        st.session_state.settings.update({
-            "pinterest_token": pin_token, "pinterest_board": pin_board,
-            "pinterest_prompt": pin_prompt, "schedule_days": ",".join(selected_days),
-            "schedule_time": schedule_time.strftime("%H:%M"), "schedule_timezone": schedule_tz,
-        })
-        save_settings_to_db(); st.rerun()
+    # ══════════════════════════════════════════════════════════════════════════
+    #  TAB 1 — OVERVIEW
+    # ══════════════════════════════════════════════════════════════════════════
+    with tabs[0]:
+        st.markdown(f"<div style='padding:32px 40px;'>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='color:{CREAM};font-weight:800;margin:0 0 8px;'>Welcome back 👋</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='color:#666;margin:0 0 32px;'>Your workspace status and connected services.</p>", unsafe_allow_html=True)
 
+        groq_key = sett.get("groq_key","")
+        wp_url   = sett.get("wp_url","")
+        wp_pass  = sett.get("wp_password","")
+        mj_key   = sett.get("mj_key","")
 
-def tab_billing():
-    section_header("Billing", "Manage your plan and subscription")
-    plan = st.session_state.user_plan
-    c1,c2 = st.columns(2)
-    with c1:
-        active = "border:2px solid #c9892a;box-shadow:0 4px 20px rgba(201,137,42,.2);" if plan=="basic" else "border:2px solid #dfd4bc;"
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if not groq_key:
+                gs, gc = "⬜ Not configured", "#444"
+            elif groq_key.startswith("gsk_"):
+                gs, gc = "✅ Key configured", GREEN
+            else:
+                gs, gc = "❌ Invalid (needs gsk_...)", RED
+            st.markdown(f"""<div class="metric-card">
+              <h4>Groq AI</h4>
+              <p style="color:{gc};font-weight:700;margin:0 0 8px;">{gs}</p>
+              <p style="color:#555;font-size:12px;margin:0;">Auto-fallback across 3 models</p>
+            </div>""", unsafe_allow_html=True)
+
+        with col2:
+            if not wp_url or not wp_pass:
+                ws, wc = "⬜ Not configured", "#444"
+            elif ":" not in wp_pass:
+                ws, wc = "⚠️ Wrong password format", GOLD
+            else:
+                ws, wc = "✅ Credentials saved", GREEN
+            st.markdown(f"""<div class="metric-card">
+              <h4>WordPress</h4>
+              <p style="color:{wc};font-weight:700;margin:0 0 8px;">{ws}</p>
+              <p style="color:#555;font-size:12px;margin:0;">Format: Username:app-password</p>
+            </div>""", unsafe_allow_html=True)
+
+        with col3:
+            ms = ("✅ GoAPI key saved", GREEN) if mj_key else ("⬜ Not configured (optional)", "#444")
+            st.markdown(f"""<div class="metric-card">
+              <h4>Midjourney Images</h4>
+              <p style="color:{ms[1]};font-weight:700;margin:0 0 8px;">{ms[0]}</p>
+              <p style="color:#555;font-size:12px;margin:0;">4 images per article via GoAPI</p>
+            </div>""", unsafe_allow_html=True)
+
+        # Groq Models
+        st.markdown(f"<h3 style='color:{CREAM};font-weight:700;margin:24px 0 16px;'>🤖 Groq Models — Auto-Fallback</h3>", unsafe_allow_html=True)
+        m_col1, m_col2, m_col3 = st.columns(3)
+        models = [
+            ("Primary", "llama-3.3-70b-versatile", "Best quality. Used first for all articles. If rate-limited → switches to Model 2."),
+            ("Fallback", "llama-4-scout-17b-16e", "Fast + capable. Used if Model 1 fails. If rate-limited → switches to Model 3."),
+            ("Last Resort", "llama-3.1-8b-instant", "Fastest model. Also used for card generation. Rarely rate-limited."),
+        ]
+        for col, (label, model, desc) in zip([m_col1, m_col2, m_col3], models):
+            with col:
+                st.markdown(f"""<div class="metric-card">
+                  <h4>Model {models.index((label,model,desc))+1} — {label}</h4>
+                  <p style="color:{GOLD};font-weight:700;font-size:13px;margin:0 0 6px;">{model}</p>
+                  <p style="color:#555;font-size:12px;margin:0;">{desc}</p>
+                </div>""", unsafe_allow_html=True)
+
+        # Quick start
         st.markdown(f"""
-        <div style="background:#fff;{active}border-radius:26px;padding:40px 36px;text-align:center;">
-          {'<div style="font-size:10px;font-weight:700;color:#c9892a;text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;">✦ Current Plan</div>' if plan=='basic' else ''}
-          <div style="font-size:11px;font-weight:700;color:#8a7a60;text-transform:uppercase;letter-spacing:2px;margin-bottom:16px;">Basic</div>
-          <div style="font-family:Georgia,serif;font-size:64px;font-weight:900;color:#1a1510;line-height:1;">$30</div>
-          <div style="font-size:14px;color:#8a7a60;margin-bottom:24px;">per month</div>
-          <div style="text-align:left;font-size:13.5px;color:#5a5040;line-height:2.4;">
-            ✅ AI Article Generation<br>✅ Midjourney Images (4/article)<br>✅ WordPress Auto-Publish<br>
-            ✅ Custom Prompts &amp; Design Studio<br>✅ Internal Linking<br>❌ Pinterest Auto-Post
-          </div>
-        </div>""", unsafe_allow_html=True)
-    with c2:
-        active2 = "box-shadow:0 8px 44px rgba(201,137,42,.25);" if plan=="pro" else ""
-        st.markdown(f"""
-        <div style="background:linear-gradient(158deg,#211808,#0f0d09);border:2px solid rgba(201,137,42,.55);{active2}border-radius:26px;padding:40px 36px;text-align:center;">
-          {'<div style="font-size:10px;font-weight:700;color:#e8a83e;text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;">✦ Current Plan</div>' if plan=='pro' else ''}
-          <div style="font-size:11px;font-weight:700;color:rgba(232,168,62,.7);text-transform:uppercase;letter-spacing:2px;margin-bottom:16px;">Pro · Most Popular</div>
-          <div style="font-family:Georgia,serif;font-size:64px;font-weight:900;color:#fff;line-height:1;">$40</div>
-          <div style="font-size:14px;color:rgba(253,246,232,.4);margin-bottom:24px;">per month</div>
-          <div style="text-align:left;font-size:13.5px;color:rgba(253,246,232,.8);line-height:2.4;">
-            ✅ Everything in Basic<br>✅ Pinterest Auto-Post<br>✅ Pinterest Keyword Optimizer<br>
-            ✅ Custom Pinterest Prompt<br>✅ Pinterest Post Scheduler<br>✅ Priority Support
-          </div>
-        </div>""", unsafe_allow_html=True)
+<div style="background:{CARD};border:1px solid {BORDER};border-radius:14px;padding:24px;margin-top:8px;">
+  <h3 style="color:{CREAM};font-weight:700;margin:0 0 16px;">⚡ Quick Start Guide</h3>
+  <div style="color:#888;font-size:14px;line-height:2.2;">
+    <b style="color:{GOLD};">Step 1</b> → <b style="color:{CREAM};">Settings</b> tab → Add Groq key + WordPress credentials<br>
+    <b style="color:{GOLD};">Step 2</b> → Settings → Write your Article Prompt and Card Prompt (your niche, tone, style)<br>
+    <b style="color:{GOLD};">Step 3</b> → <b style="color:{CREAM};">Generate</b> tab → Enter article title → Click Generate & Publish<br>
+    <b style="color:{GOLD};">Step 4</b> → Article is published to WordPress automatically ✦<br>
+    <b style="color:{GOLD};">Pro Tip</b> → Enable Internal Linking to automatically connect your articles to each other
+  </div>
+</div>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
-    st.markdown('<div style="background:#fff;border:1px solid #dfd4bc;border-radius:18px;padding:24px;">', unsafe_allow_html=True)
-    st.markdown('<h3 style="font-size:14.5px;font-weight:700;color:#1a1510;margin:0 0 12px 0;">💳 Payment</h3>', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:13.5px;color:#5a5040;line-height:1.7;">To upgrade or manage your subscription, contact us at <strong>support@nicheflow.ai</strong>. Payments processed securely via Stripe.</p>', unsafe_allow_html=True)
-    if plan == "basic":
-        if st.button("⬆️ Upgrade to Pro ($40/mo)", type="primary"):
-            info_box("Contact support@nicheflow.ai to upgrade your account.")
-    else:
-        success_box("You are on the Pro plan. Contact support@nicheflow.ai to manage your subscription.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # ══════════════════════════════════════════════════════════════════════════
+    #  TAB 2 — SETTINGS
+    # ══════════════════════════════════════════════════════════════════════════
+    with tabs[1]:
+        st.markdown(f"<div style='padding:32px 40px;max-width:900px;'>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='color:{CREAM};font-weight:800;margin:0 0 32px;'>⚙️ Settings</h2>", unsafe_allow_html=True)
+
+        with st.form("settings_form", clear_on_submit=False):
+
+            # API KEYS
+            st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:0 0 4px;'>🔑 API Keys</h3>", unsafe_allow_html=True)
+            st.markdown(f"<div class='guide-box'>Your keys are stored securely per your account. Never shared. Each user has their own isolated credentials.</div>", unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                groq_key_in = st.text_input("Groq API Key", value=sett.get("groq_key",""), type="password",
+                    placeholder="gsk_...", help="Free at console.groq.com")
+            with col2:
+                mj_key_in = st.text_input("GoAPI Key (Midjourney)", value=sett.get("mj_key",""), type="password",
+                    placeholder="goapi-...", help="Optional — skip for text-only articles")
+
+            # WORDPRESS
+            st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:24px 0 4px;'>🌐 WordPress</h3>", unsafe_allow_html=True)
+            st.markdown(f"""<div class='guide-box'>
+<b>URL:</b> e.g. <code>https://yoursite.com</code><br>
+<b>App Password format:</b> <code>YourUsername:xxxx xxxx xxxx xxxx xxxx xxxx</code><br>
+Create in WP Admin → Users → Profile → Application Passwords
+            </div>""", unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                wp_url_in = st.text_input("WordPress URL", value=sett.get("wp_url",""),
+                    placeholder="https://yoursite.com")
+            with col2:
+                wp_pass_in = st.text_input("App Password", value=sett.get("wp_password",""), type="password",
+                    placeholder="Username:xxxx xxxx xxxx xxxx")
+            pub_status = st.selectbox("Publish Status",
+                ["draft","publish","pending"],
+                index=["draft","publish","pending"].index(sett.get("publish_status","draft")))
+
+            # ARTICLE PROMPT
+            st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:24px 0 4px;'>✍️ Article Prompt</h3>", unsafe_allow_html=True)
+            st.markdown(f"""<div class='guide-box'>
+Tell the AI your niche, writing style, tone, structure, what to include/avoid.<br>
+<b>Example:</b> "Write a detailed food blog post. Warm friendly tone. Include tips, variations, and serving suggestions. Target home cooks. Short paragraphs and subheadings."
+            </div>""", unsafe_allow_html=True)
+            art_prompt_in = st.text_area("Article Prompt", value=sett.get("article_prompt",""), height=140,
+                placeholder="Describe your niche, writing style, tone, and what to include in every article...")
+            token_warning(art_prompt_in, "Article Prompt")
+
+            use_html_in = st.checkbox("🎨 Use Custom HTML Structure Template",
+                value=bool(sett.get("html_structure","")),
+                help="Paste your own HTML template. AI fills it with real content.")
+            html_struct_in = ""
+            if use_html_in:
+                st.markdown(f"""<div class='guide-box'>
+Paste your HTML template. Use placeholder text the AI will replace with real content.
+You can include inline CSS. The AI will follow your structure exactly.
+                </div>""", unsafe_allow_html=True)
+                html_struct_in = st.text_area("HTML Structure Template",
+                    value=sett.get("html_structure",""), height=180,
+                    placeholder="<article>\n  <h1>[TITLE]</h1>\n  <p>[INTRO PARAGRAPH]</p>\n  <h2>[SECTION 1]</h2>\n  ...\n</article>")
+                token_warning(html_struct_in, "HTML Template")
+
+            # CARD PROMPT
+            st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:24px 0 4px;'>🃏 Info Card</h3>", unsafe_allow_html=True)
+            st.markdown(f"""<div class='guide-box'>
+The card appears inside your article with structured info (recipe stats, ingredients, etc.).<br>
+<b>Recipe example:</b> "Extract: prep time, cook time, servings, calories, all ingredients, step-by-step instructions."<br>
+<b>Travel example:</b> "Extract: best time to visit, budget, language, currency, top 5 attractions."<br>
+Leave empty or uncheck to skip the card.
+            </div>""", unsafe_allow_html=True)
+            show_card_in = st.checkbox("Show Info Card in Articles", value=sett.get("show_card", True))
+
+            card_prompt_in = ""; main_color_in = sett.get("main_color","#c9a84c")
+            accent_color_in = sett.get("accent_color","#ea580c"); card_click_in = False
+            if show_card_in:
+                card_prompt_in = st.text_area("Card Prompt", value=sett.get("card_prompt",""), height=110,
+                    placeholder="What should the card show? E.g. prep time, ingredients, instructions...")
+                token_warning(card_prompt_in, "Card Prompt")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    main_color_in = st.color_picker("Card Main Color", value=sett.get("main_color","#c9a84c"))
+                with col2:
+                    accent_color_in = st.color_picker("Card Accent Color", value=sett.get("accent_color","#ea580c"))
+                with col3:
+                    card_click_in = st.checkbox("Card links to article", value=sett.get("card_clickable", False))
+
+            # MIDJOURNEY PROMPT
+            st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:24px 0 4px;'>🖼️ Midjourney Image Prompt</h3>", unsafe_allow_html=True)
+            st.markdown(f"""<div class='guide-box'>
+Template for image generation. Use <code>{{recipe_name}}</code> as placeholder for the article title.<br>
+<b>Example:</b> <code>{{recipe_name}}, food photography, natural light, rustic table --ar 2:3 --v 6.1</code><br>
+Leave empty for auto-generated prompts.
+            </div>""", unsafe_allow_html=True)
+            mj_template_in = st.text_area("Midjourney Prompt Template",
+                value=sett.get("mj_template",""), height=70,
+                placeholder="{recipe_name}, professional food photography, natural light --ar 2:3 --v 6.1")
+
+            # INTERNAL LINKS
+            st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:24px 0 4px;'>🔗 Internal Linking</h3>", unsafe_allow_html=True)
+            st.markdown(f"""<div class='guide-box'>
+Automatically links phrases in new articles to your existing published WordPress posts.
+Posts are loaded fresh from WordPress on every generation run — always up to date.
+            </div>""", unsafe_allow_html=True)
+            use_links_in = st.checkbox("Enable Internal Linking", value=sett.get("use_internal_links", False))
+            max_links_in = 4
+            if use_links_in:
+                max_links_in = st.slider("Max internal links per article", 1, 10, int(sett.get("max_links", 4)))
+
+            sub_sett = st.form_submit_button("💾 Save All Settings", use_container_width=True)
+
+        if sub_sett:
+            payload = {
+                "groq_key":           groq_key_in.strip(),
+                "mj_key":             mj_key_in.strip(),
+                "wp_url":             wp_url_in.strip().rstrip("/"),
+                "wp_password":        wp_pass_in.strip(),
+                "publish_status":     pub_status,
+                "article_prompt":     art_prompt_in,
+                "html_structure":     html_struct_in,
+                "show_card":          show_card_in,
+                "card_prompt":        card_prompt_in if show_card_in else "",
+                "main_color":         main_color_in,
+                "accent_color":       accent_color_in,
+                "card_clickable":     card_click_in,
+                "mj_template":        mj_template_in,
+                "use_internal_links": use_links_in,
+                "max_links":          max_links_in,
+            }
+            with st.spinner("Saving settings..."):
+                save_settings(uid, payload)
+                st.session_state.last_settings.update(payload)
+            st.success("✅ Settings saved successfully!")
+
+        # TEST BUTTONS
+        st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:32px 0 12px;'>🧪 Test Connections</h3>", unsafe_allow_html=True)
+        st.markdown(f"<div class='guide-box'>Test each connection before generating to catch any issues early.</div>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns(3)
+        cur = st.session_state.last_settings
+
+        with col1:
+            if st.button("🔬 Test Groq Key", use_container_width=True):
+                try:
+                    from generator import test_groq_key
+                    with st.spinner("Testing Groq..."):
+                        r = test_groq_key(cur.get("groq_key",""))
+                    if r["success"]: st.success(r["message"])
+                    else: st.error(r["message"])
+                except Exception as e: st.error(f"Error: {e}")
+
+        with col2:
+            if st.button("🔬 Test GoAPI", use_container_width=True):
+                try:
+                    from generator import test_goapi_key
+                    with st.spinner("Testing GoAPI..."):
+                        r = test_goapi_key(cur.get("mj_key",""))
+                    if r["success"]: st.success(r["message"])
+                    else: st.error(r["message"])
+                except Exception as e: st.error(f"Error: {e}")
+
+        with col3:
+            if st.button("🔬 Test WordPress", use_container_width=True):
+                try:
+                    from generator import test_wordpress
+                    with st.spinner("Testing WordPress..."):
+                        r = test_wordpress(cur.get("wp_url",""), cur.get("wp_password",""))
+                    if r["success"]: st.success(r["message"])
+                    else: st.error(r["message"])
+                except Exception as e: st.error(f"Error: {e}")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  TAB 3 — GENERATE
+    # ══════════════════════════════════════════════════════════════════════════
+    with tabs[2]:
+        st.markdown(f"<div style='padding:32px 40px;max-width:900px;'>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='color:{CREAM};font-weight:800;margin:0 0 8px;'>✍️ Generate Article</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='color:#666;margin:0 0 24px;'>Enter a title, choose your options, and click Generate. The article is published to WordPress automatically.</p>", unsafe_allow_html=True)
+
+        cur = st.session_state.last_settings
+
+        # Missing settings check
+        missing = []
+        if not cur.get("groq_key"): missing.append("Groq API Key")
+        if not cur.get("wp_url"):   missing.append("WordPress URL")
+        if not cur.get("wp_password"): missing.append("WordPress Password")
+        if not cur.get("article_prompt"): missing.append("Article Prompt")
+        if missing:
+            st.warning(f"⚠️ Please configure in Settings first: **{', '.join(missing)}**")
+
+        title_in = st.text_input("📝 Article Title", placeholder="E.g. Easy Homemade Pasta Recipe")
+        col1, col2 = st.columns([3,1])
+        with col1:
+            use_images_in = st.checkbox("🖼️ Generate Midjourney Images",
+                value=bool(cur.get("mj_key","")),
+                disabled=not bool(cur.get("mj_key","")),
+                help="Requires GoAPI key in Settings")
+        with col2:
+            show_proc_in = st.checkbox("👁️ Show Process Log",
+                help="See live logs. Hidden by default for clean UX.")
+
+        # Categories
+        st.markdown(f"<p style='color:{GOLD};font-size:13px;font-weight:600;margin:16px 0 4px;'>📂 WordPress Categories (optional)</p>", unsafe_allow_html=True)
+        cat_col1, cat_col2 = st.columns([4,1])
+        with cat_col2:
+            if st.button("🔄 Load", use_container_width=True, help="Load categories from WordPress"):
+                if cur.get("wp_url") and cur.get("wp_password"):
+                    try:
+                        from generator import fetch_wp_categories
+                        with st.spinner("Loading..."):
+                            cats = fetch_wp_categories(cur["wp_url"], cur["wp_password"])
+                        st.session_state.wp_categories = cats
+                        if cats: st.success(f"✅ {len(cats)} categories")
+                        else: st.warning("None found")
+                    except Exception as e: st.error(str(e))
+                else:
+                    st.warning("Add WordPress credentials in Settings first")
+
+        with cat_col1:
+            cat_opts = {c["name"]: c["id"] for c in st.session_state.wp_categories}
+            sel_cats = st.multiselect("Select categories",
+                options=list(cat_opts.keys()),
+                help="Click Load → then select. Categories load fresh from WordPress each time.")
+            cat_ids = [cat_opts[n] for n in sel_cats] if sel_cats else None
+
+        # GENERATE BUTTON
+        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+        gen_disabled = bool(missing)
+
+        if st.button("🚀 Generate & Publish to WordPress", use_container_width=True,
+                     disabled=gen_disabled, type="primary"):
+            if not title_in.strip():
+                st.error("Please enter an article title")
+            else:
+                st.session_state.gen_logs = []
+                st.session_state.gen_result = None
+
+                def log_fn(msg):
+                    st.session_state.gen_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+
+                settings_payload = {
+                    "groq_key":           cur.get("groq_key",""),
+                    "goapi_key":          cur.get("mj_key",""),
+                    "wp_url":             cur.get("wp_url",""),
+                    "wp_password":        cur.get("wp_password",""),
+                    "publish_status":     cur.get("publish_status","draft"),
+                    "mj_template":        cur.get("mj_template",""),
+                    "use_images":         use_images_in and bool(cur.get("mj_key","")),
+                    "show_card":          cur.get("show_card", True),
+                    "card_clickable":     cur.get("card_clickable", False),
+                    "use_internal_links": cur.get("use_internal_links", False),
+                    "max_links":          cur.get("max_links", 4),
+                    "category_ids":       cat_ids,
+                    "user_article_prompt": cur.get("article_prompt",""),
+                    "user_html_structure": cur.get("html_structure",""),
+                    "user_card_prompt":   cur.get("card_prompt",""),
+                    "user_design": {
+                        "main_color":   cur.get("main_color","#c9a84c"),
+                        "accent_color": cur.get("accent_color","#ea580c"),
+                        "font_family":  "inherit",
+                    }
+                }
+
+                with st.spinner("⏳ Generating... This takes 2-5 minutes when images are enabled. Please wait."):
+                    try:
+                        from generator import run_full_pipeline
+                        result = run_full_pipeline(title_in.strip(), settings_payload, log_fn=log_fn)
+                        st.session_state.gen_result = result
+                    except Exception as e:
+                        result = {"success": False, "error": str(e)}
+                        st.session_state.gen_result = result
+
+                if result.get("success"):
+                    post_url = result.get("post_url","")
+                    st.success(f"🎉 Article published successfully!")
+                    if post_url:
+                        st.markdown(f"<a href='{post_url}' target='_blank' style='color:{GOLD};font-weight:700;'>🔗 View Article on WordPress →</a>", unsafe_allow_html=True)
+                    # Save history
+                    try:
+                        hist = json.loads(sett.get("history","[]") or "[]")
+                        hist.insert(0, {
+                            "title": title_in.strip(),
+                            "url":    post_url,
+                            "status": result.get("status",""),
+                            "images": result.get("image_count", 0),
+                            "date":   datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+                        })
+                        hist = hist[:50]
+                        save_settings(uid, {"history": json.dumps(hist)})
+                        st.session_state.last_settings["history"] = json.dumps(hist)
+                    except: pass
+                else:
+                    st.error(f"❌ {result.get('error','Unknown error')}")
+
+        # Process log
+        if show_proc_in and st.session_state.gen_logs:
+            st.markdown(f"<h4 style='color:{CREAM};margin:24px 0 8px;'>📋 Process Log</h4>", unsafe_allow_html=True)
+            log_text = "\n".join(st.session_state.gen_logs)
+            st.markdown(f"<div class='log-box'>{log_text}</div>", unsafe_allow_html=True)
+        elif show_proc_in and not st.session_state.gen_logs:
+            st.info("Process log will appear here during generation.")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  TAB 4 — HISTORY
+    # ══════════════════════════════════════════════════════════════════════════
+    with tabs[3]:
+        st.markdown(f"<div style='padding:32px 40px;'>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='color:{CREAM};font-weight:800;margin:0 0 8px;'>📊 Generation History</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='color:#666;margin:0 0 24px;'>Your last 50 generated articles.</p>", unsafe_allow_html=True)
+
+        try:
+            hist = json.loads(sett.get("history","[]") or "[]")
+        except: hist = []
+
+        if not hist:
+            st.markdown(f"""
+<div style="background:{CARD};border:1px solid {BORDER};border-radius:14px;
+            padding:40px;text-align:center;color:#555;">
+  No articles generated yet.<br>Go to the <b style="color:{GOLD};">Generate</b> tab to publish your first article!
+</div>""", unsafe_allow_html=True)
+        else:
+            for item in hist:
+                st_color = GREEN if item.get("status") == "publish" else GOLD
+                url = item.get("url","")
+                link_html = f'<a href="{url}" target="_blank" style="color:{GOLD};font-size:12px;text-decoration:none;white-space:nowrap;">View Post →</a>' if url else ""
+                st.markdown(f"""
+<div style="background:{CARD};border:1px solid {BORDER};border-radius:12px;
+            padding:16px 20px;margin-bottom:10px;display:flex;
+            align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+  <div>
+    <div style="color:{CREAM};font-weight:600;font-size:14px;">{item.get('title','')}</div>
+    <div style="color:#555;font-size:12px;margin-top:4px;">
+      {item.get('date','')} &nbsp;·&nbsp;
+      <span style="color:{st_color};">{item.get('status','')}</span> &nbsp;·&nbsp;
+      🖼️ {item.get('images',0)} images
+    </div>
+  </div>
+  {link_html}
+</div>""", unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  TAB 5 — PINTEREST (PRO ONLY)
+    # ══════════════════════════════════════════════════════════════════════════
+    if is_pro and len(tabs) > 4:
+        with tabs[4]:
+            st.markdown(f"<div style='padding:32px 40px;max-width:900px;'>", unsafe_allow_html=True)
+            st.markdown(f"""
+<h2 style='color:{CREAM};font-weight:800;margin:0 0 8px;'>📌 Pinterest Publisher</h2>
+<p style='color:#666;margin:0 0 32px;'>Auto-publish optimized pins to Pinterest after each WordPress article.</p>
+""", unsafe_allow_html=True)
+
+            with st.form("pinterest_form"):
+                # Token
+                st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:0 0 4px;'>🔑 Pinterest Access Token</h3>", unsafe_allow_html=True)
+                st.markdown(f"""<div class='guide-box'>
+<b>How to get:</b><br>
+1. Go to <a href="https://developers.pinterest.com/apps/" target="_blank" style="color:{GOLD};">developers.pinterest.com/apps</a><br>
+2. Create an app → Go to "Access tokens"<br>
+3. Enable scopes: <code>boards:read, pins:write, pins:read</code><br>
+4. Generate token → paste below
+                </div>""", unsafe_allow_html=True)
+                pin_token_in = st.text_input("Pinterest Access Token",
+                    value=sett.get("pinterest_token",""), type="password",
+                    placeholder="pina_xxxxxxxxxx...")
+
+                # Board
+                st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:24px 0 4px;'>📋 Pinterest Board</h3>", unsafe_allow_html=True)
+                st.markdown(f"""<div class='guide-box'>
+Save your token → click "Load My Boards" below (outside this form) → select your board.
+The board loads fresh each time so new boards appear automatically.
+                </div>""", unsafe_allow_html=True)
+                pin_board_in = st.text_input("Board ID",
+                    value=sett.get("pinterest_board",""),
+                    placeholder="Will be filled when you select a board below",
+                    help="Click Load My Boards after saving token")
+
+                # Pinterest Prompt
+                st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:24px 0 4px;'>✍️ Pinterest Pin Prompt</h3>", unsafe_allow_html=True)
+                st.markdown(f"""<div class='guide-box'>
+Tell the AI how to write your pin title and description.<br>
+<b>Example:</b> "Write in a casual inspiring tone. Focus on quick results. Target home cooks aged 25-45. Include 5 hashtags."<br>
+The AI generates: pin title (max 100 chars), description (max 500 chars), alt text, and keywords.
+                </div>""", unsafe_allow_html=True)
+                pin_prompt_in = st.text_area("Pinterest Pin Prompt",
+                    value=sett.get("pinterest_prompt",""), height=110,
+                    placeholder="Write engaging pin descriptions for my food blog. Casual tone. Include 3-5 hashtags. Target home cooks.")
+                token_warning(pin_prompt_in, "Pinterest Prompt")
+
+                # Scheduler
+                st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:24px 0 4px;'>📅 Post Scheduler</h3>", unsafe_allow_html=True)
+                st.markdown(f"""<div class='guide-box'>
+Choose which days of the week and what time to auto-post pins.
+The scheduler queues pins from articles generated on those days.
+                </div>""", unsafe_allow_html=True)
+                days_opts = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+                saved_days_str = sett.get("pinterest_schedule_days","")
+                saved_days = [d for d in saved_days_str.split(",") if d in days_opts] if saved_days_str else []
+                sched_days_in = st.multiselect("Post Days", days_opts, default=saved_days)
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    try:
+                        t_val = datetime.strptime(sett.get("pinterest_schedule_time","09:00"), "%H:%M").time()
+                    except: t_val = datetime.strptime("09:00", "%H:%M").time()
+                    sched_time_in = st.time_input("Post Time", value=t_val)
+                with col2:
+                    tzs = ["UTC","US/Eastern","US/Central","US/Pacific","Europe/London","Europe/Paris","Asia/Dubai","Asia/Tokyo"]
+                    tz_saved = sett.get("pinterest_schedule_timezone","UTC")
+                    sched_tz_in = st.selectbox("Timezone", tzs,
+                        index=tzs.index(tz_saved) if tz_saved in tzs else 0)
+
+                pin_sub = st.form_submit_button("💾 Save Pinterest Settings", use_container_width=True)
+
+            if pin_sub:
+                pin_payload = {
+                    "pinterest_token":              pin_token_in.strip(),
+                    "pinterest_board":              pin_board_in.strip(),
+                    "pinterest_prompt":             pin_prompt_in,
+                    "pinterest_schedule_days":      ",".join(sched_days_in),
+                    "pinterest_schedule_time":      sched_time_in.strftime("%H:%M"),
+                    "pinterest_schedule_timezone":  sched_tz_in,
+                }
+                with st.spinner("Saving..."):
+                    save_settings(uid, pin_payload)
+                    st.session_state.last_settings.update(pin_payload)
+                st.success("✅ Pinterest settings saved!")
+
+            # Load Boards (outside form)
+            st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:24px 0 8px;'>📋 Load Boards from Pinterest</h3>", unsafe_allow_html=True)
+            st.markdown(f"<div class='guide-box'>Click below to load all your Pinterest boards fresh. Select which board to post to.</div>", unsafe_allow_html=True)
+
+            col1, col2 = st.columns([1,2])
+            with col1:
+                if st.button("🔄 Load My Boards", use_container_width=True):
+                    token_now = st.session_state.last_settings.get("pinterest_token","")
+                    if not token_now:
+                        st.warning("Save your Pinterest token first")
+                    else:
+                        with st.spinner("Loading boards from Pinterest..."):
+                            try:
+                                resp = _req.get(
+                                    "https://api.pinterest.com/v5/boards",
+                                    headers={"Authorization": f"Bearer {token_now}"},
+                                    params={"page_size": 100}, timeout=15
+                                )
+                                if resp.status_code == 200:
+                                    boards = resp.json().get("items",[])
+                                    st.session_state.pinterest_boards = [{"id":b["id"],"name":b["name"]} for b in boards]
+                                    st.success(f"✅ {len(boards)} boards loaded")
+                                else:
+                                    st.error(f"❌ Pinterest API error {resp.status_code}: {resp.text[:200]}")
+                            except Exception as e:
+                                st.error(f"❌ {e}")
+
+            if st.session_state.pinterest_boards:
+                with col2:
+                    board_map = {b["name"]: b["id"] for b in st.session_state.pinterest_boards}
+                    sel_board_name = st.selectbox("Select Board", list(board_map.keys()))
+                    if st.button("✓ Set as Active Board", use_container_width=True):
+                        bid = board_map[sel_board_name]
+                        save_settings(uid, {"pinterest_board": bid})
+                        st.session_state.last_settings["pinterest_board"] = bid
+                        st.success(f"✅ Active board: {sel_board_name}")
+
+            # Pinterest Status
+            st.markdown(f"<h3 style='color:{GOLD};font-weight:700;margin:24px 0 8px;'>📊 Pinterest Status</h3>", unsafe_allow_html=True)
+            cp = st.session_state.last_settings
+            statuses = [
+                ("Token",    "✅ Token saved" if cp.get("pinterest_token") else "❌ No token saved"),
+                ("Board",    f"✅ {cp.get('pinterest_board','')}" if cp.get("pinterest_board") else "❌ No board selected"),
+                ("Prompt",   "✅ Prompt configured" if cp.get("pinterest_prompt") else "⚠️ No prompt (will use defaults)"),
+                ("Schedule", f"📅 {cp.get('pinterest_schedule_days','')} at {cp.get('pinterest_schedule_time','')} {cp.get('pinterest_schedule_timezone','')}" if cp.get("pinterest_schedule_days") else "⬜ No schedule set"),
+            ]
+            status_cols = st.columns(2)
+            for i, (label, value) in enumerate(statuses):
+                col = status_cols[i % 2]
+                color = GREEN if value.startswith("✅") else (GOLD if value.startswith("⚠️") or value.startswith("📅") else RED if value.startswith("❌") else "#555")
+                with col:
+                    st.markdown(f"""
+<div class="metric-card">
+  <h4>{label}</h4>
+  <p style="color:{color};font-size:13px;font-weight:600;margin:0;">{value}</p>
+</div>""", unsafe_allow_html=True)
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
 
-def tab_docs():
-    section_header("Documentation", "Setup guide and best practices")
-    # Embed the beautiful docs HTML right in the dashboard
-    components.html(DOCS_HTML(logged_in=True), height=3200, scrolling=True)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  DASHBOARD
-# ─────────────────────────────────────────────────────────────────────────────
-def render_dashboard():
-    render_sidebar()
-    tab = st.session_state.dash_tab
-    st.markdown("""
-    <style>
-    section[data-testid="stSidebar"]{display:flex!important;}
-    [data-testid="stSidebarContent"]{background:#0f0d09!important;}
-    </style>""", unsafe_allow_html=True)
-    if   tab == "overview":  tab_overview()
-    elif tab == "settings":  tab_settings()
-    elif tab == "prompts":   tab_prompts()
-    elif tab == "design":    tab_design()
-    elif tab == "generate":  tab_generate()
-    elif tab == "pinterest": tab_pinterest()
-    elif tab == "billing":   tab_billing()
-    elif tab == "docs":      tab_docs()
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  ROUTER
-# ─────────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ROUTER — reads st.query_params, no iframe needed
+# ═══════════════════════════════════════════════════════════════════════════════
 page = st.session_state.page
 
 if page == "home":
-    components.html(HOME_HTML(), height=8000, scrolling=True)
-
+    page_home()
 elif page == "login":
-    components.html(
-        LOGIN_HTML(
-            error=st.session_state.auth_error,
-            success=st.session_state.auth_success
-        ),
-        height=700, scrolling=False
-    )
-    st.session_state.auth_success = ""
-
+    page_login()
 elif page == "signup":
-    components.html(
-        SIGNUP_HTML(error=st.session_state.auth_error),
-        height=760, scrolling=False
-    )
-
+    page_signup()
 elif page == "docs":
-    components.html(DOCS_HTML(logged_in=bool(st.session_state.user_id)), height=4400, scrolling=True)
-
+    page_docs()
 elif page == "dashboard":
-    if not st.session_state.user_id:
-        st.session_state.page = "login"; st.rerun()
+    if st.session_state.user:
+        page_dashboard()
     else:
-        render_dashboard()
+        go("login")
+else:
+    go("home")
