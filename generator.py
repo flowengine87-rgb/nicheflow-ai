@@ -131,6 +131,7 @@ def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg
             for f in quick_facts
         )
 
+        # CTA uses onclick with Web Share API (works in WP) + clipboard fallback
         cta_js = (
             "if(navigator.share){"
             "navigator.share({title:document.title,url:window.location.href})"
@@ -175,6 +176,7 @@ def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg
             f'</div>'
         )
     except Exception:
+        # Minimal fallback card — still with clickable CTA
         cta_js = "if(navigator.share){navigator.share({title:document.title,url:window.location.href}).catch(function(){});}else{navigator.clipboard&&navigator.clipboard.writeText(window.location.href);}return false;"
         return (
             f'<div id="nicheflow-card" style="border:2px solid {main_color};border-radius:16px;'
@@ -195,19 +197,15 @@ def generate_meta_description(title):
 
 
 def generate_midjourney_image(goapi_key, prompt, log_fn=None):
-    """
-    Generate a Midjourney image and immediately download the raw bytes
-    before the CDN URL expires (~60s window). Returns url + raw_bytes.
-    """
     def log(m):
         if log_fn: log_fn(m)
     headers = {"x-api-key": goapi_key, "Content-Type": "application/json"}
     try:
         resp = requests.post("https://api.goapi.ai/api/v1/task", headers=headers,
             json={"model":"midjourney","task_type":"imagine","input":{"prompt":prompt,"process_mode":"fast"}}, timeout=30)
-        if resp.status_code != 200: return {"url":None,"raw_bytes":None,"error":f"MJ error {resp.status_code}"}
+        if resp.status_code != 200: return {"url":None,"error":f"MJ error {resp.status_code}"}
         task_id = resp.json().get("data",{}).get("task_id")
-        if not task_id: return {"url":None,"raw_bytes":None,"error":"No task_id"}
+        if not task_id: return {"url":None,"error":"No task_id"}
         log(f"  🎨 MJ task: {task_id}"); time.sleep(10)
         for attempt in range(90):
             time.sleep(3)
@@ -217,22 +215,8 @@ def generate_midjourney_image(goapi_key, prompt, log_fn=None):
             status = data.get("status","")
             if status == "completed":
                 url = data.get("output",{}).get("image_urls",[None])[0]
-                if not url:
-                    return {"url":None,"raw_bytes":None,"error":"No image URL"}
-                log("  ✅ MJ ready — downloading immediately...")
-                # ── FIX: download raw bytes RIGHT NOW before CDN URL expires ──
-                try:
-                    dl = requests.get(url, timeout=60, stream=True)
-                    if dl.status_code == 200:
-                        raw_bytes = dl.content
-                        log(f"  ✅ Downloaded {len(raw_bytes)//1024}KB")
-                        return {"url":url,"raw_bytes":raw_bytes,"error":None}
-                    else:
-                        log(f"  ⚠️ Download failed {dl.status_code}, returning URL only")
-                        return {"url":url,"raw_bytes":None,"error":None}
-                except Exception as dl_err:
-                    log(f"  ⚠️ Download error: {dl_err}, returning URL only")
-                    return {"url":url,"raw_bytes":None,"error":None}
+                if url: log("  ✅ MJ ready"); return {"url":url,"error":None}
+                return {"url":None,"error":"No image URL"}
             elif status == "failed":
                 err = data.get("error",{}).get("message","Unknown")
                 if "fast" in err.lower() or "quota" in err.lower():
@@ -241,10 +225,10 @@ def generate_midjourney_image(goapi_key, prompt, log_fn=None):
                         json={"model":"midjourney","task_type":"imagine","input":{"prompt":prompt,"process_mode":"relax"}}, timeout=30)
                     if resp2.status_code == 200: task_id = resp2.json().get("data",{}).get("task_id",task_id)
                     continue
-                return {"url":None,"raw_bytes":None,"error":err}
+                return {"url":None,"error":err}
             elif attempt % 5 == 0: log(f"  ⏳ Generating... ({attempt*3}s)")
-        return {"url":None,"raw_bytes":None,"error":"Timeout 270s"}
-    except Exception as e: return {"url":None,"raw_bytes":None,"error":str(e)}
+        return {"url":None,"error":"Timeout 270s"}
+    except Exception as e: return {"url":None,"error":str(e)}
 
 
 def generate_pollinations_image(prompt, width=1024, height=1024):
@@ -254,8 +238,8 @@ def generate_pollinations_image(prompt, width=1024, height=1024):
         resp = requests.get(url, timeout=60)
         if resp.status_code == 200 and resp.headers.get("content-type","").startswith("image"):
             return {"url":url,"raw_bytes":resp.content,"error":None}
-        return {"url":None,"raw_bytes":None,"error":f"Pollinations {resp.status_code}"}
-    except Exception as e: return {"url":None,"raw_bytes":None,"error":str(e)}
+        return {"url":None,"error":f"Pollinations {resp.status_code}"}
+    except Exception as e: return {"url":None,"error":str(e)}
 
 
 def download_and_convert_webp(image_url, max_width=1920):
@@ -491,6 +475,7 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
         if log_fn: log_fn(msg)
 
     art_result = [None]; card_result = [None]
+    # IMPORTANT: each slot is a dict. media_id=None means not uploaded yet.
     image_results = [{"url":None,"media_id":None} for _ in range(4)]
     all_threads = []; _log_lock = threading.Lock()
 
@@ -527,45 +512,40 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
             safe_log("⚠️ No image source configured (need GoAPI key or enable Pollinations in Settings → Images)")
             return
 
-        # image_results slots: 0=featured(reused from slot1), 1/2/3=body images
-        names = ["body-1","body-2","body-3"]
+        names = ["featured","body-1","body-2","body-3"]
         img_threads = []
 
         def _gen_single(idx):
-            # idx here is 0/1/2 → maps to image_results slots 1/2/3
-            slot = idx + 1
             slug = re.sub(r"[^a-z0-9]+","-",title.lower()).strip("-")
             fname = f"{slug}-{names[idx]}.webp"
 
             if use_pollinations:
                 tpl = pollinations_prompt or "Professional editorial photography of {title}, natural light, 4K"
                 ip = tpl.replace("{title}",title).replace("{recipe_name}",title)
-                safe_log(f"  🖼️ Image {slot}/3 via Pollinations...")
+                safe_log(f"  🖼️ Image {idx+1}/4 via Pollinations...")
                 res = generate_pollinations_image(ip)
 
-                if not res.get("url") and not res.get("raw_bytes"):
-                    safe_log(f"  ⚠️ Pollinations image {slot} failed: {res.get('error','unknown')}")
+                if not res.get("url"):
+                    safe_log(f"  ⚠️ Pollinations image {idx+1} failed: {res.get('error','unknown')}")
                     return
 
+                # Convert to WebP
                 raw = res.get("raw_bytes")
-                webp = bytes_to_webp(raw) if raw else None
+                if raw:
+                    webp = bytes_to_webp(raw)
+                else:
+                    webp = download_and_convert_webp(res["url"])
 
-                if not webp:
-                    safe_log(f"  ⚠️ WebP conversion failed for image {slot}")
-                    if res.get("url"):
-                        image_results[slot] = {"url": res["url"], "media_id": None}
-                    return
-
-                if wp_url and wp_password:
+                if webp and wp_url and wp_password:
                     up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
                     if up.get("success") and up.get("media_id"):
-                        image_results[slot] = {"url": up["url"], "media_id": up["media_id"]}
-                        safe_log(f"  ✅ Image {slot} uploaded to WP (media_id={up['media_id']})")
+                        image_results[idx] = {"url": up["url"], "media_id": up["media_id"]}
+                        safe_log(f"  ✅ Image {idx+1} uploaded to WP (media_id={up['media_id']})")
                         return
                     else:
-                        safe_log(f"  ⚠️ WP upload failed for image {slot}: {up.get('error')}")
-
-                image_results[slot] = {"url": res["url"], "media_id": None}
+                        safe_log(f"  ⚠️ WP upload failed for image {idx+1}: {up.get('error')}")
+                # Fallback: use direct URL without WP upload
+                image_results[idx] = {"url": res["url"], "media_id": None}
 
             elif goapi_key:
                 tpl = mj_template or "Close up {recipe_name}, professional food photography, natural light --ar 2:3"
@@ -573,68 +553,39 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
                 ar = arm.group(1) if arm else "2:3"
                 ip = tpl.replace("{recipe_name}",title).replace("{title}",title)
                 if "--ar" not in ip: ip += f" --ar {ar}"
-                safe_log(f"  🖼️ Image {slot}/3 via Midjourney...")
+                safe_log(f"  🖼️ Image {idx+1}/4 via Midjourney...")
                 res = generate_midjourney_image(goapi_key, ip, safe_log)
 
-                if not res.get("url") and not res.get("raw_bytes"):
-                    safe_log(f"  ⚠️ MJ image {slot} failed: {res.get('error','unknown')}")
+                if not res.get("url"):
+                    safe_log(f"  ⚠️ MJ image {idx+1} failed: {res.get('error','unknown')}")
                     return
 
-                raw = res.get("raw_bytes")
-                if raw:
-                    webp = bytes_to_webp(raw)
-                else:
-                    safe_log(f"  ⚠️ No raw bytes for image {slot}, trying URL download...")
-                    webp = download_and_convert_webp(res["url"]) if res.get("url") else None
-
-                if not webp:
-                    safe_log(f"  ⚠️ WebP conversion failed for image {slot}")
-                    if res.get("url"):
-                        image_results[slot] = {"url": res["url"], "media_id": None}
-                    return
-
-                if wp_url and wp_password:
+                webp = download_and_convert_webp(res["url"])
+                if webp and wp_url and wp_password:
                     up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
                     if up.get("success") and up.get("media_id"):
-                        image_results[slot] = {"url": up["url"], "media_id": up["media_id"]}
-                        safe_log(f"  ✅ Image {slot} uploaded (media_id={up['media_id']})")
+                        image_results[idx] = {"url": up["url"], "media_id": up["media_id"]}
+                        safe_log(f"  ✅ Image {idx+1} uploaded (media_id={up['media_id']})")
                         return
                     else:
-                        safe_log(f"  ⚠️ WP upload failed for image {slot}: {up.get('error')}")
+                        safe_log(f"  ⚠️ WP upload failed: {up.get('error')}")
+                # Fallback to original URL
+                image_results[idx] = {"url": res["url"], "media_id": None}
 
-                image_results[slot] = {"url": res["url"], "media_id": None}
-
-        # Generate 3 body images in parallel (slots 1/2/3)
-        for idx in range(3):
+        for idx in range(4):
             t = threading.Thread(target=_gen_single, args=(idx,), daemon=True)
             img_threads.append(t); t.start()
         for t in img_threads: t.join(timeout=300)
 
-        # ── KEY FIX: reuse body image 1 (slot 1) as the featured image (slot 0) ──
-        # This avoids generating a 4th separate image just for the featured slot,
-        # and guarantees slot 0 always has a valid media_id if any image uploaded.
-        if image_results[1].get("media_id"):
-            image_results[0] = image_results[1].copy()
-            safe_log(f"  🖼️ Featured image = body image 1 (media_id={image_results[0]['media_id']})")
-        elif image_results[2].get("media_id"):
-            image_results[0] = image_results[2].copy()
-            safe_log(f"  🖼️ Featured image = body image 2 (media_id={image_results[0]['media_id']})")
-        elif image_results[3].get("media_id"):
-            image_results[0] = image_results[3].copy()
-            safe_log(f"  🖼️ Featured image = body image 3 (media_id={image_results[0]['media_id']})")
-        else:
-            safe_log("  ⚠️ No images uploaded — featured image will not be set")
-
         # Log final image state
         for idx in range(4):
             r = image_results[idx]
-            label = "featured" if idx == 0 else f"body-{idx}"
             if r.get("media_id"):
-                safe_log(f"  📸 {label}: media_id={r['media_id']}")
+                safe_log(f"  📸 Image {idx+1}: media_id={r['media_id']}, url={r.get('url','')[:60]}")
             elif r.get("url"):
-                safe_log(f"  📸 {label}: direct URL only")
+                safe_log(f"  📸 Image {idx+1}: direct URL (no WP upload)")
             else:
-                safe_log(f"  📸 {label}: not generated")
+                safe_log(f"  📸 Image {idx+1}: not generated")
 
     # Launch all threads in parallel
     for fn in [_gen_article, _gen_card, _gen_images]:
@@ -680,13 +631,28 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
     wp_title = art.get("seo_title") or title
     log("📤 Publishing to WordPress...")
 
-    # Get featured image media_id (index 0 = featured image)
+    # FEATURED IMAGE: image_results[0] is the featured image slot
+    # It MUST have a media_id (integer) from WP upload — URL alone is not enough
     featured_id = None
-    if image_results[0].get("media_id"):
-        featured_id = image_results[0]["media_id"]
-        log(f"🖼️ Setting featured image: media_id={featured_id}")
+    featured_url = None
+    r0 = image_results[0] if image_results else {}
+
+    if r0.get("media_id"):
+        try:
+            featured_id = int(r0["media_id"])
+            featured_url = r0.get("url","")
+            log(f"🖼️ Featured image ready: media_id={featured_id}")
+        except (ValueError, TypeError) as e:
+            log(f"⚠️ Invalid media_id value: {r0['media_id']} ({e})")
+    elif r0.get("url"):
+        # Image generated but NOT uploaded to WP (e.g. credentials wrong, or URL-only mode)
+        log(f"⚠️ Image URL exists but no media_id. Featured image will NOT be set.")
+        log(f"   URL: {r0['url'][:80]}")
+        log(f"   Fix: check WP credentials are correct and App Password has media upload permission.")
+        featured_url = r0.get("url","")
     else:
-        log("⚠️ No featured image media_id — featured image will not be set")
+        if use_images:
+            log("⚠️ No featured image generated (check image settings and API keys)")
 
     pub = publish_to_wordpress(
         title=wp_title, content=content,
@@ -698,7 +664,9 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
 
     if pub["success"]:
         log(f"🎉 Published! → {pub.get('post_url','')}")
-        pub["featured_image_url"] = image_results[0].get("url") if image_results[0] else None
+        if featured_id:
+            log(f"🖼️ Featured image set in WordPress (media_id={featured_id})")
+        pub["featured_image_url"] = featured_url
         pub["featured_media_id"] = featured_id
     else:
         log(f"❌ Publish failed: {pub['error']}")

@@ -11,6 +11,7 @@ const CHECKOUT_PRO   = "https://nicheflowai.lemonsqueezy.com/buy/pro";   // repl
 
 // ─── Auth helpers ──────────────────────────────────────────────────────────
 async function supaSignup(email, password) {
+  // Disable email confirmation — signup and auto-login
   const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
     method: "POST",
     headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
@@ -18,7 +19,9 @@ async function supaSignup(email, password) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error_description || data.msg || "Signup failed");
+  // If session exists (email confirmation disabled), return it directly
   if (data.session) return data;
+  // Otherwise needs email confirmation — we still return data so caller can handle
   return data;
 }
 
@@ -51,17 +54,28 @@ function estimateTokens(text) { return Math.ceil(text.length / 4); }
 
 // ─── LOGO SVG ─────────────────────────────────────────────────────────────
 function Logo({ size = 28 }) {
+  // Concept: article document lines + upward publish arrow + AI star
+  // = NicheFlow: content that flows up & gets published powered by AI
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width={size} height={size} viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0,display:"block"}}>
       <defs>
-        <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#818cf8" />
-          <stop offset="100%" stopColor="#c084fc" />
+        <linearGradient id="nfGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#6366f1"/>
+          <stop offset="100%" stopColor="#a855f7"/>
         </linearGradient>
       </defs>
-      <rect width="32" height="32" rx="8" fill="url(#lg1)" />
-      <path d="M8 22 L12 10 L16 18 L20 10 L24 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      <circle cx="24" cy="10" r="2" fill="white" opacity="0.9"/>
+      {/* Rounded square bg */}
+      <rect width="44" height="44" rx="11" fill="url(#nfGrad)"/>
+      {/* Three article lines — represents content/articles */}
+      <rect x="9" y="17" width="15" height="2.8" rx="1.4" fill="white" opacity="0.95"/>
+      <rect x="9" y="22" width="11" height="2.8" rx="1.4" fill="white" opacity="0.7"/>
+      <rect x="9" y="27" width="13" height="2.8" rx="1.4" fill="white" opacity="0.5"/>
+      {/* Upward arrow = publishing / flow */}
+      <path d="M31 33V21" stroke="white" strokeWidth="2.8" strokeLinecap="round"/>
+      <path d="M27 25L31 20L35 25" stroke="white" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/>
+      {/* Gold star = AI power */}
+      <circle cx="31" cy="13" r="4" fill="#fbbf24"/>
+      <text x="31" y="17" textAnchor="middle" fontSize="8" fill="white" fontWeight="bold">✦</text>
     </svg>
   );
 }
@@ -387,7 +401,7 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [step, setStep] = useState("form");
+  const [step, setStep] = useState("form"); // form | confirm
 
   async function submit(e) {
     e.preventDefault();
@@ -398,9 +412,11 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
         onSuccess(data);
       } else {
         const data = await supaSignup(email, password);
+        // If session returned (no email confirmation), log in directly
         if (data.session || data.access_token) {
           onSuccess(data.session || data);
         } else {
+          // Email confirmation required
           setStep("confirm");
         }
       }
@@ -414,6 +430,7 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
       <div className="auth-card fade-up">
         <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ marginBottom:16,paddingLeft:0,border:"none",color:"var(--text3)" }}>← Back</button>
         <div className="auth-brand"><Logo size={28}/><span>NicheFlow AI</span></div>
+
         {step === "confirm" ? (
           <div>
             <div className="alert alert-ok" style={{ marginBottom:16 }}>
@@ -422,6 +439,7 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
             <p style={{ fontSize:13,color:"var(--text2)",marginBottom:20,lineHeight:1.6 }}>
               Once confirmed, come back and sign in with your email and password.
             </p>
+            {/* FIX: This button is now a real <button> with onClick handler */}
             <button
               className="btn btn-primary"
               style={{ width:"100%",marginBottom:10 }}
@@ -461,7 +479,7 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
   );
 }
 
-// ─── UPGRADE BANNER ────────────────────────────────────────────────────────
+// ─── UPGRADE BANNER (shown to Basic users) ─────────────────────────────────
 function UpgradeBanner({ onUpgrade }) {
   return (
     <div className="upgrade-banner">
@@ -469,6 +487,42 @@ function UpgradeBanner({ onUpgrade }) {
         <strong>Upgrade to Pro</strong> — Unlock Pinterest automation, AI pin content, board scheduling, and more.
       </div>
       <button className="btn btn-pro btn-sm" onClick={onUpgrade}>Upgrade — $40/mo ★</button>
+    </div>
+  );
+}
+
+// ─── CHECKOUT MODAL ────────────────────────────────────────────────────────
+function CheckoutModal({ plan, onClose, userEmail }) {
+  const url = plan === "pro" ? CHECKOUT_PRO : CHECKOUT_BASIC;
+  const fullUrl = `${url}?checkout[email]=${encodeURIComponent(userEmail || "")}`;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()} style={{ maxWidth:480 }}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <div style={{ textAlign:"center",padding:"8px 0 24px" }}>
+          <div style={{ fontSize:48,marginBottom:12 }}>{plan==="pro"?"★":"⚡"}</div>
+          <div style={{ fontFamily:"var(--font-display)",fontSize:22,fontWeight:700,marginBottom:6 }}>
+            {plan==="pro"?"NicheFlow Pro":"NicheFlow Basic"}
+          </div>
+          <div style={{ fontSize:36,fontWeight:800,fontFamily:"var(--font-display)",marginBottom:4,color:plan==="pro"?"var(--pro)":"var(--accent2)" }}>
+            {plan==="pro"?"$40":"$30"}<span style={{ fontSize:16,fontWeight:400,color:"var(--text3)" }}>/month</span>
+          </div>
+          <p style={{ fontSize:13,color:"var(--text2)",marginBottom:24,lineHeight:1.6 }}>
+            {plan==="pro"?"Everything in Basic plus Pinterest auto-pinning with AI-generated pin content.":"Unlimited articles, custom prompts, images, and WordPress publishing."}
+          </p>
+          <a
+            href={fullUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={`btn ${plan==="pro"?"btn-pro":"btn-primary"} btn-lg`}
+            style={{ width:"100%",marginBottom:12 }}
+          >
+            Continue to Payment →
+          </a>
+          <p style={{ fontSize:12,color:"var(--text3)" }}>Secure checkout via LemonSqueezy · Cancel anytime</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -895,7 +949,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState([]);
   const [pinPreviews, setPinPreviews] = useState([]);
-  const [previewModal, setPreviewModal] = useState(null);
+  const [previewModal, setPreviewModal] = useState(null); // article being previewed
   const logRef = useRef(null);
 
   if(plan!=="pro"){
@@ -962,6 +1016,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
 
   return (
     <div className="fade-up">
+      {/* Pin Preview Modal */}
       {previewModal&&(
         <div className="modal-overlay" onClick={()=>setPreviewModal(null)}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
@@ -1013,6 +1068,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
               {loadingBoards?"Fetching boards...":"Click \"Load Boards\" to see your Pinterest boards"}
             </div>
           )}
+          {/* Fallback: use manual board IDs from settings */}
           {boards.length===0&&!loadingBoards&&config.pinterest_boards&&(
             <div style={{marginTop:12}}>
               <div style={{fontSize:12,color:"var(--text3)",marginBottom:8}}>Using board IDs from Settings:</div>
@@ -1049,6 +1105,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
         </div>
       </div>
 
+      {/* Pin results */}
       {pinPreviews.length>0&&(
         <div className="card" style={{marginBottom:18}}>
           <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:14}}>Pin Results — Click to Preview</div>
@@ -1095,6 +1152,7 @@ function DocsPage({ plan, onUpgrade }) {
   ];
   return (
     <div className="fade-up" style={{display:"flex",gap:24}}>
+      {/* Sidebar nav */}
       <div style={{width:180,flexShrink:0}}>
         <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:8,position:"sticky",top:20}}>
           {sections.map(s=>(
@@ -1104,6 +1162,8 @@ function DocsPage({ plan, onUpgrade }) {
           ))}
         </div>
       </div>
+
+      {/* Content */}
       <div style={{flex:1}}>
         {section==="start"&&(
           <>
@@ -1124,10 +1184,25 @@ function DocsPage({ plan, onUpgrade }) {
             </div>
             <div className="doc-section">
               <h3>⚡ How the pipeline works</h3>
-              <pre>{`User clicks Generate\n    ↓\nModel 1: Writes article body (HTML, 1000+ words)\nModel 2: Generates summary card (runs in parallel)\nModel 3: Generates images (parallel, if enabled)\n    ↓\nImages → downloaded → converted to WebP (quality 80)\n       → uploaded to WordPress media library\n       → set as article's featured image\n    ↓\nInternal links fetched from WordPress (if enabled)\nLong-tail phrases (3+ words) matched and hyperlinked\n    ↓\nArticle + card + images published to WordPress\nArticle URL and featured image saved to history`}</pre>
+              <pre>{`User clicks Generate
+    ↓
+Model 1: Writes article body (HTML, 1000+ words)
+Model 2: Generates summary card (runs in parallel)
+Model 3: Generates images (parallel, if enabled)
+    ↓
+Images → downloaded → converted to WebP (quality 80)
+       → uploaded to WordPress media library
+       → set as article's featured image
+    ↓
+Internal links fetched from WordPress (if enabled)
+Long-tail phrases (3+ words) matched and hyperlinked
+    ↓
+Article + card + images published to WordPress
+Article URL and featured image saved to history`}</pre>
             </div>
           </>
         )}
+
         {section==="api"&&(
           <div className="doc-section">
             <h3>🔑 API Keys Explained</h3>
@@ -1137,6 +1212,7 @@ function DocsPage({ plan, onUpgrade }) {
             <div style={{marginTop:16}} className="alert alert-info">💡 <strong>Best setup:</strong> Add both Groq + Gemini keys comma-separated. Groq runs first (faster), Gemini is automatic fallback. Zero downtime even when one hits rate limits.</div>
           </div>
         )}
+
         {section==="wordpress"&&(
           <div className="doc-section">
             <h3>🌐 WordPress Connection</h3>
@@ -1146,7 +1222,7 @@ function DocsPage({ plan, onUpgrade }) {
               {t:"Site URL format",d:<>Enter your full site URL: <code>https://yoursite.com</code> — no trailing slash, with https://.</>},
               {t:"Featured image",d:"When images are enabled, the first generated image is automatically uploaded to WordPress media and set as the post's featured image. It's also converted to WebP before upload."},
               {t:"Categories",d:"In the Generate page, click 'Load WP Categories' to see your categories and assign articles to them automatically."},
-              {t:"Internal links",d:<>NicheFlow fetches all your published posts and looks for <strong>full article titles</strong> (3+ word phrases) appearing in the new article's body. When found, it wraps them in a styled hyperlink.</>},
+              {t:"Internal links",d:<>NicheFlow fetches all your published posts and looks for <strong>full article titles</strong> (3+ word phrases) appearing in the new article's body. When found, it wraps them in a styled hyperlink. This is SEO-correct anchor text — exact match long-tail phrases.</>},
             ].map((s,i)=>(
               <div key={i} className="doc-step">
                 <div className="doc-step-num">{i+1}</div>
@@ -1155,31 +1231,51 @@ function DocsPage({ plan, onUpgrade }) {
             ))}
           </div>
         )}
+
         {section==="prompts"&&(
           <>
             <div className="doc-section">
               <h3>💬 Article Prompt</h3>
               <p style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.7}}>Write your own article prompt from scratch. The AI expects you to return a JSON object with these exact keys:</p>
-              <pre>{`{\n  "seo_title": "Under 60 characters",\n  "excerpt": "2-sentence summary for meta description",\n  "html_content": "Full article HTML as a single-line string",\n  "MAIN": "#hexcolor",\n  "MAIN_DARK": "#hexcolor",\n  "LIGHT_BG": "#hexcolor",\n  "BORDER": "#hexcolor"\n}`}</pre>
-              <p style={{fontSize:13,color:"var(--text2)",margin:"12px 0",lineHeight:1.7}}>Include <code>##IMAGE1##</code>, <code>##IMAGE2##</code>, <code>##IMAGE3##</code> in the html_content where you want images inserted.</p>
+              <pre>{`{
+  "seo_title": "Under 60 characters",
+  "excerpt": "2-sentence summary for meta description",
+  "html_content": "Full article HTML as a single-line string",
+  "MAIN": "#hexcolor",      ← primary color used in styling
+  "MAIN_DARK": "#hexcolor", ← darker shade
+  "LIGHT_BG": "#hexcolor",  ← light background
+  "BORDER": "#hexcolor"     ← border/accent color
+}`}</pre>
+              <p style={{fontSize:13,color:"var(--text2)",margin:"12px 0",lineHeight:1.7}}>Include <code>##IMAGE1##</code>, <code>##IMAGE2##</code>, <code>##IMAGE3##</code> in the html_content where you want images inserted. They get replaced automatically.</p>
               <div className="alert alert-warn">⚠️ Keep your prompt under 2,000 tokens (the counter shows live). Longer prompts leave less room for the AI to write the actual article.</div>
             </div>
             <div className="doc-section">
               <h3>🃏 Card Prompt</h3>
               <p style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.7}}>A separate, faster AI model generates the summary card. It should return JSON like this:</p>
-              <pre>{`{\n  "card_title": "Short display title under 40 chars",\n  "card_type": "recipe|tips|checklist|comparison|guide",\n  "summary": "2-sentence summary of the topic",\n  "key_points": ["Point 1", "Point 2", "Point 3"],\n  "quick_facts": [\n    {"label": "Time", "value": "30 mins"}\n  ],\n  "cta_text": "Save this recipe! 📌"\n}`}</pre>
-              <p style={{fontSize:13,color:"var(--text2)",margin:"12px 0",lineHeight:1.7}}>The CTA button in the published card is clickable — it triggers the browser's native Share dialog so readers can save/share the article.</p>
+              <pre>{`{
+  "card_title": "Short display title under 40 chars",
+  "card_type": "recipe|tips|checklist|comparison|guide",
+  "summary": "2-sentence summary of the topic",
+  "key_points": ["Point 1", "Point 2", "Point 3", "Point 4", "Point 5"],
+  "quick_facts": [
+    {"label": "Time", "value": "30 mins"},
+    {"label": "Servings", "value": "4"}
+  ],
+  "cta_text": "Save this recipe! 📌"
+}`}</pre>
+              <p style={{fontSize:13,color:"var(--text2)",margin:"12px 0",lineHeight:1.7}}>The "Save this" / CTA button in the published card is clickable — it triggers the browser's native Share dialog (Web Share API) so readers can save/share the article. If the browser doesn't support it, it copies the URL to clipboard.</p>
             </div>
           </>
         )}
+
         {section==="images"&&(
           <div className="doc-section">
             <h3>🖼️ Images & WebP Conversion</h3>
             {[
-              {t:"WebP conversion",d:"All images are automatically downloaded and converted to WebP format at quality 80. Images wider than 1920px are resized down. WebP is 25-35% smaller than JPEG at the same quality."},
-              {t:"WordPress upload",d:"The converted WebP is uploaded to your WordPress media library via the REST API. It gets a proper filename based on the article title."},
+              {t:"WebP conversion",d:"All images are automatically downloaded and converted to WebP format at quality 80, compression method 1 (optimized for speed). Images wider than 1920px are resized down. WebP is 25-35% smaller than JPEG at the same quality."},
+              {t:"WordPress upload",d:"The converted WebP is uploaded to your WordPress media library via the REST API. It gets a proper filename based on the article title (e.g. boursin-cheese-pasta-featured.webp)."},
               {t:"Featured image",d:"Image 1 (featured) is set as the WordPress post's featured image using the media ID. Images 2, 3, 4 are injected into the article body at the ##IMAGE2## ##IMAGE3## ##IMAGE4## placeholders."},
-              {t:"Midjourney (GoAPI)",d:<>Your template is used for all 4 images in parallel. The <code>--ar 2:3</code> aspect ratio creates portrait images (ideal for Pinterest). Fast mode is tried first, relax mode is automatic fallback.</>},
+              {t:"Midjourney (GoAPI)",d:<>Your template is used for all 4 images in parallel. The <code>--ar 2:3</code> aspect ratio creates portrait images (ideal for Pinterest). Fast mode is tried first, relax mode is automatic fallback if fast quota is exhausted.</>},
               {t:"Pollinations (free)",d:"Free alternative with no API key needed. Lower quality than Midjourney. Good for testing or low-budget niches. Enable in Settings → Images."},
             ].map((s,i)=>(
               <div key={i} className="doc-step">
@@ -1189,17 +1285,18 @@ function DocsPage({ plan, onUpgrade }) {
             ))}
           </div>
         )}
+
         {section==="links"&&(
           <div className="doc-section">
             <h3>🔗 Internal Links</h3>
-            <p style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.7}}>NicheFlow automatically injects internal links by matching your existing WordPress articles inside new article text.</p>
+            <p style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.7}}>NicheFlow automatically injects internal links by matching your existing WordPress articles inside new article text. Here's exactly how it works:</p>
             {[
               {t:"Fetches all published posts",d:"When enabled, NicheFlow fetches up to 200 published posts from your WordPress site before publishing."},
-              {t:"Long-tail phrase matching only",d:"Only article titles with 3 or more words are used as anchor text. Single or 2-word titles are ignored."},
+              {t:"Long-tail phrase matching only",d:"Only article titles with 3 or more words are used as anchor text. Single or 2-word titles are ignored — they'd create bad SEO anchor text."},
               {t:"Exact title match first",d:"Looks for the exact article title text inside the new article's HTML. Case-insensitive."},
-              {t:"Fallback: last 3 words",d:"If the full title isn't found, tries matching just the last 3 words of the title."},
-              {t:"Relevance filtering",d:"Skips articles where more than 50% of words overlap with the current article's title."},
-              {t:"Max links setting",d:"Set the max number of internal links per article in Settings → WordPress. Default is 4."},
+              {t:"Fallback: last 3 words",d:"If the full title isn't found, tries matching just the last 3 words of the title (the noun phrase, e.g. 'with Broccoli Pasta' from a longer title)."},
+              {t:"Relevance filtering",d:"Skips articles where more than 50% of words overlap with the current article's title (too similar = not a useful cross-link)."},
+              {t:"Max links setting",d:"Set the max number of internal links per article in Settings → WordPress. Default is 4. Each link is styled with your article's main color."},
             ].map((s,i)=>(
               <div key={i} className="doc-step">
                 <div className="doc-step-num">{i+1}</div>
@@ -1208,6 +1305,7 @@ function DocsPage({ plan, onUpgrade }) {
             ))}
           </div>
         )}
+
         {section==="pinterest"&&(
           <>
             {plan!=="pro"&&<div className="upgrade-banner" style={{marginBottom:20}}><div className="upgrade-banner-text"><strong>Pinterest is a Pro feature</strong> — upgrade to access this section.</div><button className="btn btn-pro btn-sm" onClick={onUpgrade}>Upgrade →</button></div>}
@@ -1217,9 +1315,9 @@ function DocsPage({ plan, onUpgrade }) {
                 {t:"Get a Pinterest Access Token",d:<>Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>developers.pinterest.com</a> → My Apps → Create App → Generate Access Token. You need the <code>boards:read</code> and <code>pins:write</code> scopes.</>},
                 {t:"Add token in Settings",d:"Settings → Pinterest tab → paste your token → Save Settings."},
                 {t:"Load your boards",d:"Go to the Pinterest page → click 'Load Boards' → select which boards to pin to."},
-                {t:"How pins are created",d:"For each published article, a separate AI model generates: pin_title (max 60 chars), pin_description (max 150 chars + CTA), alt_text, and 5 hashtags. The article's featured image is used as the pin image."},
-                {t:"Schedule delay",d:"Set a delay in Settings → Pinterest → 'Pin delay (minutes)'. Pinterest recommends not pinning immediately."},
-                {t:"Auto-pin",d:"Enable 'Auto-pin after publish' in Settings → Pinterest to automatically pin every new article right after it's published."},
+                {t:"How pins are created",d:"For each published article, a separate AI model generates: pin_title (max 60 chars), pin_description (max 150 chars + CTA), alt_text (1 descriptive sentence), and 5 hashtags. The article's featured image is used as the pin image. The article URL is the pin link."},
+                {t:"Schedule delay",d:"Set a delay in Settings → Pinterest → 'Pin delay (minutes)'. E.g. 60 = pin 1 hour after publish. Pinterest recommends not pinning immediately."},
+                {t:"Auto-pin",d:"Enable 'Auto-pin after publish' in Settings → Pinterest to automatically pin every new article right after it's published. Uses your configured boards and delay."},
               ].map((s,i)=>(
                 <div key={i} className="doc-step">
                   <div className="doc-step-num">{i+1}</div>
@@ -1229,6 +1327,7 @@ function DocsPage({ plan, onUpgrade }) {
             </div>
           </>
         )}
+
         {section==="billing"&&(
           <div className="doc-section">
             <h3>💳 Billing & Plans</h3>
@@ -1259,6 +1358,7 @@ function TrialBar({ createdAt, plan, onUpgrade }) {
   const diff = (Date.now() - new Date(createdAt).getTime()) / (1000*60*60*24);
   const TRIAL_DAYS = 2;
   const daysLeft = Math.max(0, TRIAL_DAYS - Math.floor(diff));
+  const cls = daysLeft===0?"trial-bar-urgent":daysLeft===1?"trial-bar-warn":"trial-bar-ok";
   const msg = daysLeft===0?"⚠️ Free trial expired — upgrade to keep publishing"
     :daysLeft===1?"⏰ 1 day left in your free trial"
     :`🎉 ${daysLeft} days left in your free trial`;
@@ -1276,11 +1376,6 @@ function TrialBar({ createdAt, plan, onUpgrade }) {
   );
 }
 
-// ─── CHECKOUT MODAL ────────────────────────────────────────────────────────
-function CheckoutModal({ plan, onClose, userEmail }) {
-  const CHECKOUT_BASIC = "https://nicheflowai.lemonsqueezy.com/buy/basic";
-  const CHECKOUT_PRO   = "https://nicheflowai.lemonsqueezy.com/buy/pro";
-  const url = (plan==="pro"?CHECKOUT_PRO:CHECKOUT_BASIC)+`?checkout[email]=${encodeURIComponent(userEmail||"")}`;
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.78)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
       <div style={{background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:"var(--radius-xl)",padding:36,maxWidth:440,width:"100%",position:"relative"}} onClick={e=>e.stopPropagation()}>
@@ -1310,6 +1405,7 @@ function CheckoutModal({ plan, onClose, userEmail }) {
 function AppShell({ user, onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [config, setConfig] = useState(getStoredConfig);
+  // CRITICAL: plan is ALWAYS re-fetched from Supabase — never just use cache
   const [plan, setPlan] = useState("basic");
   const [createdAt, setCreatedAt] = useState(new Date().toISOString());
   const [history, setHistory] = useState(()=>{try{return JSON.parse(localStorage.getItem("nicheflow_history")||"[]");}catch{return [];}});
@@ -1321,7 +1417,8 @@ function AppShell({ user, onLogout }) {
   const token = user?.access_token || getStoredToken();
   const avatarLetter = email[0]?.toUpperCase() || "U";
 
-  useEffect(() => {
+  // Re-fetch plan from Supabase profiles — called on mount AND manually via refreshPlan()
+  const refreshPlan = useCallback(() => {
     if (!userId || !token) return;
     fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=plan,created_at`, {
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` }
@@ -1329,13 +1426,21 @@ function AppShell({ user, onLogout }) {
       if (r.ok) {
         const rows = await r.json();
         if (rows && rows[0]) {
-          setPlan(rows[0].plan || "basic");
+          const newPlan = rows[0].plan || "basic";
+          setPlan(newPlan);
           setCreatedAt(rows[0].created_at || new Date().toISOString());
+          if (newPlan === "pro") {
+            console.log("[NicheFlow] Plan refreshed: Pro ✓");
+          }
         }
       }
     }).catch(() => {});
   }, [userId, token]);
 
+  // Run on mount and whenever token/userId changes
+  useEffect(() => { refreshPlan(); }, [refreshPlan]);
+
+  // Load settings from DB (once per session)
   useEffect(() => {
     if (!token || settingsLoaded) return;
     fetch(`${API_URL}/settings`, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
@@ -1403,7 +1508,10 @@ function AppShell({ user, onLogout }) {
               <div className="user-plan" style={{color:plan==="pro"?"var(--pro)":"var(--accent2)"}}>{plan==="pro"?"★ Pro":"Basic"}</div>
             </div>
           </div>
-          <button className="nav-item" onClick={onLogout} style={{marginTop:6,color:"var(--text3)"}}><span>→</span>Sign out</button>
+          <button className="nav-item" onClick={refreshPlan} style={{marginTop:4,color:"var(--text3)",fontSize:12,padding:"6px 12px"}} title="Click after payment to refresh your plan">
+            <span>↺</span>Refresh Plan
+          </button>
+          <button className="nav-item" onClick={onLogout} style={{marginTop:2,color:"var(--text3)"}}><span>→</span>Sign out</button>
         </div>
       </aside>
       <main className="main-content">

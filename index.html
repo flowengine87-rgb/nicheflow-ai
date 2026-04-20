@@ -2,8 +2,33 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- App icon: SVG favicon works in all modern browsers -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Fallback for older browsers -->
+    <link rel="alternate icon" href="/favicon.ico" />
+    <!-- Apple touch icon -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NicheFlow AI</title>
+    <!-- SEO + Social -->
+    <title>NicheFlow AI — Publish 10x Faster</title>
+    <meta name="description" content="NicheFlow AI writes long-form articles, builds info cards, generates images, and pins to Pinterest — all from one dashboard." />
+    <meta name="theme-color" content="#6366f1" />
+    <!-- Open Graph -->
+    <meta property="og:title" content="NicheFlow AI — Publish 10x Faster" />
+    <meta property="og:description" content="AI-powered article generation, WordPress publishing, and Pinterest automation for niche site owners." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://nicheflowai.vercel.app" />
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="NicheFlow AI" />
+    <meta name="twitter:description" content="Publish 10x faster with AI articles, images, and Pinterest automation." />
+    <!-- Prevent search engine indexing during beta (remove when ready to launch) -->
+    <!-- <meta name="robots" content="noindex" /> -->
+    <style>
+      /* Prevent flash of white background before React loads */
+      html, body { background: #08090d; color: #f0f1f5; margin: 0; padding: 0; }
+      #root { min-height: 100vh; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
