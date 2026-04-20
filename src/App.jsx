@@ -6,12 +6,11 @@ const SUPABASE_KEY = "sb_publishable_U9zJp_BBd-jkJCwvGimNmw_E4NyynFN";
 const API_URL = "https://web-production-1f143.up.railway.app";
 
 // LemonSqueezy checkout URLs — set after approval
-const CHECKOUT_BASIC = "https://nicheflowai.lemonsqueezy.com/buy/basic"; // replace after approval
-const CHECKOUT_PRO   = "https://nicheflowai.lemonsqueezy.com/buy/pro";   // replace after approval
+const CHECKOUT_BASIC = "https://nicheflowai.lemonsqueezy.com/buy/basic";
+const CHECKOUT_PRO   = "https://nicheflowai.lemonsqueezy.com/buy/pro";
 
 // ─── Auth helpers ──────────────────────────────────────────────────────────
 async function supaSignup(email, password) {
-  // Disable email confirmation — signup and auto-login
   const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
     method: "POST",
     headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
@@ -19,9 +18,7 @@ async function supaSignup(email, password) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error_description || data.msg || "Signup failed");
-  // If session exists (email confirmation disabled), return it directly
   if (data.session) return data;
-  // Otherwise needs email confirmation — we still return data so caller can handle
   return data;
 }
 
@@ -54,8 +51,6 @@ function estimateTokens(text) { return Math.ceil(text.length / 4); }
 
 // ─── LOGO SVG ─────────────────────────────────────────────────────────────
 function Logo({ size = 28 }) {
-  // Concept: article document lines + upward publish arrow + AI star
-  // = NicheFlow: content that flows up & gets published powered by AI
   return (
     <svg width={size} height={size} viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0,display:"block"}}>
       <defs>
@@ -64,16 +59,12 @@ function Logo({ size = 28 }) {
           <stop offset="100%" stopColor="#a855f7"/>
         </linearGradient>
       </defs>
-      {/* Rounded square bg */}
       <rect width="44" height="44" rx="11" fill="url(#nfGrad)"/>
-      {/* Three article lines — represents content/articles */}
       <rect x="9" y="17" width="15" height="2.8" rx="1.4" fill="white" opacity="0.95"/>
       <rect x="9" y="22" width="11" height="2.8" rx="1.4" fill="white" opacity="0.7"/>
       <rect x="9" y="27" width="13" height="2.8" rx="1.4" fill="white" opacity="0.5"/>
-      {/* Upward arrow = publishing / flow */}
       <path d="M31 33V21" stroke="white" strokeWidth="2.8" strokeLinecap="round"/>
       <path d="M27 25L31 20L35 25" stroke="white" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/>
-      {/* Gold star = AI power */}
       <circle cx="31" cy="13" r="4" fill="#fbbf24"/>
       <text x="31" y="17" textAnchor="middle" fontSize="8" fill="white" fontWeight="bold">✦</text>
     </svg>
@@ -205,13 +196,11 @@ select.input{cursor:pointer;}
 .history-title{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .history-meta{font-size:12px;color:var(--text3);margin-top:2px;}
 
-/* Modal overlay */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease;}
 .modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-xl);padding:32px;max-width:600px;width:100%;max-height:85vh;overflow-y:auto;animation:fadeUp .25s ease;position:relative;}
 .modal-close{position:absolute;top:16px;right:16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);font-size:14px;font-family:var(--font);}
 .modal-close:hover{color:var(--text);background:var(--bg4);}
 
-/* Pin preview card */
 .pin-preview{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:16px;}
 .pin-img{width:100%;height:180px;object-fit:cover;display:block;background:var(--bg4);}
 .pin-body{padding:14px;}
@@ -220,7 +209,6 @@ select.input{cursor:pointer;}
 .pin-tags{display:flex;flex-wrap:wrap;gap:5px;}
 .pin-tag{background:var(--accent-dim);color:var(--accent2);padding:2px 8px;border-radius:10px;font-size:11px;}
 
-/* Doc sections */
 .doc-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin-bottom:16px;}
 .doc-section h3{font-family:var(--font-display);font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
 .doc-step{display:flex;gap:14px;margin-bottom:14px;align-items:flex-start;}
@@ -231,7 +219,6 @@ select.input{cursor:pointer;}
 code{background:var(--bg3);border:1px solid var(--border);padding:1px 6px;border-radius:5px;font-size:12px;font-family:'Courier New',monospace;color:var(--accent2);}
 pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px;font-size:12px;line-height:1.7;overflow-x:auto;color:var(--text2);font-family:'Courier New',monospace;margin:10px 0;}
 
-/* Landing */
 .landing{min-height:100vh;background:var(--bg);}
 .nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:14px 48px;background:rgba(8,9,13,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
 .nav-brand{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:17px;font-weight:700;background:linear-gradient(135deg,var(--accent2),#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
@@ -252,7 +239,6 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .plan-features li{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text2);}
 .plan-features li::before{content:'✓';width:18px;height:18px;background:var(--green-dim);color:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
 
-/* App layout */
 .app-layout{display:flex;min-height:100vh;}
 .sidebar{width:236px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:50;}
 .sidebar-logo{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
@@ -275,17 +261,14 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .page-sub{font-size:14px;color:var(--text2);margin-top:4px;margin-bottom:18px;}
 .page-body{padding:24px 32px;}
 
-/* Auth */
 .auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg);position:relative;}
 .auth-page::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 50% at 30% 20%,rgba(99,102,241,.1) 0%,transparent 60%),radial-gradient(ellipse 50% 40% at 75% 70%,rgba(139,92,246,.07) 0%,transparent 60%);pointer-events:none;}
 .auth-card{width:100%;max-width:400px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-xl);padding:36px;position:relative;z-index:1;}
 .auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
 .auth-brand span{font-family:var(--font-display);font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--accent2),#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 
-/* mesh */
 .mesh-bg::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 50% at 30% 20%,rgba(99,102,241,.1) 0%,transparent 60%),radial-gradient(ellipse 50% 40% at 75% 70%,rgba(139,92,246,.07) 0%,transparent 60%);pointer-events:none;z-index:0;}
 
-/* Upgrade banner */
 .upgrade-banner{background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(245,158,11,.05));border:1px solid rgba(245,158,11,.25);border-radius:var(--radius-lg);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;}
 .upgrade-banner-text{font-size:14px;color:var(--text2);}.upgrade-banner-text strong{color:var(--pro);}
 
@@ -309,6 +292,7 @@ function TokenCounter({ text, limit = 2000 }) {
     </div>
   );
 }
+
 function Hint({ children }) {
   return <p className="hint"><span style={{ flexShrink: 0 }}>ℹ</span><span>{children}</span></p>;
 }
@@ -401,7 +385,7 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [step, setStep] = useState("form"); // form | confirm
+  const [step, setStep] = useState("form");
 
   async function submit(e) {
     e.preventDefault();
@@ -412,11 +396,9 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
         onSuccess(data);
       } else {
         const data = await supaSignup(email, password);
-        // If session returned (no email confirmation), log in directly
         if (data.session || data.access_token) {
           onSuccess(data.session || data);
         } else {
-          // Email confirmation required
           setStep("confirm");
         }
       }
@@ -439,7 +421,6 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
             <p style={{ fontSize:13,color:"var(--text2)",marginBottom:20,lineHeight:1.6 }}>
               Once confirmed, come back and sign in with your email and password.
             </p>
-            {/* FIX: This button is now a real <button> with onClick handler */}
             <button
               className="btn btn-primary"
               style={{ width:"100%",marginBottom:10 }}
@@ -479,7 +460,7 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
   );
 }
 
-// ─── UPGRADE BANNER (shown to Basic users) ─────────────────────────────────
+// ─── UPGRADE BANNER ────────────────────────────────────────────────────────
 function UpgradeBanner({ onUpgrade }) {
   return (
     <div className="upgrade-banner">
@@ -949,7 +930,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState([]);
   const [pinPreviews, setPinPreviews] = useState([]);
-  const [previewModal, setPreviewModal] = useState(null); // article being previewed
+  const [previewModal, setPreviewModal] = useState(null);
   const logRef = useRef(null);
 
   if(plan!=="pro"){
@@ -1016,7 +997,6 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
 
   return (
     <div className="fade-up">
-      {/* Pin Preview Modal */}
       {previewModal&&(
         <div className="modal-overlay" onClick={()=>setPreviewModal(null)}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
@@ -1068,7 +1048,6 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
               {loadingBoards?"Fetching boards...":"Click \"Load Boards\" to see your Pinterest boards"}
             </div>
           )}
-          {/* Fallback: use manual board IDs from settings */}
           {boards.length===0&&!loadingBoards&&config.pinterest_boards&&(
             <div style={{marginTop:12}}>
               <div style={{fontSize:12,color:"var(--text3)",marginBottom:8}}>Using board IDs from Settings:</div>
@@ -1105,7 +1084,6 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
         </div>
       </div>
 
-      {/* Pin results */}
       {pinPreviews.length>0&&(
         <div className="card" style={{marginBottom:18}}>
           <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:14}}>Pin Results — Click to Preview</div>
@@ -1152,7 +1130,6 @@ function DocsPage({ plan, onUpgrade }) {
   ];
   return (
     <div className="fade-up" style={{display:"flex",gap:24}}>
-      {/* Sidebar nav */}
       <div style={{width:180,flexShrink:0}}>
         <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:8,position:"sticky",top:20}}>
           {sections.map(s=>(
@@ -1163,7 +1140,6 @@ function DocsPage({ plan, onUpgrade }) {
         </div>
       </div>
 
-      {/* Content */}
       <div style={{flex:1}}>
         {section==="start"&&(
           <>
@@ -1358,7 +1334,6 @@ function TrialBar({ createdAt, plan, onUpgrade }) {
   const diff = (Date.now() - new Date(createdAt).getTime()) / (1000*60*60*24);
   const TRIAL_DAYS = 2;
   const daysLeft = Math.max(0, TRIAL_DAYS - Math.floor(diff));
-  const cls = daysLeft===0?"trial-bar-urgent":daysLeft===1?"trial-bar-warn":"trial-bar-ok";
   const msg = daysLeft===0?"⚠️ Free trial expired — upgrade to keep publishing"
     :daysLeft===1?"⏰ 1 day left in your free trial"
     :`🎉 ${daysLeft} days left in your free trial`;
@@ -1376,36 +1351,10 @@ function TrialBar({ createdAt, plan, onUpgrade }) {
   );
 }
 
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.78)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
-      <div style={{background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:"var(--radius-xl)",padding:36,maxWidth:440,width:"100%",position:"relative"}} onClick={e=>e.stopPropagation()}>
-        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:8,width:28,height:28,cursor:"pointer",color:"var(--text3)",fontFamily:"var(--font)",fontSize:13}}>✕</button>
-        <div style={{textAlign:"center",paddingTop:8}}>
-          <div style={{fontSize:52,marginBottom:10}}>{plan==="pro"?"★":"⚡"}</div>
-          <div style={{fontFamily:"var(--font-display)",fontSize:22,fontWeight:700,marginBottom:6}}>NicheFlow {plan==="pro"?"Pro":"Basic"}</div>
-          <div style={{fontSize:38,fontWeight:800,fontFamily:"var(--font-display)",marginBottom:4,color:plan==="pro"?"var(--pro)":"var(--accent2)"}}>
-            {plan==="pro"?"$40":"$30"}<span style={{fontSize:14,fontWeight:400,color:"var(--text3)"}}>/month</span>
-          </div>
-          <p style={{fontSize:13,color:"var(--text2)",marginBottom:22,lineHeight:1.6}}>
-            {plan==="pro"?"Full Pinterest automation + everything in Basic.":"Unlimited articles, custom prompts, images, and WordPress publishing."}
-          </p>
-          <a href={url} target="_blank" rel="noreferrer"
-            className={`btn ${plan==="pro"?"btn-pro":"btn-primary"} btn-lg`}
-            style={{width:"100%",marginBottom:10,fontSize:15}}>
-            Continue to Secure Checkout →
-          </a>
-          <p style={{fontSize:12,color:"var(--text3)"}}>Secured by LemonSqueezy · Cancel anytime · Plan activates instantly after payment</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── APP SHELL ─────────────────────────────────────────────────────────────
 function AppShell({ user, onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [config, setConfig] = useState(getStoredConfig);
-  // CRITICAL: plan is ALWAYS re-fetched from Supabase — never just use cache
   const [plan, setPlan] = useState("basic");
   const [createdAt, setCreatedAt] = useState(new Date().toISOString());
   const [history, setHistory] = useState(()=>{try{return JSON.parse(localStorage.getItem("nicheflow_history")||"[]");}catch{return [];}});
@@ -1417,7 +1366,6 @@ function AppShell({ user, onLogout }) {
   const token = user?.access_token || getStoredToken();
   const avatarLetter = email[0]?.toUpperCase() || "U";
 
-  // Re-fetch plan from Supabase profiles — called on mount AND manually via refreshPlan()
   const refreshPlan = useCallback(() => {
     if (!userId || !token) return;
     fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=plan,created_at`, {
@@ -1429,18 +1377,13 @@ function AppShell({ user, onLogout }) {
           const newPlan = rows[0].plan || "basic";
           setPlan(newPlan);
           setCreatedAt(rows[0].created_at || new Date().toISOString());
-          if (newPlan === "pro") {
-            console.log("[NicheFlow] Plan refreshed: Pro ✓");
-          }
         }
       }
     }).catch(() => {});
   }, [userId, token]);
 
-  // Run on mount and whenever token/userId changes
   useEffect(() => { refreshPlan(); }, [refreshPlan]);
 
-  // Load settings from DB (once per session)
   useEffect(() => {
     if (!token || settingsLoaded) return;
     fetch(`${API_URL}/settings`, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
