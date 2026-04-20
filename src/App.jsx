@@ -5,7 +5,6 @@ const SUPABASE_URL = "https://gfulpvqqpakcgubkilwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_U9zJp_BBd-jkJCwvGimNmw_E4NyynFN";
 const API_URL = "https://web-production-1f143.up.railway.app";
 
-// LemonSqueezy checkout URLs — set after approval
 const CHECKOUT_BASIC = "https://nicheflowai.lemonsqueezy.com/buy/basic";
 const CHECKOUT_PRO   = "https://nicheflowai.lemonsqueezy.com/buy/pro";
 
@@ -222,7 +221,6 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .landing{min-height:100vh;background:var(--bg);}
 .nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:14px 48px;background:rgba(8,9,13,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
 .nav-brand{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:17px;font-weight:700;background:linear-gradient(135deg,var(--accent2),#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
-.nav-logo{font-family:var(--font-display);font-size:17px;font-weight:700;background:linear-gradient(135deg,var(--accent2),#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .hero{padding:140px 48px 100px;max-width:1100px;margin:0 auto;position:relative;z-index:1;}
 .hero h1{font-family:var(--font-display);font-size:clamp(42px,6vw,72px);font-weight:800;line-height:1.05;letter-spacing:-2px;margin-bottom:22px;}
 .hero h1 .grad{background:linear-gradient(135deg,var(--accent2) 0%,#c084fc 50%,#f472b6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:200% 200%;animation:gradMove 4s ease infinite;}
@@ -266,9 +264,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .auth-card{width:100%;max-width:400px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-xl);padding:36px;position:relative;z-index:1;}
 .auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
 .auth-brand span{font-family:var(--font-display);font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--accent2),#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
-
 .mesh-bg::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 50% at 30% 20%,rgba(99,102,241,.1) 0%,transparent 60%),radial-gradient(ellipse 50% 40% at 75% 70%,rgba(139,92,246,.07) 0%,transparent 60%);pointer-events:none;z-index:0;}
-
 .upgrade-banner{background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(245,158,11,.05));border:1px solid rgba(245,158,11,.25);border-radius:var(--radius-lg);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;}
 .upgrade-banner-text{font-size:14px;color:var(--text2);}.upgrade-banner-text strong{color:var(--pro);}
 
@@ -280,19 +276,17 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 }
 `;
 
-// ─── Token Counter ─────────────────────────────────────────────────────────
 function TokenCounter({ text, limit = 2000 }) {
   const n = estimateTokens(text);
   const pct = n / limit;
   const cls = pct > 1 ? "token-over" : pct > 0.8 ? "token-warn" : "token-ok";
   return (
     <div className={`token-bar ${cls}`}>
-      <div>{pct > 1 ? `⚠️ Over limit! ${n.toLocaleString()} / ${limit.toLocaleString()} tokens — shorten your prompt` : pct > 0.8 ? `⚠️ ${n.toLocaleString()} / ${limit.toLocaleString()} tokens — approaching limit` : `✓ ${n.toLocaleString()} / ${limit.toLocaleString()} estimated tokens`}</div>
+      <div>{pct > 1 ? `⚠️ Over limit! ${n.toLocaleString()} / ${limit.toLocaleString()} tokens` : pct > 0.8 ? `⚠️ ${n.toLocaleString()} / ${limit.toLocaleString()} tokens — approaching limit` : `✓ ${n.toLocaleString()} / ${limit.toLocaleString()} estimated tokens`}</div>
       <div className="progress"><div className="progress-fill" style={{ width: `${Math.min(pct*100,100)}%`, background: pct > 1 ? "var(--red)" : pct > 0.8 ? "var(--pro)" : undefined }} /></div>
     </div>
   );
 }
-
 function Hint({ children }) {
   return <p className="hint"><span style={{ flexShrink: 0 }}>ℹ</span><span>{children}</span></p>;
 }
@@ -303,7 +297,7 @@ function LandingPage({ onLogin, onSignup }) {
     { icon: "✦", title: "AI Article Engine", desc: "Two separate AI models — one crafts your article, another builds the summary card. Fully independent." },
     { icon: "🎨", title: "Prompt Studio", desc: "Write your own prompts from scratch. Real-time token counter warns you before hitting limits." },
     { icon: "🖼️", title: "Image Automation", desc: "Midjourney or Pollinations images, auto-converted to WebP and set as featured image in WordPress." },
-    { icon: "📌", title: "Pinterest Bot (Pro)", desc: "Auto-pin after publishing with AI-optimized title, description, and alt text to your boards." },
+    { icon: "📌", title: "Pinterest Bot (Pro)", desc: "Auto-pin with AI-generated Canva-based pin images, 4-word hook titles, and board scheduling." },
     { icon: "🔗", title: "Internal Linking", desc: "Fetches your existing WordPress posts and injects relevant long-tail phrase links automatically." },
     { icon: "📅", title: "Smart Scheduling", desc: "Delay between articles, draft or publish instantly, auto-pin with custom delay. Full control." },
   ];
@@ -358,7 +352,7 @@ function LandingPage({ onLogin, onSignup }) {
               features:["Unlimited article generation","Custom article prompt","Custom card prompt","Midjourney & Pollinations images","WordPress auto-publish","Featured image auto-set","Internal link injection","History & analytics"],
               btn:"Get Basic →", cls:"", action: () => { onSignup(); } },
             { name:"Pro",price:"$40",desc:"Everything in Basic plus full Pinterest automation.",
-              features:["Everything in Basic","Pinterest auto-pinning","AI-optimized pin content","Alt text generation","Board selection & scheduling","Pin delay scheduling","Featured image as pin image","Auto-pin after publish"],
+              features:["Everything in Basic","Pinterest auto-pinning","Canva template pin images","AI 4-word hook titles","Board selection & scheduling","Pin delay scheduling","Featured image as pin fallback","Auto-pin after publish"],
               btn:"Get Pro ★", cls:"featured", action: () => { onSignup(); } },
           ].map(p=>(
             <div key={p.name} className={`plan-card ${p.cls}`}>
@@ -412,22 +406,11 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
       <div className="auth-card fade-up">
         <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ marginBottom:16,paddingLeft:0,border:"none",color:"var(--text3)" }}>← Back</button>
         <div className="auth-brand"><Logo size={28}/><span>NicheFlow AI</span></div>
-
         {step === "confirm" ? (
           <div>
-            <div className="alert alert-ok" style={{ marginBottom:16 }}>
-              ✓ Account created! Check your email to confirm, then log in.
-            </div>
-            <p style={{ fontSize:13,color:"var(--text2)",marginBottom:20,lineHeight:1.6 }}>
-              Once confirmed, come back and sign in with your email and password.
-            </p>
-            <button
-              className="btn btn-primary"
-              style={{ width:"100%",marginBottom:10 }}
-              onClick={() => { setStep("form"); onSwitch("login"); }}
-            >
-              Go to Login →
-            </button>
+            <div className="alert alert-ok" style={{ marginBottom:16 }}>✓ Account created! Check your email to confirm, then log in.</div>
+            <p style={{ fontSize:13,color:"var(--text2)",marginBottom:20,lineHeight:1.6 }}>Once confirmed, come back and sign in with your email and password.</p>
+            <button className="btn btn-primary" style={{ width:"100%",marginBottom:10 }} onClick={() => { setStep("form"); onSwitch("login"); }}>Go to Login →</button>
           </div>
         ) : (
           <>
@@ -460,47 +443,32 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
   );
 }
 
-// ─── UPGRADE BANNER ────────────────────────────────────────────────────────
 function UpgradeBanner({ onUpgrade }) {
   return (
     <div className="upgrade-banner">
-      <div className="upgrade-banner-text">
-        <strong>Upgrade to Pro</strong> — Unlock Pinterest automation, AI pin content, board scheduling, and more.
-      </div>
+      <div className="upgrade-banner-text"><strong>Upgrade to Pro</strong> — Unlock Pinterest automation, Canva pin images, AI hook titles, and more.</div>
       <button className="btn btn-pro btn-sm" onClick={onUpgrade}>Upgrade — $40/mo ★</button>
     </div>
   );
 }
 
-// ─── CHECKOUT MODAL ────────────────────────────────────────────────────────
 function CheckoutModal({ plan, onClose, userEmail }) {
   const url = plan === "pro" ? CHECKOUT_PRO : CHECKOUT_BASIC;
   const fullUrl = `${url}?checkout[email]=${encodeURIComponent(userEmail || "")}`;
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e=>e.stopPropagation()} style={{ maxWidth:480 }}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <div style={{ textAlign:"center",padding:"8px 0 24px" }}>
           <div style={{ fontSize:48,marginBottom:12 }}>{plan==="pro"?"★":"⚡"}</div>
-          <div style={{ fontFamily:"var(--font-display)",fontSize:22,fontWeight:700,marginBottom:6 }}>
-            {plan==="pro"?"NicheFlow Pro":"NicheFlow Basic"}
-          </div>
+          <div style={{ fontFamily:"var(--font-display)",fontSize:22,fontWeight:700,marginBottom:6 }}>{plan==="pro"?"NicheFlow Pro":"NicheFlow Basic"}</div>
           <div style={{ fontSize:36,fontWeight:800,fontFamily:"var(--font-display)",marginBottom:4,color:plan==="pro"?"var(--pro)":"var(--accent2)" }}>
             {plan==="pro"?"$40":"$30"}<span style={{ fontSize:16,fontWeight:400,color:"var(--text3)" }}>/month</span>
           </div>
           <p style={{ fontSize:13,color:"var(--text2)",marginBottom:24,lineHeight:1.6 }}>
-            {plan==="pro"?"Everything in Basic plus Pinterest auto-pinning with AI-generated pin content.":"Unlimited articles, custom prompts, images, and WordPress publishing."}
+            {plan==="pro"?"Everything in Basic plus Pinterest auto-pinning with Canva pin images.":"Unlimited articles, custom prompts, images, and WordPress publishing."}
           </p>
-          <a
-            href={fullUrl}
-            target="_blank"
-            rel="noreferrer"
-            className={`btn ${plan==="pro"?"btn-pro":"btn-primary"} btn-lg`}
-            style={{ width:"100%",marginBottom:12 }}
-          >
-            Continue to Payment →
-          </a>
+          <a href={fullUrl} target="_blank" rel="noreferrer" className={`btn ${plan==="pro"?"btn-pro":"btn-primary"} btn-lg`} style={{ width:"100%",marginBottom:12 }}>Continue to Payment →</a>
           <p style={{ fontSize:12,color:"var(--text3)" }}>Secure checkout via LemonSqueezy · Cancel anytime</p>
         </div>
       </div>
@@ -605,7 +573,12 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
         if(data.success){
           addLog(`✅ Published → ${data.post_url}`,"ok");
           if(data.featured_image_url) addLog(`🖼️ Featured image set`,"ok");
-          onHistoryUpdate({title,status:"published",post_url:data.post_url,time:new Date().toLocaleTimeString()});
+          onHistoryUpdate({
+            title,status:"published",post_url:data.post_url,
+            featured_image_url:data.featured_image_url||"",
+            image_results:data.image_results||[],
+            time:new Date().toLocaleTimeString()
+          });
         } else {
           const errMsg=data.detail||data.error||"Unknown error";
           addLog(`❌ Failed: ${errMsg}`,"err");
@@ -645,7 +618,7 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
                 <label className="toggle"><input type="checkbox" checked={draft} onChange={e=>setDraft(e.target.checked)}/><span className="toggle-slider"/></label>
               </div>
               <div className="setting-row">
-                <div className="setting-info"><div className="setting-name">Generate Images</div><div className="setting-desc">Midjourney (GoAPI key) or Pollinations (free). Images are converted to WebP and set as featured image.</div></div>
+                <div className="setting-info"><div className="setting-name">Generate Images</div><div className="setting-desc">Midjourney or Pollinations. Uploaded to WP and set as featured image.</div></div>
                 <label className="toggle"><input type="checkbox" checked={useImages} onChange={e=>setUseImages(e.target.checked)}/><span className="toggle-slider"/></label>
               </div>
               <div>
@@ -659,13 +632,13 @@ function GeneratePage({ config, onHistoryUpdate, plan }) {
             </div>
           </div>
           <button className="btn btn-primary" style={{width:"100%",padding:"13px",fontSize:15}} onClick={run} disabled={running||!titleList.length||missingKeys}>
-            {running?<><span className="spinner"/>Running batch...</>:`▶ Generate ${titleList.length||""}  Article${titleList.length!==1?"s":""}`}
+            {running?<><span className="spinner"/>Running batch...</>:`▶ Generate ${titleList.length||""} Article${titleList.length!==1?"s":""}`}
           </button>
           {running&&<div><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text3)",marginBottom:6}}><span>Progress</span><span>{Math.round(progress*100)}%</span></div><div className="progress"><div className="progress-fill" style={{width:`${progress*100}%`}}/></div></div>}
           <div style={{background:"var(--bg3)",borderRadius:"var(--radius)",padding:"12px 16px",fontSize:13,color:"var(--text3)",lineHeight:1.7}}>
             <strong style={{color:"var(--accent2)"}}>Model 1</strong> — article body<br/>
             <strong style={{color:"var(--accent2)"}}>Model 2</strong> — summary card<br/>
-            Images → WebP → uploaded → set as featured image
+            Images → WebP → uploaded → featured image set
           </div>
         </div>
       </div>
@@ -750,7 +723,7 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
               </div>
               {testResults.ai&&<div className={`alert ${testResults.ai.ok?"alert-ok":"alert-err"}`} style={{marginTop:8}}>{testResults.ai.msg}</div>}
               {cfg.gemini_key&&(()=>{const keys=cfg.gemini_key.split(",").map(k=>k.trim()).filter(Boolean);const hg=keys.some(k=>k.startsWith("gsk_"));const hm=keys.some(k=>k.startsWith("AIza"));if(hg&&hm)return<div className="alert alert-ok" style={{marginTop:8}}>✅ Dual mode — Groq + Gemini fallback. Zero downtime! 🚀</div>;if(hg)return<div className="alert alert-info" style={{marginTop:8}}>Using Groq. Add a Gemini key after a comma for automatic fallback.</div>;if(hm)return<div className="alert alert-info" style={{marginTop:8}}>Using Gemini. Add a Groq key after a comma for fallback.</div>;return null;})()}
-              <Hint>Groq (free): console.groq.com — starts with gsk_. Gemini (free): aistudio.google.com — starts with AIza. Add both comma-separated for zero-downtime fallback.</Hint>
+              <Hint>Groq (free): console.groq.com — starts with gsk_. Gemini (free): aistudio.google.com — starts with AIza.</Hint>
             </div>
             <div>
               <label className="form-label">GoAPI Key (Midjourney images)</label>
@@ -785,19 +758,19 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
           <div className="settings-section">
             <div className="settings-header"><span>💬</span><h3>Article Prompt</h3></div>
             <div className="settings-body">
-              <div className="alert alert-info">✦ Write your own prompt. Use <code>{"{title}"}</code> as placeholder. Leave empty for the built-in default. Return a JSON with <code>html_content</code>, <code>seo_title</code>, <code>excerpt</code>, <code>MAIN</code>, <code>MAIN_DARK</code>, <code>LIGHT_BG</code>, <code>BORDER</code> hex color keys.</div>
+              <div className="alert alert-info">✦ Write your own prompt. Use <code>{"{title}"}</code> as placeholder. Leave empty for the built-in default.</div>
               <div className="prompt-editor">
                 <textarea className="input" style={{minHeight:220,fontFamily:"monospace",fontSize:13}} value={cfg.custom_prompt||""} onChange={e=>update("custom_prompt",e.target.value)} placeholder={"You are Emma, a warm mama blogger.\nWrite about: {title}\n\nReturn JSON:\n{\"seo_title\":\"\",\"excerpt\":\"\",\"html_content\":\"\",\"MAIN\":\"#hex\",\"MAIN_DARK\":\"#hex\",\"LIGHT_BG\":\"#hex\",\"BORDER\":\"#hex\"}"}/>
                 {cfg.custom_prompt&&<div className="prompt-counter">{estimateTokens(cfg.custom_prompt).toLocaleString()} tokens</div>}
               </div>
               {cfg.custom_prompt&&<TokenCounter text={cfg.custom_prompt} limit={2000}/>}
-              <Hint>Keep under 2,000 tokens. Include ##IMAGE1## ##IMAGE2## ##IMAGE3## in html_content where you want images inserted.</Hint>
+              <Hint>Keep under 2,000 tokens. Include ##IMAGE1## ##IMAGE2## ##IMAGE3## in html_content where you want images.</Hint>
             </div>
           </div>
           <div className="settings-section">
             <div className="settings-header"><span>🃏</span><h3>Card Prompt</h3></div>
             <div className="settings-body">
-              <div className="alert alert-info">✦ Separate AI model generates the summary card. Return JSON with <code>card_title</code>, <code>summary</code>, <code>key_points</code> array, <code>quick_facts</code> array (label/value), <code>cta_text</code>. Leave empty for default. The "Save this!" button in the card is clickable and triggers the browser share/bookmark dialog.</div>
+              <div className="alert alert-info">✦ Separate AI model generates the summary card. Return JSON with <code>card_title</code>, <code>summary</code>, <code>key_points</code> array, <code>quick_facts</code> array, <code>cta_text</code>.</div>
               <div className="prompt-editor">
                 <textarea className="input" style={{minHeight:160,fontFamily:"monospace",fontSize:13}} value={cfg.card_prompt||""} onChange={e=>update("card_prompt",e.target.value)} placeholder={"For \"{title}\" return JSON:\n{\"card_title\":\"[short title]\",\"summary\":\"[2 sentences]\",\"key_points\":[\"point 1\",\"point 2\"],\"quick_facts\":[{\"label\":\"Time\",\"value\":\"30 mins\"}],\"cta_text\":\"Save this! 📌\"}"}/>
                 {cfg.card_prompt&&<div className="prompt-counter">{estimateTokens(cfg.card_prompt).toLocaleString()} tokens</div>}
@@ -816,15 +789,16 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
         <div className="settings-section fade-up">
           <div className="settings-header"><span>🖼️</span><h3>Image Settings</h3></div>
           <div className="settings-body">
-            <div className="alert alert-info">✦ Images are automatically downloaded, converted to WebP (quality 80, optimized), uploaded to your WordPress media library, and set as the article's featured image.</div>
+            <div className="alert alert-info">✦ Images are downloaded, converted to WebP (quality 80), uploaded to WordPress media library, and set as the article's featured image.</div>
             <div><label className="form-label">Midjourney Image Template</label><textarea className="input" style={{minHeight:90}} value={cfg.mj_template||""} onChange={e=>update("mj_template",e.target.value)} placeholder="Close up {recipe_name}, food photography, natural light --ar 2:3"/><Hint>Use {"{recipe_name}"} or {"{title}"} as placeholder. Add --ar 2:3 for portrait. Requires GoAPI key.</Hint></div>
             <div className="divider"/>
-            <div className="setting-row"><div className="setting-info"><div className="setting-name">Use Pollinations (free)</div><div className="setting-desc">Free AI images — no API key needed, lower quality than Midjourney</div></div><label className="toggle"><input type="checkbox" checked={cfg.use_pollinations||false} onChange={e=>update("use_pollinations",e.target.checked)}/><span className="toggle-slider"/></label></div>
+            <div className="setting-row"><div className="setting-info"><div className="setting-name">Use Pollinations (free)</div><div className="setting-desc">Free AI images — no API key needed</div></div><label className="toggle"><input type="checkbox" checked={cfg.use_pollinations||false} onChange={e=>update("use_pollinations",e.target.checked)}/><span className="toggle-slider"/></label></div>
             {cfg.use_pollinations&&<div><label className="form-label">Pollinations Prompt Template</label><textarea className="input" style={{minHeight:80}} value={cfg.pollinations_prompt||""} onChange={e=>update("pollinations_prompt",e.target.value)} placeholder="Professional editorial photography of {title}, natural light, 4K"/><Hint>Use {"{title}"} as placeholder.</Hint></div>}
           </div>
         </div>
       )}
 
+      {/* ─── PINTEREST SETTINGS (Pro) ─── */}
       {tab==="pinterest"&&plan==="pro"&&(
         <div style={{display:"flex",flexDirection:"column",gap:18}} className="fade-up">
           <div className="settings-section">
@@ -833,13 +807,43 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
               <div><label className="form-label">Pinterest Access Token</label><input className="input" type="password" value={cfg.pinterest_token||""} onChange={e=>update("pinterest_token",e.target.value)} placeholder="Your Pinterest API access token..."/><Hint>developers.pinterest.com → My Apps → Create App → Generate Token.</Hint></div>
               <div className="setting-row"><div className="setting-info"><div className="setting-name">Auto-pin after publish</div><div className="setting-desc">Automatically create a Pinterest pin every time an article is published</div></div><label className="toggle"><input type="checkbox" checked={cfg.auto_pin||false} onChange={e=>update("auto_pin",e.target.checked)}/><span className="toggle-slider"/></label></div>
               <div><label className="form-label">Pin delay (minutes after publish)</label><input className="input" type="number" value={cfg.pin_delay_min||0} min={0} max={1440} onChange={e=>update("pin_delay_min",+e.target.value)} style={{width:120}}/><Hint>0 = pin immediately. Max 1440 (24 hours).</Hint></div>
-              <div><label className="form-label">Default Board IDs (comma-separated)</label><input className="input" value={cfg.pinterest_boards||""} onChange={e=>update("pinterest_boards",e.target.value)} placeholder="board-id-1, board-id-2"/><Hint>Find board IDs in the Pinterest URL. Or use the Pinterest page to load boards automatically.</Hint></div>
+              <div><label className="form-label">Default Board IDs (comma-separated)</label><input className="input" value={cfg.pinterest_boards||""} onChange={e=>update("pinterest_boards",e.target.value)} placeholder="board-id-1, board-id-2"/><Hint>Find board IDs in the Pinterest URL or load them from the Pinterest page.</Hint></div>
             </div>
           </div>
+
+          {/* ─── CANVA TEMPLATE ─── */}
+          <div className="settings-section">
+            <div className="settings-header"><span>🎨</span><h3>Canva Pin Template</h3><span className="badge badge-pro" style={{marginLeft:"auto"}}>PRO</span></div>
+            <div className="settings-body">
+              <div className="alert alert-info">
+                ✦ Paste your public Canva template share link. NicheFlow will use your template as the pin background, place an article image inside it, and overlay an AI-generated <strong>4-word hook title</strong> in bold. The result is uploaded to WordPress and used as the Pinterest pin image.
+              </div>
+              <div>
+                <label className="form-label">Canva Template URL</label>
+                <input
+                  className="input"
+                  type="url"
+                  value={cfg.canva_template_url||""}
+                  onChange={e=>update("canva_template_url",e.target.value)}
+                  placeholder="https://www.canva.com/design/DAF.../view?utm_content=...&utm_campaign=designshare"
+                />
+                <Hint>Make sure your Canva design is set to "Anyone with the link can view". The hook title (exactly 4 words) is generated by AI and placed prominently on the pin.</Hint>
+              </div>
+              {cfg.canva_template_url && (
+                <div className="alert alert-ok">
+                  ✓ Template URL saved. Pin images will be composited from your Canva template + article images + AI hook title.
+                </div>
+              )}
+              <div className="alert alert-warn" style={{marginTop:0}}>
+                ⚠️ <strong>How it works:</strong> The system fetches your Canva template thumbnail as the base, overlays the first article body image in the upper area, then adds a bold 4-word hook in the lower text area. If your Canva URL is not accessible, a clean styled background is used instead.
+              </div>
+            </div>
+          </div>
+
           <div className="settings-section">
             <div className="settings-header"><span>💬</span><h3>Pinterest Pin Prompt</h3></div>
             <div className="settings-body">
-              <div className="alert alert-info">✦ A separate AI model generates your pin content. Returns JSON with <code>pin_title</code> (60 chars max), <code>pin_description</code> (150 chars max with CTA), <code>alt_text</code>, <code>hashtags</code> array. Leave empty for default.</div>
+              <div className="alert alert-info">✦ AI generates pin title (60 chars), description (150 chars + CTA), alt text, and 5 hashtags. Leave empty for default.</div>
               <div className="prompt-editor">
                 <textarea className="input" style={{minHeight:140,fontFamily:"monospace",fontSize:13}} value={cfg.pinterest_prompt||""} onChange={e=>update("pinterest_prompt",e.target.value)} placeholder={"For article \"{title}\" at {url}:\nReturn JSON:\n{\"pin_title\":\"[max 60 chars]\",\"pin_description\":\"[max 150 chars + Save this!]\",\"alt_text\":\"[1 sentence]\",\"hashtags\":[\"tag1\",\"tag2\"]}"}/>
                 {cfg.pinterest_prompt&&<div className="prompt-counter">{estimateTokens(cfg.pinterest_prompt).toLocaleString()} tokens</div>}
@@ -939,7 +943,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
         <div style={{textAlign:"center",maxWidth:400}}>
           <div style={{fontSize:52,marginBottom:14}}>📌</div>
           <div style={{fontFamily:"var(--font-display)",fontSize:22,fontWeight:700,marginBottom:8}}>Pinterest Bot</div>
-          <div style={{fontSize:14,color:"var(--text2)",lineHeight:1.7,marginBottom:24}}>Auto-pin every published article with AI-optimized titles, descriptions, and alt text. Schedule across your boards. Connect your featured image as the pin image.</div>
+          <div style={{fontSize:14,color:"var(--text2)",lineHeight:1.7,marginBottom:24}}>Auto-pin every published article with Canva-based pin images, AI 4-word hook titles, and full board scheduling.</div>
           <button className="btn btn-pro btn-lg" style={{width:"100%",marginBottom:12}} onClick={onUpgrade}>Upgrade to Pro — $40/mo ★</button>
           <p style={{fontSize:12,color:"var(--text3)"}}>Includes everything in Basic plus full Pinterest automation</p>
         </div>
@@ -971,8 +975,12 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
     if(!selectedBoards.length){addLog("Select at least one board.","warn");return;}
     setRunning(true);
     addLog(`Starting Pinterest bot: ${publishedArticles.length} articles → ${selectedBoards.length} board(s)`,"ok");
+    if(config.canva_template_url){addLog(`🎨 Canva template: ${config.canva_template_url.slice(0,50)}...`,"info");}
     try{
-      const res=await apiCall("/pinterest/run",{method:"POST",body:JSON.stringify({board_ids:selectedBoards})});
+      const res=await apiCall("/pinterest/run",{method:"POST",body:JSON.stringify({
+        board_ids:selectedBoards,
+        canva_template_url:config.canva_template_url||"",
+      })});
       const data=await res.json();
       if(res.ok){
         const results=data.results||[];
@@ -980,6 +988,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
         results.forEach(r=>{
           addLog(`📌 ${r.title}`,"info");
           addLog(`  Title: "${r.pin_title}"`,"info");
+          if(r.hook_title) addLog(`  Hook: "${r.hook_title}"`,"ok");
           addLog(`  Desc: "${r.pin_description?.slice(0,60)}..."`,"info");
           r.boards?.forEach(b=>{
             addLog(b.success?`  ✅ Board ${b.board_id} → Pin ${b.pin_id}`:`  ❌ Board ${b.board_id}: ${b.error}`,b.success?"ok":"err");
@@ -1003,10 +1012,17 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
             <button className="modal-close" onClick={()=>setPreviewModal(null)}>✕</button>
             <div style={{fontFamily:"var(--font-display)",fontSize:18,fontWeight:700,marginBottom:4}}>Pin Preview</div>
             <div style={{fontSize:13,color:"var(--text2)",marginBottom:20}}>What your Pinterest pin will look like</div>
+            {previewModal.hook_title&&(
+              <div className="alert alert-ok" style={{marginBottom:12}}>
+                🎯 Hook title (4 words): <strong>{previewModal.hook_title}</strong>
+              </div>
+            )}
             <div className="pin-preview">
-              {previewModal.featured_image_url
-                ?<img src={previewModal.featured_image_url} alt={previewModal.pin_title} className="pin-img"/>
-                :<div className="pin-img" style={{display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)",fontSize:13}}>No featured image</div>
+              {previewModal.pin_image_url
+                ?<img src={previewModal.pin_image_url} alt={previewModal.pin_title} className="pin-img"/>
+                :previewModal.featured_image_url
+                  ?<img src={previewModal.featured_image_url} alt={previewModal.pin_title} className="pin-img"/>
+                  :<div className="pin-img" style={{display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)",fontSize:13}}>No pin image</div>
               }
               <div className="pin-body">
                 <div className="pin-title">{previewModal.pin_title}</div>
@@ -1030,7 +1046,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
             <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600}}>Pinterest Boards</div>
             <button className="btn btn-ghost btn-sm" onClick={loadBoards} disabled={loadingBoards}>{loadingBoards?<><span className="spinner spinner-accent"/>Loading...</>:"↺ Load Boards"}</button>
           </div>
-          <Hint>Click "Load Boards" to automatically fetch your Pinterest boards from the API.</Hint>
+          <Hint>Click "Load Boards" to fetch your Pinterest boards.</Hint>
           {boardError&&<div className="alert alert-err" style={{marginTop:10}}>{boardError}</div>}
           {!config.pinterest_token&&<div className="alert alert-warn" style={{marginTop:10}}>⚠️ No Pinterest token. Go to Settings → Pinterest first.</div>}
           {boards.length>0?(
@@ -1072,11 +1088,20 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
             <div className="divider"/>
             <div style={{fontSize:13,color:"var(--text2)"}}>{selectedBoards.length} board{selectedBoards.length!==1?"s":""} selected</div>
             {config.pin_delay_min>0&&<div style={{marginTop:8,fontSize:12,color:"var(--text3)"}}>⏱ {config.pin_delay_min}min delay after publish</div>}
+            {config.canva_template_url?(
+              <div style={{marginTop:8,fontSize:12,color:"var(--green)",display:"flex",alignItems:"center",gap:5}}>
+                <span>🎨</span> Canva template active
+              </div>
+            ):(
+              <div style={{marginTop:8,fontSize:12,color:"var(--text3)"}}>
+                💡 Add a Canva template in Settings → Pinterest for custom pin images
+              </div>
+            )}
           </div>
           <div className="alert alert-info" style={{fontSize:13}}>
-            ✦ AI generates pin title (60 chars), description (150 chars + CTA), and alt text for each article.<br/>
-            ✦ The article's featured image is used as the pin image.<br/>
-            ✦ Article URL is added as the pin link.
+            ✦ AI generates a <strong>4-word hook title</strong> per article.<br/>
+            ✦ Article body images are composited onto your Canva template.<br/>
+            ✦ Composited pin image is uploaded to WP then pinned.
           </div>
           <button className="btn btn-pro" style={{width:"100%",padding:"13px"}} onClick={runPinterest} disabled={running||!publishedArticles.length||!selectedBoards.length}>
             {running?<><span className="spinner"/>Pinning...</>:`📌 Pin ${publishedArticles.length} Article${publishedArticles.length!==1?"s":""}`}
@@ -1090,7 +1115,13 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
           {pinPreviews.map((p,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:i<pinPreviews.length-1?"1px solid var(--border)":"none",cursor:"pointer"}} onClick={()=>setPreviewModal(p)}>
               <span className={`dot ${p.status==="sent"?"dot-green":"dot-red"}`}/>
-              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:500}}>{p.title}</div><div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>📌 {p.pin_title}</div></div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:500}}>{p.title}</div>
+                <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>
+                  📌 {p.pin_title}
+                  {p.hook_title&&<span style={{color:"var(--accent2)",marginLeft:8}}>🎯 "{p.hook_title}"</span>}
+                </div>
+              </div>
               <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();setPreviewModal(p);}}>Preview →</button>
             </div>
           ))}
@@ -1139,18 +1170,17 @@ function DocsPage({ plan, onUpgrade }) {
           ))}
         </div>
       </div>
-
       <div style={{flex:1}}>
         {section==="start"&&(
           <>
             <div className="doc-section">
               <h3>🚀 Quick Start — Up in 5 minutes</h3>
               {[
-                {n:"1",t:"Get a free AI key",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> and create a free API key. It starts with <code>gsk_</code>. Groq gives you 14,400 requests/day free.</>},
-                {n:"2",t:"Configure Settings",d:"Go to Settings → API Keys → paste your key → click Test → click Save Settings."},
-                {n:"3",t:"Connect WordPress",d:<>Settings → WordPress → enter your site URL and App Password. Format: <code>username:xxxx xxxx xxxx xxxx</code>. Click Test Connection to verify.</>},
-                {n:"4",t:"Write your Prompt",d:<>Settings → Prompts → write your article prompt. Use <code>{"{title}"}</code> as placeholder. Leave empty to use the built-in general-purpose prompt.</>},
-                {n:"5",t:"Generate your first article",d:"Go to Generate → paste one title → click Generate. Watch the process log. Article appears in your WordPress as draft or published based on your settings."},
+                {n:"1",t:"Get a free AI key",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> — free, starts with <code>gsk_</code>.</>},
+                {n:"2",t:"Configure Settings",d:"Settings → API Keys → paste key → Test → Save."},
+                {n:"3",t:"Connect WordPress",d:<>Settings → WordPress → site URL + App Password (<code>username:xxxx xxxx</code>) → Test Connection.</>},
+                {n:"4",t:"Write your Prompt",d:<>Settings → Prompts → write prompt. Use <code>{"{title}"}</code> as placeholder.</>},
+                {n:"5",t:"Generate your first article",d:"Generate → paste title → click Generate. Watch the log. Article publishes to WordPress with featured image set."},
               ].map(s=>(
                 <div key={s.n} className="doc-step">
                   <div className="doc-step-num">{s.n}</div>
@@ -1159,141 +1189,34 @@ function DocsPage({ plan, onUpgrade }) {
               ))}
             </div>
             <div className="doc-section">
-              <h3>⚡ How the pipeline works</h3>
-              <pre>{`User clicks Generate
+              <h3>⚡ Pipeline</h3>
+              <pre>{`Generate clicked
     ↓
-Model 1: Writes article body (HTML, 1000+ words)
-Model 2: Generates summary card (runs in parallel)
-Model 3: Generates images (parallel, if enabled)
+Model 1: Article body (parallel)
+Model 2: Summary card (parallel, waits for colors)
+Images: 4 images generated in parallel threads
     ↓
-Images → downloaded → converted to WebP (quality 80)
-       → uploaded to WordPress media library
-       → set as article's featured image
+Images → WebP → uploaded to WP media library
+Featured image (slot 0) → media_id → set in WP post
+    ↓ (waits for featured image before publishing)
+Internal links injected → Article published to WP
     ↓
-Internal links fetched from WordPress (if enabled)
-Long-tail phrases (3+ words) matched and hyperlinked
-    ↓
-Article + card + images published to WordPress
-Article URL and featured image saved to history`}</pre>
+image_results stored → Pinterest bot can use them`}</pre>
             </div>
           </>
         )}
-
-        {section==="api"&&(
-          <div className="doc-section">
-            <h3>🔑 API Keys Explained</h3>
-            <div className="doc-step"><div className="doc-step-num">G</div><div className="doc-step-text"><div className="doc-step-title">Groq API Key (recommended — free)</div><div className="doc-step-desc">Get at <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a>. Starts with <code>gsk_</code>. 14,400 requests/day free. Uses Llama 3.3 70B for articles (best quality) and Llama 3.1 8B for cards (fastest). Automatic model fallback on rate limit.</div></div></div>
-            <div className="doc-step"><div className="doc-step-num">A</div><div className="doc-step-text"><div className="doc-step-title">Gemini API Key (fallback)</div><div className="doc-step-desc">Get at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a>. Starts with <code>AIza</code>. 1,500 requests/day free. Add after comma: <code>gsk_xxx,AIzayyy</code> for zero-downtime fallback.</div></div></div>
-            <div className="doc-step"><div className="doc-step-num">M</div><div className="doc-step-text"><div className="doc-step-title">GoAPI Key (Midjourney images)</div><div className="doc-step-desc">Get at <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a>. Paid service. Only needed if you want Midjourney-quality images. Skip if using Pollinations (free).</div></div></div>
-            <div style={{marginTop:16}} className="alert alert-info">💡 <strong>Best setup:</strong> Add both Groq + Gemini keys comma-separated. Groq runs first (faster), Gemini is automatic fallback. Zero downtime even when one hits rate limits.</div>
-          </div>
-        )}
-
-        {section==="wordpress"&&(
-          <div className="doc-section">
-            <h3>🌐 WordPress Connection</h3>
-            {[
-              {t:"Create an Application Password",d:<>In WordPress: <strong>Users → Your Profile → Application Passwords</strong> → enter any name (e.g. "NicheFlow AI") → click Add → copy the password shown.</>},
-              {t:"Format the credentials",d:<>Enter as: <code>yourusername:xxxx xxxx xxxx xxxx</code>. The username is your WordPress login name (not email). The password is the generated one with spaces (keep the spaces).</>},
-              {t:"Site URL format",d:<>Enter your full site URL: <code>https://yoursite.com</code> — no trailing slash, with https://.</>},
-              {t:"Featured image",d:"When images are enabled, the first generated image is automatically uploaded to WordPress media and set as the post's featured image. It's also converted to WebP before upload."},
-              {t:"Categories",d:"In the Generate page, click 'Load WP Categories' to see your categories and assign articles to them automatically."},
-              {t:"Internal links",d:<>NicheFlow fetches all your published posts and looks for <strong>full article titles</strong> (3+ word phrases) appearing in the new article's body. When found, it wraps them in a styled hyperlink. This is SEO-correct anchor text — exact match long-tail phrases.</>},
-            ].map((s,i)=>(
-              <div key={i} className="doc-step">
-                <div className="doc-step-num">{i+1}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {section==="prompts"&&(
-          <>
-            <div className="doc-section">
-              <h3>💬 Article Prompt</h3>
-              <p style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.7}}>Write your own article prompt from scratch. The AI expects you to return a JSON object with these exact keys:</p>
-              <pre>{`{
-  "seo_title": "Under 60 characters",
-  "excerpt": "2-sentence summary for meta description",
-  "html_content": "Full article HTML as a single-line string",
-  "MAIN": "#hexcolor",      ← primary color used in styling
-  "MAIN_DARK": "#hexcolor", ← darker shade
-  "LIGHT_BG": "#hexcolor",  ← light background
-  "BORDER": "#hexcolor"     ← border/accent color
-}`}</pre>
-              <p style={{fontSize:13,color:"var(--text2)",margin:"12px 0",lineHeight:1.7}}>Include <code>##IMAGE1##</code>, <code>##IMAGE2##</code>, <code>##IMAGE3##</code> in the html_content where you want images inserted. They get replaced automatically.</p>
-              <div className="alert alert-warn">⚠️ Keep your prompt under 2,000 tokens (the counter shows live). Longer prompts leave less room for the AI to write the actual article.</div>
-            </div>
-            <div className="doc-section">
-              <h3>🃏 Card Prompt</h3>
-              <p style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.7}}>A separate, faster AI model generates the summary card. It should return JSON like this:</p>
-              <pre>{`{
-  "card_title": "Short display title under 40 chars",
-  "card_type": "recipe|tips|checklist|comparison|guide",
-  "summary": "2-sentence summary of the topic",
-  "key_points": ["Point 1", "Point 2", "Point 3", "Point 4", "Point 5"],
-  "quick_facts": [
-    {"label": "Time", "value": "30 mins"},
-    {"label": "Servings", "value": "4"}
-  ],
-  "cta_text": "Save this recipe! 📌"
-}`}</pre>
-              <p style={{fontSize:13,color:"var(--text2)",margin:"12px 0",lineHeight:1.7}}>The "Save this" / CTA button in the published card is clickable — it triggers the browser's native Share dialog (Web Share API) so readers can save/share the article. If the browser doesn't support it, it copies the URL to clipboard.</p>
-            </div>
-          </>
-        )}
-
-        {section==="images"&&(
-          <div className="doc-section">
-            <h3>🖼️ Images & WebP Conversion</h3>
-            {[
-              {t:"WebP conversion",d:"All images are automatically downloaded and converted to WebP format at quality 80, compression method 1 (optimized for speed). Images wider than 1920px are resized down. WebP is 25-35% smaller than JPEG at the same quality."},
-              {t:"WordPress upload",d:"The converted WebP is uploaded to your WordPress media library via the REST API. It gets a proper filename based on the article title (e.g. boursin-cheese-pasta-featured.webp)."},
-              {t:"Featured image",d:"Image 1 (featured) is set as the WordPress post's featured image using the media ID. Images 2, 3, 4 are injected into the article body at the ##IMAGE2## ##IMAGE3## ##IMAGE4## placeholders."},
-              {t:"Midjourney (GoAPI)",d:<>Your template is used for all 4 images in parallel. The <code>--ar 2:3</code> aspect ratio creates portrait images (ideal for Pinterest). Fast mode is tried first, relax mode is automatic fallback if fast quota is exhausted.</>},
-              {t:"Pollinations (free)",d:"Free alternative with no API key needed. Lower quality than Midjourney. Good for testing or low-budget niches. Enable in Settings → Images."},
-            ].map((s,i)=>(
-              <div key={i} className="doc-step">
-                <div className="doc-step-num">{i+1}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {section==="links"&&(
-          <div className="doc-section">
-            <h3>🔗 Internal Links</h3>
-            <p style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.7}}>NicheFlow automatically injects internal links by matching your existing WordPress articles inside new article text. Here's exactly how it works:</p>
-            {[
-              {t:"Fetches all published posts",d:"When enabled, NicheFlow fetches up to 200 published posts from your WordPress site before publishing."},
-              {t:"Long-tail phrase matching only",d:"Only article titles with 3 or more words are used as anchor text. Single or 2-word titles are ignored — they'd create bad SEO anchor text."},
-              {t:"Exact title match first",d:"Looks for the exact article title text inside the new article's HTML. Case-insensitive."},
-              {t:"Fallback: last 3 words",d:"If the full title isn't found, tries matching just the last 3 words of the title (the noun phrase, e.g. 'with Broccoli Pasta' from a longer title)."},
-              {t:"Relevance filtering",d:"Skips articles where more than 50% of words overlap with the current article's title (too similar = not a useful cross-link)."},
-              {t:"Max links setting",d:"Set the max number of internal links per article in Settings → WordPress. Default is 4. Each link is styled with your article's main color."},
-            ].map((s,i)=>(
-              <div key={i} className="doc-step">
-                <div className="doc-step-num">{i+1}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {section==="pinterest"&&(
           <>
-            {plan!=="pro"&&<div className="upgrade-banner" style={{marginBottom:20}}><div className="upgrade-banner-text"><strong>Pinterest is a Pro feature</strong> — upgrade to access this section.</div><button className="btn btn-pro btn-sm" onClick={onUpgrade}>Upgrade →</button></div>}
+            {plan!=="pro"&&<div className="upgrade-banner" style={{marginBottom:20}}><div className="upgrade-banner-text"><strong>Pinterest is a Pro feature.</strong></div><button className="btn btn-pro btn-sm" onClick={onUpgrade}>Upgrade →</button></div>}
             <div className="doc-section" style={{opacity:plan!=="pro"?0.5:1}}>
-              <h3>📌 Pinterest Bot</h3>
+              <h3>📌 Pinterest Bot + Canva Pin Images</h3>
               {[
-                {t:"Get a Pinterest Access Token",d:<>Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>developers.pinterest.com</a> → My Apps → Create App → Generate Access Token. You need the <code>boards:read</code> and <code>pins:write</code> scopes.</>},
-                {t:"Add token in Settings",d:"Settings → Pinterest tab → paste your token → Save Settings."},
-                {t:"Load your boards",d:"Go to the Pinterest page → click 'Load Boards' → select which boards to pin to."},
-                {t:"How pins are created",d:"For each published article, a separate AI model generates: pin_title (max 60 chars), pin_description (max 150 chars + CTA), alt_text (1 descriptive sentence), and 5 hashtags. The article's featured image is used as the pin image. The article URL is the pin link."},
-                {t:"Schedule delay",d:"Set a delay in Settings → Pinterest → 'Pin delay (minutes)'. E.g. 60 = pin 1 hour after publish. Pinterest recommends not pinning immediately."},
-                {t:"Auto-pin",d:"Enable 'Auto-pin after publish' in Settings → Pinterest to automatically pin every new article right after it's published. Uses your configured boards and delay."},
+                {t:"Get a Pinterest Access Token",d:<>developers.pinterest.com → My Apps → Generate Token. Need <code>boards:read</code> and <code>pins:write</code> scopes.</>},
+                {t:"Add token in Settings",d:"Settings → Pinterest tab → paste token → Save."},
+                {t:"Set up Canva template",d:"In Canva, create a Pinterest pin template (1000×1500px recommended). Set sharing to 'Anyone with link can view'. Copy the share URL → paste in Settings → Pinterest → Canva Template URL."},
+                {t:"How pin images are built",d:"For each article: AI generates a 4-word hook title → article body image is downloaded → composited onto Canva template thumbnail → hook title overlaid in bold → result uploaded to WP → used as Pinterest pin image."},
+                {t:"4-word hook title",d:"Always exactly 4 words. AI generates it from the article title. E.g. 'Pasta You Need Now'. Displayed in large bold text on the pin image lower area."},
+                {t:"Fallback behavior",d:"If Canva template URL is not set or not accessible, pin uses the article's featured image directly. Everything still works, just without the Canva composite."},
               ].map((s,i)=>(
                 <div key={i} className="doc-step">
                   <div className="doc-step-num">{i+1}</div>
@@ -1303,14 +1226,95 @@ Article URL and featured image saved to history`}</pre>
             </div>
           </>
         )}
-
+        {section==="api"&&(
+          <div className="doc-section">
+            <h3>🔑 API Keys</h3>
+            <div className="doc-step"><div className="doc-step-num">G</div><div className="doc-step-text"><div className="doc-step-title">Groq (recommended — free)</div><div className="doc-step-desc"><a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> — starts with <code>gsk_</code>. 14,400 req/day free.</div></div></div>
+            <div className="doc-step"><div className="doc-step-num">A</div><div className="doc-step-text"><div className="doc-step-title">Gemini (fallback)</div><div className="doc-step-desc"><a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a> — starts with <code>AIza</code>. Add both: <code>gsk_xxx,AIzayyy</code>.</div></div></div>
+            <div className="doc-step"><div className="doc-step-num">M</div><div className="doc-step-text"><div className="doc-step-title">GoAPI (Midjourney images)</div><div className="doc-step-desc"><a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a> — paid. Skip if using Pollinations (free).</div></div></div>
+          </div>
+        )}
+        {section==="wordpress"&&(
+          <div className="doc-section">
+            <h3>🌐 WordPress Connection</h3>
+            {[
+              {t:"Create App Password",d:<>WordPress: <strong>Users → Profile → Application Passwords</strong> → Add → copy.</>},
+              {t:"Format credentials",d:<><code>yourusername:xxxx xxxx xxxx xxxx</code></>},
+              {t:"Site URL",d:<><code>https://yoursite.com</code> — no trailing slash.</>},
+              {t:"Featured image",d:"Image slot 0 is uploaded to WP media, then set as featured_media on the post. Pipeline waits for upload before publishing to ensure it's always set correctly."},
+            ].map((s,i)=>(
+              <div key={i} className="doc-step">
+                <div className="doc-step-num">{i+1}</div>
+                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
+              </div>
+            ))}
+          </div>
+        )}
+        {section==="images"&&(
+          <div className="doc-section">
+            <h3>🖼️ Images & WebP</h3>
+            {[
+              {t:"WebP conversion",d:"All images converted to WebP at quality 80. Images over 1920px are resized down."},
+              {t:"Featured image guarantee",d:"The pipeline waits specifically for image slot 0 (featured) to finish uploading before publishing the post. This ensures featured_media is always set in WordPress."},
+              {t:"Body images",d:"Slots 1, 2, 3 are injected into article HTML at ##IMAGE1## ##IMAGE2## ##IMAGE3## positions."},
+              {t:"Pinterest pin images",d:"Slots 1, 2, 3 are also available for the Pinterest bot to composite onto your Canva template."},
+            ].map((s,i)=>(
+              <div key={i} className="doc-step">
+                <div className="doc-step-num">{i+1}</div>
+                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
+              </div>
+            ))}
+          </div>
+        )}
+        {section==="prompts"&&(
+          <>
+            <div className="doc-section">
+              <h3>💬 Article Prompt JSON</h3>
+              <pre>{`{
+  "seo_title": "Under 60 characters",
+  "excerpt": "2-sentence meta description",
+  "html_content": "Full article HTML single line",
+  "MAIN": "#hex",
+  "MAIN_DARK": "#hex",
+  "LIGHT_BG": "#hex",
+  "BORDER": "#hex"
+}`}</pre>
+            </div>
+            <div className="doc-section">
+              <h3>🃏 Card Prompt JSON</h3>
+              <pre>{`{
+  "card_title": "Under 40 chars",
+  "summary": "2 sentences",
+  "key_points": ["point 1", "point 2"],
+  "quick_facts": [{"label":"Time","value":"30 mins"}],
+  "cta_text": "Save this! 📌"
+}`}</pre>
+            </div>
+          </>
+        )}
+        {section==="links"&&(
+          <div className="doc-section">
+            <h3>🔗 Internal Links</h3>
+            {[
+              {t:"Fetches up to 200 posts",d:"From your WordPress site before publishing."},
+              {t:"3+ word titles only",d:"Short titles create bad SEO anchor text — skipped."},
+              {t:"Exact match first",d:"Looks for full title in article HTML. Case-insensitive."},
+              {t:"Fallback: last 3 words",d:"If full title not found, tries last 3 words."},
+            ].map((s,i)=>(
+              <div key={i} className="doc-step">
+                <div className="doc-step-num">{i+1}</div>
+                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
+              </div>
+            ))}
+          </div>
+        )}
         {section==="billing"&&(
           <div className="doc-section">
-            <h3>💳 Billing & Plans</h3>
+            <h3>💳 Plans</h3>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
               {[
-                {name:"Basic",price:"$30/mo",features:["Unlimited articles","Custom article prompt","Custom card prompt","Midjourney & Pollinations images","WordPress auto-publish","Featured image auto-set","Internal link injection","History"],color:"var(--accent2)"},
-                {name:"Pro",price:"$40/mo",features:["Everything in Basic","Pinterest auto-pinning","AI pin title/description","Alt text generation","Board selection","Pin scheduling delay","Auto-pin after publish","Featured image as pin"],color:"var(--pro)"},
+                {name:"Basic",price:"$30/mo",features:["Unlimited articles","Custom prompts","Images + WebP","WP auto-publish","Featured image set","Internal links","History"],color:"var(--accent2)"},
+                {name:"Pro",price:"$40/mo",features:["Everything in Basic","Pinterest bot","Canva pin images","AI 4-word hooks","Board scheduling","Auto-pin after publish"],color:"var(--pro)"},
               ].map(p=>(
                 <div key={p.name} style={{background:"var(--bg3)",border:`1px solid ${p.color}40`,borderRadius:"var(--radius-lg)",padding:20}}>
                   <div style={{fontFamily:"var(--font-display)",fontWeight:700,fontSize:16,color:p.color,marginBottom:4}}>{p.name}</div>
@@ -1319,7 +1323,7 @@ Article URL and featured image saved to history`}</pre>
                 </div>
               ))}
             </div>
-            <div className="alert alert-info">ℹ️ Payments are processed securely via LemonSqueezy. Your plan is updated automatically after payment. Cancel anytime from your LemonSqueezy account.</div>
+            <div className="alert alert-info">Payments via LemonSqueezy. Cancel anytime.</div>
             {plan==="basic"&&<button className="btn btn-pro" style={{width:"100%",marginTop:12}} onClick={onUpgrade}>Upgrade to Pro — $40/mo ★</button>}
           </div>
         )}
@@ -1374,8 +1378,7 @@ function AppShell({ user, onLogout }) {
       if (r.ok) {
         const rows = await r.json();
         if (rows && rows[0]) {
-          const newPlan = rows[0].plan || "basic";
-          setPlan(newPlan);
+          setPlan(rows[0].plan || "basic");
           setCreatedAt(rows[0].created_at || new Date().toISOString());
         }
       }
@@ -1420,7 +1423,15 @@ function AppShell({ user, onLogout }) {
     {id:"docs",icon:"📖",label:"Docs"},
     {id:"settings",icon:"⚙️",label:"Settings"},
   ];
-  const pageInfo={dashboard:["Dashboard","Welcome back."],generate:["Generate Articles","Paste titles, let AI handle everything."],preview:["Preview","Test article style before a full batch."],history:["History","All generated and published articles."],pinterest:["Pinterest Bot","Auto-pin with AI-optimized content."],docs:["Documentation","Everything you need to use NicheFlow AI."],settings:["Settings","API keys, prompts, and integrations."]};
+  const pageInfo={
+    dashboard:["Dashboard","Welcome back."],
+    generate:["Generate Articles","Paste titles, let AI handle everything."],
+    preview:["Preview","Test article style before a full batch."],
+    history:["History","All generated and published articles."],
+    pinterest:["Pinterest Bot","Auto-pin with Canva pin images and AI hook titles."],
+    docs:["Documentation","Everything you need to use NicheFlow AI."],
+    settings:["Settings","API keys, prompts, and integrations."]
+  };
   const [pageTitle, pageSub]=pageInfo[page]||["",""];
 
   return (
@@ -1451,7 +1462,7 @@ function AppShell({ user, onLogout }) {
               <div className="user-plan" style={{color:plan==="pro"?"var(--pro)":"var(--accent2)"}}>{plan==="pro"?"★ Pro":"Basic"}</div>
             </div>
           </div>
-          <button className="nav-item" onClick={refreshPlan} style={{marginTop:4,color:"var(--text3)",fontSize:12,padding:"6px 12px"}} title="Click after payment to refresh your plan">
+          <button className="nav-item" onClick={refreshPlan} style={{marginTop:4,color:"var(--text3)",fontSize:12,padding:"6px 12px"}} title="Click after payment to refresh plan">
             <span>↺</span>Refresh Plan
           </button>
           <button className="nav-item" onClick={onLogout} style={{marginTop:2,color:"var(--text3)"}}><span>→</span>Sign out</button>
