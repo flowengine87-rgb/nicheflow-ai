@@ -378,7 +378,7 @@ function LandingPage({ onLogin, onSignup }) {
       </section>
       <footer style={{ borderTop:"1px solid var(--border)",padding:"32px 48px",display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:1100,margin:"0 auto" }}>
         <div className="nav-brand"><Logo size={20}/><span>NicheFlow AI</span></div>
-        <div style={{ fontSize:13,color:"var(--text3)" }}>© 2025 NicheFlow AI. All rights reserved.</div>
+        <div style={{ fontSize:13,color:"var(--text3)" }}>© 2026 NicheFlow AI. All rights reserved.</div>
       </footer>
     </div>
   );
@@ -1341,43 +1341,120 @@ Article URL and featured image saved to history`}</pre>
   );
 }
 
+// ─── TRIAL BAR ─────────────────────────────────────────────────────────────
+function TrialBar({ createdAt, plan, onUpgrade }) {
+  if (plan === "pro") return null;
+  const diff = (Date.now() - new Date(createdAt).getTime()) / (1000*60*60*24);
+  const TRIAL_DAYS = 2;
+  const daysLeft = Math.max(0, TRIAL_DAYS - Math.floor(diff));
+  const cls = daysLeft===0?"trial-bar-urgent":daysLeft===1?"trial-bar-warn":"trial-bar-ok";
+  const msg = daysLeft===0?"⚠️ Free trial expired — upgrade to keep publishing"
+    :daysLeft===1?"⏰ 1 day left in your free trial"
+    :`🎉 ${daysLeft} days left in your free trial`;
+  return (
+    <div style={{padding:"8px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,fontSize:13,
+      background:daysLeft===0?"rgba(239,68,68,0.15)":daysLeft===1?"rgba(245,158,11,0.12)":"rgba(16,185,129,0.08)",
+      borderBottom:`1px solid ${daysLeft===0?"rgba(239,68,68,0.25)":daysLeft===1?"rgba(245,158,11,0.2)":"rgba(16,185,129,0.15)"}`,
+      color:daysLeft===0?"var(--red)":daysLeft===1?"var(--pro)":"var(--green)"}}>
+      <span><strong>{msg}</strong></span>
+      <div style={{display:"flex",gap:8}}>
+        <button className="btn btn-ghost btn-sm" onClick={()=>onUpgrade("basic")} style={{padding:"4px 10px",fontSize:11}}>Basic $30/mo</button>
+        <button className="btn btn-pro btn-sm" onClick={()=>onUpgrade("pro")} style={{padding:"4px 10px",fontSize:11}}>Pro $40/mo ★</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── CHECKOUT MODAL ────────────────────────────────────────────────────────
+function CheckoutModal({ plan, onClose, userEmail }) {
+  const CHECKOUT_BASIC = "https://nicheflowai.lemonsqueezy.com/buy/basic";
+  const CHECKOUT_PRO   = "https://nicheflowai.lemonsqueezy.com/buy/pro";
+  const url = (plan==="pro"?CHECKOUT_PRO:CHECKOUT_BASIC)+`?checkout[email]=${encodeURIComponent(userEmail||"")}`;
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.78)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
+      <div style={{background:"var(--bg2)",border:"1px solid var(--border2)",borderRadius:"var(--radius-xl)",padding:36,maxWidth:440,width:"100%",position:"relative"}} onClick={e=>e.stopPropagation()}>
+        <button onClick={onClose} style={{position:"absolute",top:14,right:14,background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:8,width:28,height:28,cursor:"pointer",color:"var(--text3)",fontFamily:"var(--font)",fontSize:13}}>✕</button>
+        <div style={{textAlign:"center",paddingTop:8}}>
+          <div style={{fontSize:52,marginBottom:10}}>{plan==="pro"?"★":"⚡"}</div>
+          <div style={{fontFamily:"var(--font-display)",fontSize:22,fontWeight:700,marginBottom:6}}>NicheFlow {plan==="pro"?"Pro":"Basic"}</div>
+          <div style={{fontSize:38,fontWeight:800,fontFamily:"var(--font-display)",marginBottom:4,color:plan==="pro"?"var(--pro)":"var(--accent2)"}}>
+            {plan==="pro"?"$40":"$30"}<span style={{fontSize:14,fontWeight:400,color:"var(--text3)"}}>/month</span>
+          </div>
+          <p style={{fontSize:13,color:"var(--text2)",marginBottom:22,lineHeight:1.6}}>
+            {plan==="pro"?"Full Pinterest automation + everything in Basic.":"Unlimited articles, custom prompts, images, and WordPress publishing."}
+          </p>
+          <a href={url} target="_blank" rel="noreferrer"
+            className={`btn ${plan==="pro"?"btn-pro":"btn-primary"} btn-lg`}
+            style={{width:"100%",marginBottom:10,fontSize:15}}>
+            Continue to Secure Checkout →
+          </a>
+          <p style={{fontSize:12,color:"var(--text3)"}}>Secured by LemonSqueezy · Cancel anytime · Plan activates instantly after payment</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── APP SHELL ─────────────────────────────────────────────────────────────
 function AppShell({ user, onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [config, setConfig] = useState(getStoredConfig);
+  // CRITICAL: plan is ALWAYS re-fetched from Supabase — never just use cache
   const [plan, setPlan] = useState("basic");
+  const [createdAt, setCreatedAt] = useState(new Date().toISOString());
   const [history, setHistory] = useState(()=>{try{return JSON.parse(localStorage.getItem("nicheflow_history")||"[]");}catch{return [];}});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [checkoutModal, setCheckoutModal] = useState(null); // null | "basic" | "pro"
+  const [checkoutModal, setCheckoutModal] = useState(null);
 
-  useEffect(()=>{
-    if(settingsLoaded)return;
-    apiCall("/settings").then(async res=>{
-      if(res.ok){
-        const data=await res.json();
-        const dbSettings=data.settings||{};
-        const planFromDB=data.plan||"basic";
-        setPlan(planFromDB);
-        const merged={...config};
-        Object.keys(dbSettings).forEach(k=>{if(dbSettings[k]!==null&&dbSettings[k]!==undefined&&dbSettings[k]!=="")merged[k]=dbSettings[k];});
-        setConfig(merged);
-        localStorage.setItem("nicheflow_config",JSON.stringify(merged));
-        setSettingsLoaded(true);
+  const email = user?.user?.email || user?.email || "user@example.com";
+  const userId = user?.user?.id || user?.id || "";
+  const token = user?.access_token || getStoredToken();
+  const avatarLetter = email[0]?.toUpperCase() || "U";
+
+  // Re-fetch plan from Supabase profiles on EVERY mount/login
+  // This ensures paying users see Pro immediately, and plan changes are instant
+  useEffect(() => {
+    if (!userId || !token) return;
+    fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=plan,created_at`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` }
+    }).then(async r => {
+      if (r.ok) {
+        const rows = await r.json();
+        if (rows && rows[0]) {
+          setPlan(rows[0].plan || "basic");
+          setCreatedAt(rows[0].created_at || new Date().toISOString());
+        }
       }
-    }).catch(()=>setSettingsLoaded(true));
-  },[]);
+    }).catch(() => {});
+  }, [userId, token]);
 
-  function saveConfig(cfg){
+  // Load settings from DB (once per session)
+  useEffect(() => {
+    if (!token || settingsLoaded) return;
+    fetch(`${API_URL}/settings`, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } })
+      .then(async res => {
+        if (res.ok) {
+          const data = await res.json();
+          const dbSettings = data.settings || {};
+          const merged = { ...config };
+          Object.keys(dbSettings).forEach(k => {
+            if (dbSettings[k] !== null && dbSettings[k] !== undefined && dbSettings[k] !== "") merged[k] = dbSettings[k];
+          });
+          setConfig(merged);
+          localStorage.setItem("nicheflow_config", JSON.stringify(merged));
+        }
+        setSettingsLoaded(true);
+      }).catch(() => setSettingsLoaded(true));
+  }, [token]);
+
+  function saveConfig(cfg) {
     setConfig(cfg);
-    localStorage.setItem("nicheflow_config",JSON.stringify(cfg));
-    apiCall("/settings",{method:"POST",body:JSON.stringify(cfg)}).catch(()=>{});
+    localStorage.setItem("nicheflow_config", JSON.stringify(cfg));
+    fetch(`${API_URL}/settings`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(cfg) }).catch(() => {});
   }
-  function addHistory(item){const next=[...history,item];setHistory(next);localStorage.setItem("nicheflow_history",JSON.stringify(next));}
-  function clearHistory(){setHistory([]);localStorage.removeItem("nicheflow_history");}
-  function handleUpgrade(){setCheckoutModal("pro");}
-
-  const email=user?.user?.email||user?.email||"user@example.com";
-  const avatarLetter=email[0]?.toUpperCase()||"U";
+  function addHistory(item) { const next=[...history,item]; setHistory(next); localStorage.setItem("nicheflow_history",JSON.stringify(next)); }
+  function clearHistory() { setHistory([]); localStorage.removeItem("nicheflow_history"); }
+  function handleUpgrade(targetPlan="pro") { setCheckoutModal(targetPlan); }
 
   const navItems=[
     {id:"dashboard",icon:"◉",label:"Dashboard"},
@@ -1388,39 +1465,25 @@ function AppShell({ user, onLogout }) {
     {id:"docs",icon:"📖",label:"Docs"},
     {id:"settings",icon:"⚙️",label:"Settings"},
   ];
-
-  const pageInfo={
-    dashboard:["Dashboard","Welcome back. Here's your overview."],
-    generate:["Generate Articles","Paste titles and let the AI handle the rest."],
-    preview:["Preview","Test your article style before a full batch."],
-    history:["History","All articles you've generated and published."],
-    pinterest:["Pinterest Bot","Auto-pin your articles with AI-optimized content."],
-    docs:["Documentation","Everything you need to use NicheFlow AI."],
-    settings:["Settings","Configure your API keys, prompts, and integrations."],
-  };
+  const pageInfo={dashboard:["Dashboard","Welcome back."],generate:["Generate Articles","Paste titles, let AI handle everything."],preview:["Preview","Test article style before a full batch."],history:["History","All generated and published articles."],pinterest:["Pinterest Bot","Auto-pin with AI-optimized content."],docs:["Documentation","Everything you need to use NicheFlow AI."],settings:["Settings","API keys, prompts, and integrations."]};
   const [pageTitle, pageSub]=pageInfo[page]||["",""];
 
   return (
     <div className="app-layout">
       <style>{css}</style>
-
-      {checkoutModal&&(
-        <CheckoutModal plan={checkoutModal} onClose={()=>setCheckoutModal(null)} userEmail={email}/>
-      )}
-
+      {checkoutModal&&<CheckoutModal plan={checkoutModal} onClose={()=>setCheckoutModal(null)} userEmail={email}/>}
       <aside className="sidebar">
         <div className="sidebar-logo"><Logo size={24}/><span>NicheFlow AI</span></div>
         <nav className="sidebar-nav">
           <div className="sidebar-section">Main</div>
           {navItems.map(item=>(
             <button key={item.id} className={`nav-item ${page===item.id?"active":""}`} onClick={()=>setPage(item.id)}>
-              <span style={{fontSize:15}}>{item.icon}</span>
-              {item.label}
+              <span style={{fontSize:15}}>{item.icon}</span>{item.label}
               {item.pro&&<span className="nav-badge">PRO</span>}
             </button>
           ))}
           {plan!=="pro"&&(
-            <button className="nav-item" onClick={handleUpgrade} style={{marginTop:8,color:"var(--pro)",background:"var(--pro-dim)",border:"1px solid rgba(245,158,11,.2)"}}>
+            <button className="nav-item" onClick={()=>handleUpgrade("pro")} style={{marginTop:8,color:"var(--pro)",background:"var(--pro-dim)",border:"1px solid rgba(245,158,11,.2)"}}>
               <span>★</span>Upgrade to Pro
             </button>
           )}
@@ -1433,13 +1496,11 @@ function AppShell({ user, onLogout }) {
               <div className="user-plan" style={{color:plan==="pro"?"var(--pro)":"var(--accent2)"}}>{plan==="pro"?"★ Pro":"Basic"}</div>
             </div>
           </div>
-          <button className="nav-item" onClick={onLogout} style={{marginTop:6,color:"var(--text3)"}}>
-            <span>→</span>Sign out
-          </button>
+          <button className="nav-item" onClick={onLogout} style={{marginTop:6,color:"var(--text3)"}}><span>→</span>Sign out</button>
         </div>
       </aside>
-
       <main className="main-content">
+        <TrialBar createdAt={createdAt} plan={plan} onUpgrade={handleUpgrade}/>
         <div className="page-header">
           <h1 className="page-title">{pageTitle}</h1>
           <p className="page-sub">{pageSub}</p>
@@ -1464,21 +1525,21 @@ export default function NicheFlowAI() {
   const [user, setUser] = useState(null);
 
   useEffect(()=>{
-    const stored=localStorage.getItem("nicheflow_user");
-    if(stored){try{const u=JSON.parse(stored);setUser(u);setView("app");}catch{}}
+    const stored = localStorage.getItem("nicheflow_user");
+    if (stored) { try { const u=JSON.parse(stored); setUser(u); setView("app"); } catch {} }
   },[]);
 
-  function handleAuthSuccess(userData){
-    localStorage.setItem("nicheflow_user",JSON.stringify(userData));
+  function handleAuthSuccess(userData) {
+    localStorage.setItem("nicheflow_user", JSON.stringify(userData));
     setUser(userData);
     setView("app");
   }
-  function handleLogout(){
+  function handleLogout() {
     localStorage.removeItem("nicheflow_user");
-    setUser(null);setView("landing");
+    setUser(null); setView("landing");
   }
 
-  if(view==="app"&&user) return <AppShell user={user} onLogout={handleLogout}/>;
-  if(view==="login"||view==="signup") return <AuthPage mode={view} onSuccess={handleAuthSuccess} onSwitch={setView} onBack={()=>setView("landing")}/>;
+  if (view==="app"&&user) return <AppShell user={user} onLogout={handleLogout}/>;
+  if (view==="login"||view==="signup") return <AuthPage mode={view} onSuccess={handleAuthSuccess} onSwitch={setView} onBack={()=>setView("landing")}/>;
   return <LandingPage onLogin={()=>setView("login")} onSignup={()=>setView("signup")}/>;
 }

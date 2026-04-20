@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""NicheFlow AI — generator.py FIXED v2"""
+"""NicheFlow AI — generator.py FINAL FIXED"""
 import requests, json, base64, re, time, io, threading
 from PIL import Image
 
@@ -105,6 +105,7 @@ def generate_article(title, api_key, custom_prompt="", show_card=True):
 
 
 def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg="#fff7ed", border_color="#fdba74"):
+    """Generate summary card with a FULLY CLICKABLE CTA button (works in WordPress)."""
     try:
         prompt = (card_prompt.strip() if card_prompt.strip() else DEFAULT_CARD_PROMPT).replace("{title}", title)
         raw = ai_call(api_key, prompt, prefer_fast=True)
@@ -114,11 +115,81 @@ def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg
         key_points = data.get("key_points",[])
         quick_facts = data.get("quick_facts",[])
         cta_text = data.get("cta_text","Save this! 📌")
-        points_html = "".join(f'<li style="padding:8px 0;border-bottom:1px solid {border_color};line-height:1.6;display:flex;align-items:flex-start;gap:8px;"><span style="color:{main_color};font-weight:700;flex-shrink:0;">✓</span>{p}</li>' for p in key_points)
-        facts_html = "".join(f'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid {border_color};"><span style="color:#666;font-size:13px;">{f.get("label","")}</span><span style="font-weight:700;font-size:13px;color:{main_color};">{f.get("value","")}</span></div>' for f in quick_facts)
-        return f'''<div id="summary-card" style="border:3px solid {main_color};border-radius:20px;padding:32px;background:linear-gradient(135deg,{light_bg} 0%,#ffffff 100%);box-shadow:0 8px 32px rgba(0,0,0,0.12);margin:32px 0;max-width:640px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"><div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;"><div style="background:{main_color};color:#fff;border-radius:12px;padding:6px 16px;font-weight:700;font-size:13px;">✦ QUICK SUMMARY</div><h2 style="font-size:18px;font-weight:700;color:{main_color};margin:0;">{card_title}</h2></div>{f'<p style="color:#444;line-height:1.7;margin-bottom:20px;font-size:15px;border-left:3px solid {main_color};padding-left:12px;">{summary}</p>' if summary else ""}{f'<div style="margin-bottom:20px;"><div style="font-weight:700;font-size:12px;color:{main_color};margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;">Key Points</div><ul style="list-style:none;padding:0;margin:0;">{points_html}</ul></div>' if points_html else ""}{f'<div style="margin-bottom:20px;"><div style="font-weight:700;font-size:12px;color:{main_color};margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;">Quick Facts</div>{facts_html}</div>' if facts_html else ""}<div style="text-align:center;margin-top:24px;"><span style="background:{main_color};color:#fff;padding:12px 28px;border-radius:30px;font-weight:700;font-size:14px;display:inline-block;cursor:pointer;">{cta_text}</span></div></div>'''
-    except Exception as e:
-        return f'<div id="summary-card" style="border:2px solid {main_color};border-radius:16px;padding:24px;background:{light_bg};margin:24px 0;"><div style="font-weight:700;color:{main_color};margin-bottom:8px;">✦ Quick Summary</div><p style="color:#555;line-height:1.6;">{title}</p><div style="text-align:center;margin-top:16px;"><span style="background:{main_color};color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600;">Save this! 📌</span></div></div>'
+
+        points_html = "".join(
+            f'<li style="padding:8px 0;border-bottom:1px solid {border_color};line-height:1.6;'
+            f'display:flex;align-items:flex-start;gap:8px;">'
+            f'<span style="color:{main_color};font-weight:700;flex-shrink:0;margin-top:2px;">✓</span>'
+            f'<span>{p}</span></li>'
+            for p in key_points
+        )
+        facts_html = "".join(
+            f'<div style="display:flex;justify-content:space-between;align-items:center;'
+            f'padding:8px 0;border-bottom:1px solid {border_color};">'
+            f'<span style="color:#666;font-size:13px;">{f.get("label","")}</span>'
+            f'<span style="font-weight:700;font-size:14px;color:{main_color};">{f.get("value","")}</span></div>'
+            for f in quick_facts
+        )
+
+        # CTA uses onclick with Web Share API (works in WP) + clipboard fallback
+        cta_js = (
+            "if(navigator.share){"
+            "navigator.share({title:document.title,url:window.location.href})"
+            ".catch(function(){});"
+            "}else if(navigator.clipboard){"
+            "navigator.clipboard.writeText(window.location.href);"
+            "var b=this;var t=b.innerText;b.innerText='Copied!';setTimeout(function(){b.innerText=t;},2000);"
+            "}else{"
+            "prompt('Copy this link:',window.location.href);"
+            "}"
+            "return false;"
+        )
+
+        return (
+            f'<div id="nicheflow-card" style="border:3px solid {main_color};border-radius:20px;padding:32px;'
+            f'background:linear-gradient(135deg,{light_bg} 0%,#ffffff 100%);'
+            f'box-shadow:0 8px 32px rgba(0,0,0,0.12);margin:32px 0;max-width:640px;'
+            f'font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;">'
+            f'<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">'
+            f'<div style="background:{main_color};color:#fff;border-radius:12px;padding:6px 16px;'
+            f'font-weight:700;font-size:12px;letter-spacing:0.5px;text-transform:uppercase;">✦ Quick Summary</div>'
+            f'<span style="font-size:17px;font-weight:700;color:{main_color};">{card_title}</span>'
+            f'</div>'
+            + (f'<p style="color:#444;line-height:1.7;margin-bottom:20px;font-size:15px;'
+               f'border-left:3px solid {main_color};padding-left:12px;">{summary}</p>' if summary else '')
+            + (f'<div style="margin-bottom:20px;">'
+               f'<div style="font-weight:700;font-size:11px;color:{main_color};margin-bottom:10px;'
+               f'text-transform:uppercase;letter-spacing:1px;">Key Points</div>'
+               f'<ul style="list-style:none;padding:0;margin:0;">{points_html}</ul>'
+               f'</div>' if points_html else '')
+            + (f'<div style="margin-bottom:20px;">'
+               f'<div style="font-weight:700;font-size:11px;color:{main_color};margin-bottom:10px;'
+               f'text-transform:uppercase;letter-spacing:1px;">Quick Facts</div>'
+               f'{facts_html}</div>' if facts_html else '')
+            + f'<div style="text-align:center;margin-top:24px;">'
+            f'<button onclick="{cta_js}" '
+            f'style="background:{main_color};color:#fff;padding:13px 30px;border-radius:30px;'
+            f'font-weight:700;font-size:14px;border:none;cursor:pointer;'
+            f'box-shadow:0 4px 14px rgba(0,0,0,0.15);transition:opacity 0.2s;"'
+            f'onmouseover="this.style.opacity=\'0.88\'" onmouseout="this.style.opacity=\'1\'">'
+            f'{cta_text}</button></div>'
+            f'</div>'
+        )
+    except Exception:
+        # Minimal fallback card — still with clickable CTA
+        cta_js = "if(navigator.share){navigator.share({title:document.title,url:window.location.href}).catch(function(){});}else{navigator.clipboard&&navigator.clipboard.writeText(window.location.href);}return false;"
+        return (
+            f'<div id="nicheflow-card" style="border:2px solid {main_color};border-radius:16px;'
+            f'padding:24px;background:{light_bg};margin:24px 0;'
+            f'font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">'
+            f'<div style="font-weight:700;color:{main_color};margin-bottom:8px;">✦ Quick Summary</div>'
+            f'<p style="color:#555;line-height:1.6;margin-bottom:16px;">{title}</p>'
+            f'<div style="text-align:center;">'
+            f'<button onclick="{cta_js}" '
+            f'style="background:{main_color};color:#fff;padding:10px 24px;border-radius:20px;'
+            f'font-size:13px;font-weight:600;border:none;cursor:pointer;">Save this! 📌</button>'
+            f'</div></div>'
+        )
 
 
 def generate_meta_description(title):
@@ -172,10 +243,24 @@ def generate_pollinations_image(prompt, width=1024, height=1024):
 
 
 def download_and_convert_webp(image_url, max_width=1920):
+    """Download image from URL, convert to WebP, return bytes."""
     try:
         resp = requests.get(image_url, timeout=60, stream=True)
         if resp.status_code != 200: return None
         img = Image.open(io.BytesIO(resp.content)).convert("RGB")
+        if img.width > max_width:
+            ratio = max_width / img.width
+            img = img.resize((max_width, int(img.height * ratio)), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="WEBP", quality=80, method=1)
+        return buf.getvalue()
+    except Exception: return None
+
+
+def bytes_to_webp(raw_bytes, max_width=1920):
+    """Convert raw image bytes to WebP bytes."""
+    try:
+        img = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
         if img.width > max_width:
             ratio = max_width / img.width
             img = img.resize((max_width, int(img.height * ratio)), Image.LANCZOS)
@@ -197,34 +282,49 @@ def parse_wp_credentials(wp_url, wp_password):
 
 
 def upload_image_to_wordpress(wp_url, wp_password, image_bytes, filename, log_fn=None):
+    """Upload WebP bytes to WP media library. Returns dict with media_id and url."""
     def log(m):
         if log_fn: log_fn(m)
     base_url, wp_user, wp_pass = parse_wp_credentials(wp_url, wp_password)
-    if not wp_user: return {"success":False,"media_id":None,"url":None,"error":"No WP username"}
+    if not wp_user:
+        log("  ⚠️ No WP username in credentials")
+        return {"success":False,"media_id":None,"url":None,"error":"No WP username"}
     credentials = base64.b64encode(f"{wp_user}:{wp_pass}".encode()).decode()
-    headers = {"Authorization":f"Basic {credentials}","Content-Disposition":f'attachment; filename="{filename}"',"Content-Type":"image/webp"}
+    headers = {
+        "Authorization": f"Basic {credentials}",
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Type": "image/webp",
+    }
     try:
-        resp = requests.post(f"{base_url}/wp-json/wp/v2/media", headers=headers, data=image_bytes, timeout=60)
-        if resp.status_code in (200,201):
-            data = resp.json(); log(f"  ✅ Uploaded: {filename}")
-            return {"success":True,"media_id":data["id"],"url":data["source_url"],"error":None}
-        log(f"  ❌ Upload failed: {resp.status_code}")
-        return {"success":False,"media_id":None,"url":None,"error":f"WP {resp.status_code}"}
-    except Exception as e: return {"success":False,"media_id":None,"url":None,"error":str(e)}
+        resp = requests.post(f"{base_url}/wp-json/wp/v2/media", headers=headers, data=image_bytes, timeout=90)
+        if resp.status_code in (200, 201):
+            data = resp.json()
+            media_id = data.get("id")
+            source_url = data.get("source_url","")
+            log(f"  ✅ Uploaded {filename} → media_id={media_id}")
+            return {"success":True,"media_id":media_id,"url":source_url,"error":None}
+        err_text = resp.text[:300]
+        log(f"  ❌ Upload failed {resp.status_code}: {err_text}")
+        return {"success":False,"media_id":None,"url":None,"error":f"WP {resp.status_code}: {err_text}"}
+    except Exception as e:
+        log(f"  ❌ Upload exception: {e}")
+        return {"success":False,"media_id":None,"url":None,"error":str(e)}
 
 
-def publish_to_wordpress(title, content, wp_url, wp_password, status="publish", meta_description="", featured_media_id=None, category_ids=None):
+def publish_to_wordpress(title, content, wp_url, wp_password, status="publish",
+    meta_description="", featured_media_id=None, category_ids=None):
     base_url, wp_user, wp_pass = parse_wp_credentials(wp_url, wp_password)
     if not wp_user: return {"success":False,"error":"No WP username"}
     credentials = base64.b64encode(f"{wp_user}:{wp_pass}".encode()).decode()
     headers = {"Authorization":f"Basic {credentials}","Content-Type":"application/json"}
     payload = {"title":title,"content":content,"status":status}
-    if featured_media_id: payload["featured_media"] = featured_media_id
+    if featured_media_id:
+        payload["featured_media"] = int(featured_media_id)
     if category_ids: payload["categories"] = category_ids
     if meta_description: payload["meta"] = {"_yoast_wpseo_metadesc":meta_description}
     try:
         resp = requests.post(f"{base_url}/wp-json/wp/v2/posts", headers=headers, json=payload, timeout=60)
-        if resp.status_code in (200,201):
+        if resp.status_code in (200, 201):
             data = resp.json()
             return {"success":True,"post_id":data["id"],"post_url":data.get("link",""),"error":None}
         try: err = resp.json().get("message",resp.text[:300])
@@ -267,37 +367,25 @@ def fetch_internal_links(wp_url, wp_password, max_posts=200):
 
 
 def inject_internal_links(html, links, current_title, max_links=4, main_color="#ea580c"):
-    """
-    FIXED: Matches full long-tail article titles (3+ words) as anchor text.
-    This is SEO-correct — we link the exact article title phrase.
-    """
     if not links or not html: return html
     injected = 0; used_urls = set()
     current_lower = current_title.lower()
-
     for link in links:
         if injected >= max_links: break
         link_title = link.get("title","").strip()
         link_url = link.get("url","")
         if not link_title or not link_url or link_url in used_urls: continue
         if link_title.lower() == current_lower: continue
-
         words = link_title.split()
-        if len(words) < 3: continue  # Only long-tail phrases (3+ words)
-
-        # Skip too-similar titles (>50% word overlap)
+        if len(words) < 3: continue
         link_words = set(link_title.lower().split())
         current_words = set(current_lower.split())
         if len(link_words & current_words) / max(len(link_words), 1) > 0.5: continue
-
-        # Try exact full title match
         pattern = re.compile(re.escape(link_title), re.IGNORECASE)
         if pattern.search(html):
             anchor = f'<a href="{link_url}" style="color:{main_color};text-decoration:underline;font-weight:500;" title="{link_title}">{link_title}</a>'
             html = pattern.sub(anchor, html, count=1)
             used_urls.add(link_url); injected += 1; continue
-
-        # Fallback: try last 3 words of title (the noun phrase)
         if len(words) >= 4:
             short = " ".join(words[-3:])
             sp = re.compile(re.escape(short), re.IGNORECASE)
@@ -305,21 +393,22 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
                 anchor = f'<a href="{link_url}" style="color:{main_color};text-decoration:underline;font-weight:500;" title="{link_title}">{short}</a>'
                 html = sp.sub(anchor, html, count=1)
                 used_urls.add(link_url); injected += 1
-
     return html
 
 
 def inject_images_into_article(html, image_results, title):
-    """FIXED: Properly replaces ##IMAGE1## ##IMAGE2## ##IMAGE3## placeholders."""
+    """Replace ##IMAGE1## ##IMAGE2## ##IMAGE3## with actual img tags."""
     placeholders = ["##IMAGE1##", "##IMAGE2##", "##IMAGE3##"]
     for i, ph in enumerate(placeholders):
-        img_idx = i + 1  # body images are index 1,2,3; index 0 is featured
+        img_idx = i + 1  # index 0 = featured, 1/2/3 = body
         img_data = image_results[img_idx] if img_idx < len(image_results) else None
         if img_data and img_data.get("url"):
-            img_tag = (f'<figure style="margin:28px auto;text-align:center;max-width:720px;">'
-                      f'<img src="{img_data["url"]}" alt="{title}" loading="lazy" '
-                      f'style="width:100%;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.12);display:block;" />'
-                      f'</figure>')
+            img_tag = (
+                f'<figure style="margin:28px auto;text-align:center;max-width:720px;">'
+                f'<img src="{img_data["url"]}" alt="{title}" loading="lazy" '
+                f'style="width:100%;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.12);display:block;" />'
+                f'</figure>'
+            )
             html = html.replace(ph, img_tag)
         else:
             html = html.replace(ph, "")
@@ -386,6 +475,7 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
         if log_fn: log_fn(msg)
 
     art_result = [None]; card_result = [None]
+    # IMPORTANT: each slot is a dict. media_id=None means not uploaded yet.
     image_results = [{"url":None,"media_id":None} for _ in range(4)]
     all_threads = []; _log_lock = threading.Lock()
 
@@ -415,69 +505,115 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
         safe_log("✅ Card ready" if card_html else "⚠️ Card failed")
 
     def _gen_images():
-        if not use_images: safe_log("⏭️ Images disabled"); return
-        names = ["featured","body-1","body-2","body-3"]; img_threads = []
+        if not use_images:
+            safe_log("⏭️ Images disabled (enable in Generate page)")
+            return
+        if not use_pollinations and not goapi_key:
+            safe_log("⚠️ No image source configured (need GoAPI key or enable Pollinations in Settings → Images)")
+            return
+
+        names = ["featured","body-1","body-2","body-3"]
+        img_threads = []
 
         def _gen_single(idx):
+            slug = re.sub(r"[^a-z0-9]+","-",title.lower()).strip("-")
+            fname = f"{slug}-{names[idx]}.webp"
+
             if use_pollinations:
                 tpl = pollinations_prompt or "Professional editorial photography of {title}, natural light, 4K"
                 ip = tpl.replace("{title}",title).replace("{recipe_name}",title)
                 safe_log(f"  🖼️ Image {idx+1}/4 via Pollinations...")
                 res = generate_pollinations_image(ip)
-                if res.get("url"):
-                    if wp_url and wp_password and res.get("raw_bytes"):
-                        try:
-                            img=Image.open(io.BytesIO(res["raw_bytes"])).convert("RGB")
-                            buf=io.BytesIO(); img.save(buf,format="WEBP",quality=80); webp=buf.getvalue()
-                            slug=re.sub(r"[^a-z0-9]+","-",title.lower()).strip("-")
-                            up=upload_image_to_wordpress(wp_url,wp_password,webp,f"{slug}-{names[idx]}.webp",safe_log)
-                            image_results[idx]={"url":up.get("url") or res["url"],"media_id":up.get("media_id")}; return
-                        except Exception: pass
-                    image_results[idx]={"url":res["url"],"media_id":None}
+
+                if not res.get("url"):
+                    safe_log(f"  ⚠️ Pollinations image {idx+1} failed: {res.get('error','unknown')}")
+                    return
+
+                # Convert to WebP
+                raw = res.get("raw_bytes")
+                if raw:
+                    webp = bytes_to_webp(raw)
                 else:
-                    safe_log(f"  ⚠️ Image {idx+1} failed: {res.get('error')}")
+                    webp = download_and_convert_webp(res["url"])
+
+                if webp and wp_url and wp_password:
+                    up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
+                    if up.get("success") and up.get("media_id"):
+                        image_results[idx] = {"url": up["url"], "media_id": up["media_id"]}
+                        safe_log(f"  ✅ Image {idx+1} uploaded to WP (media_id={up['media_id']})")
+                        return
+                    else:
+                        safe_log(f"  ⚠️ WP upload failed for image {idx+1}: {up.get('error')}")
+                # Fallback: use direct URL without WP upload
+                image_results[idx] = {"url": res["url"], "media_id": None}
+
             elif goapi_key:
                 tpl = mj_template or "Close up {recipe_name}, professional food photography, natural light --ar 2:3"
-                arm = re.search(r"--ar\s+(\d+:\d+)", tpl); ar = arm.group(1) if arm else "2:3"
+                arm = re.search(r"--ar\s+(\d+:\d+)", tpl)
+                ar = arm.group(1) if arm else "2:3"
                 ip = tpl.replace("{recipe_name}",title).replace("{title}",title)
                 if "--ar" not in ip: ip += f" --ar {ar}"
                 safe_log(f"  🖼️ Image {idx+1}/4 via Midjourney...")
                 res = generate_midjourney_image(goapi_key, ip, safe_log)
-                if res.get("url"):
-                    webp = download_and_convert_webp(res["url"])
-                    if webp and wp_url and wp_password:
-                        slug=re.sub(r"[^a-z0-9]+","-",title.lower()).strip("-")
-                        up=upload_image_to_wordpress(wp_url,wp_password,webp,f"{slug}-{names[idx]}.webp",safe_log)
-                        image_results[idx]={"url":up.get("url") or res["url"],"media_id":up.get("media_id")}
-                    else: image_results[idx]={"url":res["url"],"media_id":None}
-                else: safe_log(f"  ⚠️ Image {idx+1} failed: {res.get('error')}")
+
+                if not res.get("url"):
+                    safe_log(f"  ⚠️ MJ image {idx+1} failed: {res.get('error','unknown')}")
+                    return
+
+                webp = download_and_convert_webp(res["url"])
+                if webp and wp_url and wp_password:
+                    up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
+                    if up.get("success") and up.get("media_id"):
+                        image_results[idx] = {"url": up["url"], "media_id": up["media_id"]}
+                        safe_log(f"  ✅ Image {idx+1} uploaded (media_id={up['media_id']})")
+                        return
+                    else:
+                        safe_log(f"  ⚠️ WP upload failed: {up.get('error')}")
+                # Fallback to original URL
+                image_results[idx] = {"url": res["url"], "media_id": None}
 
         for idx in range(4):
-            t=threading.Thread(target=_gen_single,args=(idx,),daemon=True); img_threads.append(t); t.start()
+            t = threading.Thread(target=_gen_single, args=(idx,), daemon=True)
+            img_threads.append(t); t.start()
         for t in img_threads: t.join(timeout=300)
 
-    for fn in [_gen_article, _gen_card, _gen_images]:
-        t=threading.Thread(target=fn,daemon=True); all_threads.append(t); t.start()
+        # Log final image state
+        for idx in range(4):
+            r = image_results[idx]
+            if r.get("media_id"):
+                safe_log(f"  📸 Image {idx+1}: media_id={r['media_id']}, url={r.get('url','')[:60]}")
+            elif r.get("url"):
+                safe_log(f"  📸 Image {idx+1}: direct URL (no WP upload)")
+            else:
+                safe_log(f"  📸 Image {idx+1}: not generated")
 
-    deadline = time.time()+600
+    # Launch all threads in parallel
+    for fn in [_gen_article, _gen_card, _gen_images]:
+        t = threading.Thread(target=fn, daemon=True)
+        all_threads.append(t); t.start()
+
+    deadline = time.time() + 600
     while any(t.is_alive() for t in all_threads):
-        if time.time()>deadline: log("⚠️ Timeout 10min"); break
+        if time.time() > deadline: log("⚠️ Timeout 10min"); break
         time.sleep(2)
     for t in all_threads: t.join(timeout=5)
 
+    # Check article
     art = art_result[0]
-    if not art or not art["success"]: return {"success":False,"error":art["error"] if art else "Article failed"}
+    if not art or not art["success"]:
+        return {"success":False,"error":art["error"] if art else "Article thread failed"}
 
     content = art["content"]
 
-    # INJECT IMAGES (fixes ##IMAGE1## etc)
+    # Inject body images (##IMAGE1## ##IMAGE2## ##IMAGE3##)
     content = inject_images_into_article(content, image_results, title)
 
-    # APPEND CARD (always, if enabled)
+    # Append card
     if show_card and card_result[0]:
-        content += "\n" + card_result[0]; log("✅ Card appended")
+        content += "\n" + card_result[0]
+        log("✅ Card appended")
 
-    # INJECT INTERNAL LINKS (long-tail phrase matching)
+    # Inject internal links
     _links = internal_links
     if use_internal_links and not _links and wp_url and wp_password:
         log("🔗 Fetching internal links...")
@@ -490,17 +626,34 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
         content = inject_internal_links(content, _links, title, max_links=max_links, main_color=mc)
         log("🔗 Internal links injected")
 
+    # Publish
     meta = generate_meta_description(title)
     wp_title = art.get("seo_title") or title
-    log("📤 Publishing...")
-    featured_id = image_results[0].get("media_id") if image_results[0] else None
-    pub = publish_to_wordpress(title=wp_title, content=content, wp_url=wp_url, wp_password=wp_password,
-        status=publish_status, meta_description=meta, featured_media_id=featured_id, category_ids=category_ids)
+    log("📤 Publishing to WordPress...")
+
+    # Get featured image media_id (index 0 = featured image)
+    featured_id = None
+    if image_results[0].get("media_id"):
+        featured_id = image_results[0]["media_id"]
+        log(f"🖼️ Setting featured image: media_id={featured_id}")
+    elif image_results[0].get("url"):
+        log(f"⚠️ Featured image has URL but no media_id — not set as featured")
+
+    pub = publish_to_wordpress(
+        title=wp_title, content=content,
+        wp_url=wp_url, wp_password=wp_password,
+        status=publish_status, meta_description=meta,
+        featured_media_id=featured_id,
+        category_ids=category_ids,
+    )
+
     if pub["success"]:
-        log(f"🎉 Published! → {pub.get('post_url','')}") 
+        log(f"🎉 Published! → {pub.get('post_url','')}")
         pub["featured_image_url"] = image_results[0].get("url") if image_results[0] else None
+        pub["featured_media_id"] = featured_id
     else:
-        log(f"❌ Failed: {pub['error']}")
+        log(f"❌ Publish failed: {pub['error']}")
+
     return pub
 
 
