@@ -49,13 +49,19 @@ function getStoredConfig() {
 }
 function estimateTokens(text) { return Math.ceil(text.length / 4); }
 
+// Trial: days left since account creation
 function getDaysLeft(createdAt) {
+  if (!createdAt) return TRIAL_DAYS;
   const diff = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
   return Math.max(0, TRIAL_DAYS - Math.floor(diff));
 }
+function isTrialExpired(createdAt) { return getDaysLeft(createdAt) === 0; }
 
-function isTrialExpired(createdAt) {
-  return getDaysLeft(createdAt) === 0;
+// Subscription: days left until plan_expires
+function getSubDaysLeft(planExpires) {
+  if (!planExpires) return null;
+  const diff = (new Date(planExpires).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+  return Math.max(0, Math.ceil(diff));
 }
 
 // ─── LOGO SVG ─────────────────────────────────────────────────────────────
@@ -192,8 +198,6 @@ select.input{cursor:pointer;}
 .board-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:14px;}
 .board-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px;cursor:pointer;transition:all .2s;text-align:center;}
 .board-item:hover,.board-item.selected{border-color:var(--accent);background:var(--accent-dim);}
-.board-icon{font-size:22px;margin-bottom:6px;}
-.board-name{font-size:12px;font-weight:500;color:var(--text2);}
 
 .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
 .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;}
@@ -279,9 +283,13 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .upgrade-banner{background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(245,158,11,.05));border:1px solid rgba(245,158,11,.25);border-radius:var(--radius-lg);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;}
 .upgrade-banner-text{font-size:14px;color:var(--text2);}.upgrade-banner-text strong{color:var(--pro);}
 
-.trial-bar-expired{background:rgba(239,68,68,0.18);border-bottom:1px solid rgba(239,68,68,0.3);color:var(--red);}
-.trial-bar-warn{background:rgba(245,158,11,0.13);border-bottom:1px solid rgba(245,158,11,0.22);color:var(--pro);}
-.trial-bar-ok{background:rgba(16,185,129,0.08);border-bottom:1px solid rgba(16,185,129,0.15);color:var(--green);}
+.top-bar{padding:10px 28px;display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:13px;}
+.top-bar-trial-expired{background:rgba(239,68,68,0.18);border-bottom:1px solid rgba(239,68,68,0.3);color:var(--red);}
+.top-bar-trial-warn{background:rgba(245,158,11,0.13);border-bottom:1px solid rgba(245,158,11,0.22);color:var(--pro);}
+.top-bar-trial-ok{background:rgba(16,185,129,0.08);border-bottom:1px solid rgba(16,185,129,0.15);color:var(--green);}
+.top-bar-sub-ok{background:rgba(16,185,129,0.08);border-bottom:1px solid rgba(16,185,129,0.15);color:var(--green);}
+.top-bar-sub-warn{background:rgba(245,158,11,0.13);border-bottom:1px solid rgba(245,158,11,0.22);color:var(--pro);}
+.top-bar-sub-expired{background:rgba(239,68,68,0.18);border-bottom:1px solid rgba(239,68,68,0.3);color:var(--red);}
 
 @media(max-width:900px){
   .nav{padding:14px 20px;}
@@ -308,27 +316,53 @@ function Hint({ children }) {
   return <p className="hint"><span style={{ flexShrink: 0 }}>ℹ</span><span>{children}</span></p>;
 }
 
-// ─── TRIAL BAR ─────────────────────────────────────────────────────────────
-function TrialBar({ createdAt, plan, onUpgrade }) {
-  if (plan === "pro") return null;
-  const daysLeft = getDaysLeft(createdAt);
-  const expired = daysLeft === 0;
-  const cls = expired ? "trial-bar-expired" : daysLeft === 1 ? "trial-bar-warn" : "trial-bar-ok";
-  const msg = expired
-    ? "⚠️ Your 2-day free trial has expired — upgrade to keep publishing"
-    : daysLeft === 1
-    ? "⏰ Last day of your free trial — upgrade before it expires"
-    : `🎉 ${daysLeft} days left in your free trial`;
-
-  return (
-    <div className={cls} style={{padding:"10px 28px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,fontSize:13}}>
-      <span><strong>{msg}</strong></span>
-      <div style={{display:"flex",gap:8,flexShrink:0}}>
-        <button className="btn btn-ghost btn-sm" onClick={()=>onUpgrade("basic")} style={{padding:"5px 12px",fontSize:12,borderColor:"currentColor"}}>Basic $30/mo</button>
-        <button className="btn btn-pro btn-sm" onClick={()=>onUpgrade("pro")} style={{padding:"5px 12px",fontSize:12}}>Pro $40/mo ★</button>
+// ─── TOP BAR — trial OR subscription countdown ─────────────────────────────
+function TopBar({ createdAt, plan, planExpires, onUpgrade }) {
+  // If pro with plan_expires — show subscription countdown
+  if (plan === "pro" && planExpires) {
+    const daysLeft = getSubDaysLeft(planExpires);
+    if (daysLeft === null) return null;
+    const cls = daysLeft <= 3 ? "top-bar-sub-warn" : "top-bar-sub-ok";
+    const expired = daysLeft === 0;
+    return (
+      <div className={`top-bar ${expired ? "top-bar-sub-expired" : cls}`}>
+        <span>
+          {expired
+            ? "⚠️ Your Pro subscription has expired — renew to keep Pinterest access"
+            : daysLeft <= 3
+            ? `⏰ Pro renews in ${daysLeft} day${daysLeft !== 1 ? "s" : ""} — make sure your payment is up to date`
+            : `★ Pro plan active — ${daysLeft} day${daysLeft !== 1 ? "s" : ""} until renewal`}
+        </span>
+        {expired && (
+          <button className="btn btn-pro btn-sm" onClick={() => onUpgrade("pro")} style={{padding:"5px 12px",fontSize:12}}>Renew Pro →</button>
+        )}
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Basic user — show trial countdown
+  if (plan !== "pro") {
+    const daysLeft = getDaysLeft(createdAt);
+    const expired = daysLeft === 0;
+    const cls = expired ? "top-bar-trial-expired" : daysLeft === 1 ? "top-bar-trial-warn" : "top-bar-trial-ok";
+    const msg = expired
+      ? "⚠️ Your 2-day free trial has expired — upgrade to keep publishing"
+      : daysLeft === 1
+      ? "⏰ Last day of your free trial — upgrade before it expires"
+      : `🎉 ${daysLeft} days left in your free trial`;
+
+    return (
+      <div className={`top-bar ${cls}`}>
+        <span><strong>{msg}</strong></span>
+        <div style={{display:"flex",gap:8,flexShrink:0}}>
+          <button className="btn btn-ghost btn-sm" onClick={() => onUpgrade("basic")} style={{padding:"5px 12px",fontSize:12,borderColor:"currentColor"}}>Basic $30/mo</button>
+          <button className="btn btn-pro btn-sm" onClick={() => onUpgrade("pro")} style={{padding:"5px 12px",fontSize:12}}>Pro $40/mo ★</button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 // ─── TRIAL EXPIRED GATE ────────────────────────────────────────────────────
@@ -455,13 +489,11 @@ function LandingPage({ onLogin, onSignup, onCheckout }) {
         <div className="pricing-grid">
           {[
             { name:"Basic", price:"$30", desc:"Everything you need to run a content business on autopilot.",
-              features:["Unlimited article generation","Custom article prompt","Custom card prompt","Midjourney & Pollinations images","WordPress auto-publish","Featured image auto-set","Internal link injection","History & analytics"],
-              btn:"Get Basic →", cls:"",
-              action: () => onCheckout("basic") },
+              features:["Unlimited article generation","Custom article prompt","Custom card prompt","4 images per article (1 featured + 3 body)","WordPress auto-publish","Featured image auto-set","Internal link injection","History & analytics"],
+              btn:"Get Basic →", cls:"", action: () => onCheckout("basic") },
             { name:"Pro", price:"$40", desc:"Everything in Basic plus full Pinterest automation with AI-designed pin images.",
               features:["Everything in Basic","Pinterest auto-pinning","AI-generated pin images","4-word hook title overlay","Board selection & scheduling","Pin delay scheduling","Auto-pin after publish","Custom pin image design"],
-              btn:"Get Pro ★", cls:"featured",
-              action: () => onCheckout("pro") },
+              btn:"Get Pro ★", cls:"featured", action: () => onCheckout("pro") },
           ].map(p=>(
             <div key={p.name} className={`plan-card ${p.cls}`}>
               <div style={{ fontFamily:"var(--font-display)",fontSize:20,fontWeight:700,marginBottom:6 }}>{p.name}</div>
@@ -574,10 +606,10 @@ function UpgradeBanner({ onUpgrade }) {
 }
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────
-function Dashboard({ history, plan, onUpgrade, createdAt }) {
+function Dashboard({ history, plan, onUpgrade, createdAt, planExpires }) {
   const published = history.filter(h=>h.status==="published").length;
   const failed = history.filter(h=>h.status==="failed").length;
-  const daysLeft = getDaysLeft(createdAt);
+  const daysLeft = plan === "pro" ? (getSubDaysLeft(planExpires) || "∞") : getDaysLeft(createdAt);
   return (
     <div className="fade-up">
       {plan !== "pro" && <UpgradeBanner onUpgrade={()=>onUpgrade("pro")} />}
@@ -586,7 +618,7 @@ function Dashboard({ history, plan, onUpgrade, createdAt }) {
           {num:history.length,label:"Total articles"},
           {num:published,label:"Published",sub:published>0?`${Math.round(published/Math.max(history.length,1)*100)}% success`:""},
           {num:failed,label:"Failed"},
-          {num:plan==="pro"?0:daysLeft,label:plan==="pro"?"Pinterest pins":"Trial days left",sub:plan==="pro"?"Ready":"basic trial"},
+          {num:daysLeft,label:plan==="pro"?"Sub days left":"Trial days left",sub:plan==="pro"?"Pro active":"basic trial"},
         ].map((s,i)=>(
           <div className="stat-card" key={i}>
             <div className="stat-card-num">{s.num}</div>
@@ -638,6 +670,14 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade }) {
 
   if (expired) return <TrialExpiredGate onUpgrade={onUpgrade} />;
 
+  // Detect log type from message content
+  function detectLogType(msg) {
+    if (msg.includes("✅") || msg.includes("🎉") || msg.includes("Published")) return "ok";
+    if (msg.includes("❌") || msg.includes("Failed") || msg.includes("failed")) return "err";
+    if (msg.includes("⚠️")) return "warn";
+    return "info";
+  }
+
   async function run() {
     if(!config.gemini_key){addLog("❌ No AI key. Go to Settings → API Keys.","err");return;}
     if(!config.wp_url){addLog("❌ No WordPress URL. Go to Settings → WordPress.","err");return;}
@@ -650,11 +690,39 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade }) {
       setProgress(i/titleList.length);
       addLog(`[${i+1}/${titleList.length}] ${title}`,"info");
       try{
-        const payload={title,gemini_key:config.gemini_key||"",goapi_key:config.goapi_key||"",wp_url:config.wp_url||"",wp_password:config.wp_password||"",custom_prompt:config.custom_prompt||"",card_prompt:config.card_prompt||"",mj_template:config.mj_template||"",publish_status:draft?"draft":(config.publish_status||"publish"),use_images:useImages,use_pollinations:config.use_pollinations||false,pollinations_prompt:config.pollinations_prompt||"",show_card:config.show_card!==false,use_internal_links:config.use_internal_links!==false,max_links:config.max_links||4};
+        const payload={
+          title,
+          gemini_key:config.gemini_key||"",
+          goapi_key:config.goapi_key||"",
+          wp_url:config.wp_url||"",
+          wp_password:config.wp_password||"",
+          custom_prompt:config.custom_prompt||"",
+          card_prompt:config.card_prompt||"",
+          mj_template:config.mj_template||"",
+          publish_status:draft?"draft":(config.publish_status||"publish"),
+          use_images:useImages,
+          use_pollinations:config.use_pollinations||false,
+          pollinations_prompt:config.pollinations_prompt||"",
+          show_card:config.show_card!==false,
+          use_internal_links:config.use_internal_links!==false,
+          max_links:config.max_links||4
+        };
         const token=getStoredToken();
-        const res=await fetch(`${API_URL}/pipeline`,{method:"POST",headers:{"Content-Type":"application/json",...(token?{"Authorization":`Bearer ${token}`}:{})},body:JSON.stringify(payload)});
+        const res=await fetch(`${API_URL}/pipeline`,{
+          method:"POST",
+          headers:{"Content-Type":"application/json",...(token?{"Authorization":`Bearer ${token}`}:{})},
+          body:JSON.stringify(payload)
+        });
         let data;
         try{data=await res.json();}catch{data={success:false,error:`Server ${res.status}`};}
+
+        // Show pipeline logs from backend (image generation, upload, etc.)
+        if(data.logs && Array.isArray(data.logs)){
+          for(const logMsg of data.logs){
+            addLog(logMsg, detectLogType(logMsg));
+          }
+        }
+
         if(data.success){
           addLog(`✅ Published → ${data.post_url}`,"ok");
           if(data.featured_image_url) addLog(`🖼️ Featured image set`,"ok");
@@ -694,7 +762,7 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade }) {
             <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:14}}>Options</div>
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
               <div className="setting-row"><div className="setting-info"><div className="setting-name">Save as Draft</div><div className="setting-desc">Publish as draft instead of live</div></div><label className="toggle"><input type="checkbox" checked={draft} onChange={e=>setDraft(e.target.checked)}/><span className="toggle-slider"/></label></div>
-              <div className="setting-row"><div className="setting-info"><div className="setting-name">Generate Images</div><div className="setting-desc">Midjourney or Pollinations. 1 featured + 3 body images, all WebP.</div></div><label className="toggle"><input type="checkbox" checked={useImages} onChange={e=>setUseImages(e.target.checked)}/><span className="toggle-slider"/></label></div>
+              <div className="setting-row"><div className="setting-info"><div className="setting-name">Generate Images</div><div className="setting-desc">1 featured + 3 body images. All WebP, uploaded to WordPress.</div></div><label className="toggle"><input type="checkbox" checked={useImages} onChange={e=>setUseImages(e.target.checked)}/><span className="toggle-slider"/></label></div>
               <div><div className="setting-name" style={{marginBottom:6}}>Delay between articles</div><div style={{display:"flex",alignItems:"center",gap:10}}><input className="input" type="number" value={delay} min={0} max={120} onChange={e=>setDelay(+e.target.value)} style={{width:80}}/><span style={{fontSize:13,color:"var(--text2)"}}>seconds</span></div></div>
             </div>
           </div>
@@ -838,7 +906,7 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
         <div className="settings-section fade-up">
           <div className="settings-header"><span>🖼️</span><h3>Image Settings</h3></div>
           <div className="settings-body">
-            <div className="alert alert-info">✦ 4 images per article: 1 featured + 3 body. All cropped, converted to WebP, uploaded to WordPress. Featured image set automatically on the post.</div>
+            <div className="alert alert-info">✦ 4 images per article: 1 featured (set on WP post) + 3 body (at ##IMAGE1## ##IMAGE2## ##IMAGE3##). All cropped, WebP, uploaded to WordPress.</div>
             <div><label className="form-label">Midjourney Image Template</label><textarea className="input" style={{minHeight:90}} value={cfg.mj_template||""} onChange={e=>update("mj_template",e.target.value)} placeholder="Close up {recipe_name}, food photography, natural light --ar 2:3"/><Hint>Use {"{recipe_name}"} or {"{title}"}. Requires GoAPI key.</Hint></div>
             <div className="divider"/>
             <div className="setting-row"><div className="setting-info"><div className="setting-name">Use Pollinations (free)</div><div className="setting-desc">Free AI images — no API key needed</div></div><label className="toggle"><input type="checkbox" checked={cfg.use_pollinations||false} onChange={e=>update("use_pollinations",e.target.checked)}/><span className="toggle-slider"/></label></div>
@@ -861,10 +929,9 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
           <div className="settings-section">
             <div className="settings-header"><span>💬</span><h3>Pinterest Pin Prompt</h3></div>
             <div className="settings-body">
-              <div className="alert alert-info">✦ AI generates pin content. Return JSON with <code>pin_title</code> (60 chars), <code>pin_description</code> (150 chars + CTA), <code>alt_text</code>, <code>hashtags</code> array, and <code>hook_title</code> (EXACTLY 4 words — shown large on pin image).</div>
+              <div className="alert alert-info">✦ AI generates pin content. Return JSON with <code>pin_title</code> (60 chars), <code>pin_description</code> (150 chars + CTA), <code>alt_text</code>, <code>hashtags</code> array, and <code>hook_title</code> (EXACTLY 4 words).</div>
               <div className="prompt-editor">
                 <textarea className="input" style={{minHeight:140,fontFamily:"monospace",fontSize:13}} value={cfg.pinterest_prompt||""} onChange={e=>update("pinterest_prompt",e.target.value)} placeholder={"For article \"{title}\" at {url}:\nReturn JSON:\n{\"pin_title\":\"[max 60 chars]\",\"pin_description\":\"[max 150 chars + Save this!]\",\"alt_text\":\"[1 sentence]\",\"hashtags\":[\"tag1\",\"tag2\"],\"hook_title\":\"[EXACTLY 4 words]\"}"}/>
-                {cfg.pinterest_prompt&&<div className="prompt-counter">{estimateTokens(cfg.pinterest_prompt).toLocaleString()} tokens</div>}
               </div>
               {cfg.pinterest_prompt&&<TokenCounter text={cfg.pinterest_prompt} limit={1000}/>}
             </div>
@@ -872,26 +939,18 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
           <div className="settings-section">
             <div className="settings-header"><span>🎨</span><h3>Pin Image Design</h3><span className="badge badge-pro" style={{marginLeft:"auto"}}>PRO</span></div>
             <div className="settings-body">
-              <div className="alert alert-info">✦ NicheFlow AI generates a custom Pinterest pin image using your article's body images as background, with the AI 4-word hook title overlaid. This image is uploaded to WordPress and used as the pin image — NOT the featured image.</div>
+              <div className="alert alert-info">✦ Generates a custom Pinterest pin image: article body image as background + 4-word hook title overlaid. Uploaded to WordPress and used as pin image — NOT the featured image.</div>
               <div>
                 <label className="form-label">Pin Image Design Prompt</label>
                 <textarea className="input" style={{minHeight:90,fontFamily:"monospace",fontSize:13}} value={cfg.pin_image_prompt||""} onChange={e=>update("pin_image_prompt",e.target.value)} placeholder={"background_color:#1a1a2e overlay_opacity:0.55 title_color:#ffffff title_size:72 subtitle_color:#f0f0f0 subtitle_size:32 canvas_width:1000 canvas_height:1500 title_position:bottom logo_text:yoursite.com gradient:true gradient_color:#6366f1"}/>
-                <Hint>Each setting is key:value separated by spaces. All settings are optional — defaults are used if omitted.</Hint>
+                <Hint>Each setting is key:value separated by spaces. All optional — defaults used if omitted.</Hint>
               </div>
               <div style={{background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:"var(--radius)",padding:"14px 16px",fontSize:12,color:"var(--text2)",lineHeight:2}}>
                 <strong style={{color:"var(--accent2)",display:"block",marginBottom:6}}>Available settings:</strong>
-                <code>background_color:#1a1a2e</code> — canvas background (used when no image available)<br/>
-                <code>overlay_opacity:0.55</code> — dark overlay on image (0.0 to 1.0)<br/>
-                <code>title_color:#ffffff</code> — hook title text color<br/>
-                <code>title_size:72</code> — hook title font size in pixels<br/>
-                <code>subtitle_color:#f0f0f0</code> — article title (subtitle) color<br/>
-                <code>subtitle_size:32</code> — article title font size<br/>
-                <code>canvas_width:1000</code> — pin image width in pixels<br/>
-                <code>canvas_height:1500</code> — pin image height (1000x1500 = Pinterest portrait ratio)<br/>
-                <code>title_position:bottom</code> — where to place hook title: top / center / bottom<br/>
-                <code>logo_text:yoursite.com</code> — small logo text shown at top of pin<br/>
-                <code>gradient:true</code> — add gradient overlay at bottom for better text readability<br/>
-                <code>gradient_color:#6366f1</code> — gradient accent color
+                <code>background_color:#1a1a2e</code> · <code>overlay_opacity:0.55</code> · <code>title_color:#ffffff</code> · <code>title_size:72</code><br/>
+                <code>subtitle_color:#f0f0f0</code> · <code>subtitle_size:32</code> · <code>canvas_width:1000</code> · <code>canvas_height:1500</code><br/>
+                <code>title_position:bottom</code> (top/center/bottom) · <code>logo_text:yoursite.com</code><br/>
+                <code>gradient:true</code> · <code>gradient_color:#6366f1</code>
               </div>
             </div>
           </div>
@@ -1068,12 +1127,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
                 <div className="pin-desc">{previewModal.pin_description}</div>
                 {previewModal.alt_text&&<div style={{fontSize:11,color:"var(--text3)",marginBottom:8}}>Alt: {previewModal.alt_text}</div>}
                 {previewModal.hashtags?.length>0&&<div className="pin-tags">{previewModal.hashtags.map(h=><span key={h} className="pin-tag">#{h}</span>)}</div>}
-                {previewModal.post_url&&<a href={previewModal.post_url} target="_blank" rel="noreferrer" style={{display:"block",marginTop:10,fontSize:12,color:"var(--accent2)",textDecoration:"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>🔗 {previewModal.post_url}</a>}
               </div>
-            </div>
-            <div style={{fontSize:12,color:"var(--text3)",padding:"0 2px"}}>
-              Boards: {previewModal.boards?.map(b=>b.board_id).join(", ")}<br/>
-              Status: {previewModal.status}
             </div>
           </div>
         </div>
@@ -1091,8 +1145,8 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
             <div className="board-grid">
               {boards.map(b=>(
                 <div key={b.id} className={`board-item ${selectedBoards.includes(b.id)?"selected":""}`} onClick={()=>toggleBoard(b.id)}>
-                  <div className="board-icon">📋</div>
-                  <div className="board-name">{b.name}</div>
+                  <div style={{fontSize:22,marginBottom:6}}>📋</div>
+                  <div style={{fontSize:12,fontWeight:500,color:"var(--text2)"}}>{b.name}</div>
                   {selectedBoards.includes(b.id)&&<div style={{fontSize:11,color:"var(--accent2)",marginTop:4}}>✓ Selected</div>}
                 </div>
               ))}
@@ -1108,8 +1162,8 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
               <div className="board-grid">
                 {config.pinterest_boards.split(",").map(id=>id.trim()).filter(Boolean).map(id=>(
                   <div key={id} className={`board-item ${selectedBoards.includes(id)?"selected":""}`} onClick={()=>toggleBoard(id)}>
-                    <div className="board-icon">📋</div>
-                    <div className="board-name" style={{wordBreak:"break-all"}}>{id}</div>
+                    <div style={{fontSize:22,marginBottom:6}}>📋</div>
+                    <div style={{fontSize:12,fontWeight:500,color:"var(--text2)",wordBreak:"break-all"}}>{id}</div>
                     {selectedBoards.includes(id)&&<div style={{fontSize:11,color:"var(--accent2)",marginTop:4}}>✓</div>}
                   </div>
                 ))}
@@ -1125,13 +1179,12 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
             <div style={{fontSize:13,color:"var(--text3)"}}>published articles ready to pin</div>
             <div className="divider"/>
             <div style={{fontSize:13,color:"var(--text2)"}}>{selectedBoards.length} board{selectedBoards.length!==1?"s":""} selected</div>
-            {config.pin_delay_min>0&&<div style={{marginTop:8,fontSize:12,color:"var(--text3)"}}>⏱ {config.pin_delay_min}min delay after publish</div>}
           </div>
           <div className="alert alert-info" style={{fontSize:13}}>
-            ✦ AI generates a 4-word hook title per article.<br/>
-            ✦ Hook title is overlaid on article body image to create the pin.<br/>
-            ✦ Pin image is separate from your featured image.<br/>
-            ✦ Customize design in Settings → Pin Image Design.
+            ✦ AI generates a 4-word hook title per article<br/>
+            ✦ Hook overlaid on article body image for pin<br/>
+            ✦ Pin image separate from featured image<br/>
+            ✦ Customize design in Settings → Pin Image Design
           </div>
           <button className="btn btn-pro" style={{width:"100%",padding:"13px"}} onClick={runPinterest} disabled={running||!publishedArticles.length||!selectedBoards.length}>
             {running?<><span className="spinner"/>Pinning...</>:`📌 Pin ${publishedArticles.length} Article${publishedArticles.length!==1?"s":""}`}
@@ -1198,11 +1251,11 @@ function DocsPage({ plan, onUpgrade }) {
             <div className="doc-section">
               <h3>🚀 Quick Start — Up in 5 minutes</h3>
               {[
-                {n:"1",t:"Get a free AI key",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> and create a free API key starting with <code>gsk_</code>. 14,400 requests/day free.</>},
+                {n:"1",t:"Get a free AI key",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> — create a free API key starting with <code>gsk_</code>. 14,400 requests/day free.</>},
                 {n:"2",t:"Configure Settings",d:"Go to Settings → API Keys → paste your key → click Test → Save Settings."},
                 {n:"3",t:"Connect WordPress",d:<>Settings → WordPress → enter your site URL and App Password. Format: <code>username:xxxx xxxx xxxx xxxx</code>.</>},
                 {n:"4",t:"Write your Prompt",d:<>Settings → Prompts → write your article prompt. Use <code>{"{title}"}</code> as placeholder.</>},
-                {n:"5",t:"Generate your first article",d:"Go to Generate → paste one title → click Generate. Watch the process log."},
+                {n:"5",t:"Generate your first article",d:"Go to Generate → paste one title → click Generate. Watch the process log for image upload status."},
               ].map(s=>(
                 <div key={s.n} className="doc-step">
                   <div className="doc-step-num">{s.n}</div>
@@ -1217,16 +1270,17 @@ function DocsPage({ plan, onUpgrade }) {
 Model 1: Writes article body (HTML, 1000+ words)
 Model 2: Generates summary card (runs in parallel)
 Images: 4 generated in parallel (if enabled)
-  → Image 1: Featured (set on WordPress post)
-  → Image 2-4: Body (injected at ##IMAGE1## ##IMAGE2## ##IMAGE3##)
-  → All cropped to correct ratio → converted to WebP → uploaded to WP
+  → Image 0: Featured (uploaded to WP, set as featured_media)
+  → Images 1-3: Body (injected at ##IMAGE1## ##IMAGE2## ##IMAGE3##)
+  → All center-cropped → converted to WebP → uploaded to WP media
     ↓
 Internal links fetched and injected
 Article + card published to WordPress
+Pipeline logs returned to frontend for display
     ↓
 Pinterest: custom pin image generated (Pro only)
   → AI generates 4-word hook title
-  → Hook title overlaid on article body image
+  → Hook title overlaid on article body image (Pillow)
   → Pin image uploaded to WP → used as Pinterest pin image`}</pre>
             </div>
           </>
@@ -1236,7 +1290,7 @@ Pinterest: custom pin image generated (Pro only)
             <h3>🔑 API Keys Explained</h3>
             <div className="doc-step"><div className="doc-step-num">G</div><div className="doc-step-text"><div className="doc-step-title">Groq API Key (recommended — free)</div><div className="doc-step-desc">Get at <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a>. Starts with <code>gsk_</code>. 14,400 requests/day free.</div></div></div>
             <div className="doc-step"><div className="doc-step-num">A</div><div className="doc-step-text"><div className="doc-step-title">Gemini API Key (fallback)</div><div className="doc-step-desc">Get at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a>. Starts with <code>AIza</code>. Add after comma: <code>gsk_xxx,AIzayyy</code> for zero-downtime fallback.</div></div></div>
-            <div className="doc-step"><div className="doc-step-num">M</div><div className="doc-step-text"><div className="doc-step-title">GoAPI Key (Midjourney images)</div><div className="doc-step-desc">Get at <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a>. Paid. Only needed for Midjourney-quality images. Skip if using Pollinations (free).</div></div></div>
+            <div className="doc-step"><div className="doc-step-num">M</div><div className="doc-step-text"><div className="doc-step-title">GoAPI Key (Midjourney images)</div><div className="doc-step-desc">Get at <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a>. Paid. Only needed for Midjourney. Skip if using free Pollinations.</div></div></div>
           </div>
         )}
         {section==="wordpress"&&(
@@ -1245,8 +1299,8 @@ Pinterest: custom pin image generated (Pro only)
             {[
               {t:"Create an Application Password",d:<>WordPress: <strong>Users → Your Profile → Application Passwords</strong> → enter name → Add → copy password.</>},
               {t:"Format the credentials",d:<>Enter as: <code>yourusername:xxxx xxxx xxxx xxxx</code>. Keep spaces in password.</>},
-              {t:"Featured image",d:"Image 1 is uploaded to WP media and set as the post's featured image automatically. It needs a valid WP App Password with media upload permission."},
-              {t:"Why featured image might not set",d:"The App Password must have the 'upload_files' capability. If it's not setting, create a new App Password in WordPress admin or check user role has media permissions."},
+              {t:"Featured image",d:"Image 0 is uploaded to WP media with media_id and set as the post's featured_media field automatically."},
+              {t:"If featured image is not setting",d:"The App Password user must have the 'upload_files' capability. Create a new App Password or check user role has media permissions."},
             ].map((s,i)=>(
               <div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>
             ))}
@@ -1256,7 +1310,6 @@ Pinterest: custom pin image generated (Pro only)
           <>
             <div className="doc-section">
               <h3>💬 Article Prompt</h3>
-              <p style={{fontSize:13,color:"var(--text2)",marginBottom:16,lineHeight:1.7}}>Return a JSON object with these keys:</p>
               <pre>{`{
   "seo_title": "Under 60 characters",
   "excerpt": "2-sentence summary",
@@ -1277,20 +1330,18 @@ Pinterest: custom pin image generated (Pro only)
   "quick_facts": [{"label": "Time", "value": "30 mins"}],
   "cta_text": "Save this! 📌"
 }`}</pre>
-              <p style={{fontSize:13,color:"var(--text2)",margin:"12px 0"}}>The CTA button triggers the browser Share dialog (Web Share API) so readers can save/share the article.</p>
             </div>
           </>
         )}
         {section==="images"&&(
           <div className="doc-section">
-            <h3>🖼️ Images & WebP Conversion</h3>
+            <h3>🖼️ Images & WebP</h3>
             {[
-              {t:"4 images per article",d:"Image 1 = featured (set on WP post). Images 2-4 = body (injected at ##IMAGE1## ##IMAGE2## ##IMAGE3## in article HTML)."},
-              {t:"Cropping",d:"Each image is center-cropped to the correct aspect ratio before conversion. Featured: 16:9 landscape. Body: 3:2."},
-              {t:"WebP conversion",d:"All images downloaded and converted to WebP format (quality 82). Images wider than 1920px are resized down. WebP is 25-35% smaller than JPEG."},
-              {t:"WordPress upload",d:"Each WebP is uploaded to WP media library. Featured image is set on the post via media_id. Body images are injected as HTML img tags with lazy loading."},
-              {t:"Pollinations (free)",d:"Free image generation. Enable in Settings → Images. No API key needed."},
-              {t:"Midjourney (GoAPI)",d:"High-quality images. Requires GoAPI key. All 4 images generated in parallel to save time."},
+              {t:"4 images per article",d:"Image 0 = featured. Images 1-3 = body (injected at ##IMAGE1## ##IMAGE2## ##IMAGE3##)."},
+              {t:"Cropping ratios",d:"Featured: 16:9 landscape. Body: 3:2. Center-cropped before WebP conversion."},
+              {t:"WebP upload",d:"All uploaded to WP media library. Featured image set on post via media_id (featured_media field)."},
+              {t:"Pipeline logs in frontend",d:"All image generation/upload logs now appear in the Generate page log panel in real time."},
+              {t:"Pollinations (free)",d:"Enable in Settings → Images. No API key. Quality lower than Midjourney but free."},
             ].map((s,i)=>(
               <div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>
             ))}
@@ -1300,9 +1351,9 @@ Pinterest: custom pin image generated (Pro only)
           <div className="doc-section">
             <h3>🔗 Internal Links</h3>
             {[
-              {t:"Fetches all published posts",d:"Fetches up to 200 published posts from your WordPress site."},
-              {t:"Long-tail phrase matching only",d:"Only article titles with 3+ words are used as anchor text. Single/2-word titles are ignored."},
-              {t:"Exact match first",d:"Looks for exact title text in the new article HTML. Case-insensitive."},
+              {t:"Fetches all published posts",d:"Up to 200 posts from your WordPress site."},
+              {t:"Long-tail phrase matching only",d:"Only titles with 3+ words used as anchor text. Single/2-word titles ignored."},
+              {t:"Exact match first",d:"Looks for exact title text in article HTML. Case-insensitive."},
               {t:"Fallback: last 3 words",d:"If full title not found, tries matching last 3 words of the title."},
               {t:"Max links setting",d:"Set max internal links per article in Settings → WordPress. Default is 4."},
             ].map((s,i)=>(
@@ -1316,14 +1367,13 @@ Pinterest: custom pin image generated (Pro only)
             <div className="doc-section" style={{opacity:plan!=="pro"?0.5:1}}>
               <h3>📌 Pinterest Bot</h3>
               {[
-                {t:"Get a Pinterest Access Token",d:<>Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>developers.pinterest.com</a> → My Apps → Create App → Generate Access Token. Need <code>boards:read</code> and <code>pins:write</code> scopes.</>},
-                {t:"Add token in Settings",d:"Settings → Pinterest tab → paste your token → Save Settings."},
-                {t:"Load your boards",d:"Pinterest page → click 'Load Boards' → select which boards to pin to."},
-                {t:"Pin image generation",d:"For each article, NicheFlow generates a custom pin image using Pillow (Python). It takes one of your article body images as background, applies a dark overlay, then overlays the 4-word AI hook title. The result is uploaded to WordPress and used as the Pinterest pin image."},
-                {t:"Hook title (4 words)",d:"The AI generates exactly 4 words as a punchy hook (e.g. 'SECRETS TO PERFECT PASTA'). This appears large on the pin image. Include 'hook_title' in your Pinterest Pin Prompt JSON to customize the format."},
-                {t:"Pin image design",d:<>Customize in Settings → Pin Image Design. Available: <code>background_color</code>, <code>overlay_opacity</code>, <code>title_color</code>, <code>title_size</code>, <code>subtitle_color</code>, <code>subtitle_size</code>, <code>canvas_width</code>, <code>canvas_height</code>, <code>title_position</code> (top/center/bottom), <code>logo_text</code>, <code>gradient</code>, <code>gradient_color</code>. Format: key:value separated by spaces.</>},
-                {t:"Pin image is separate from featured image",d:"The Pinterest pin image and the WordPress featured image are different images. The featured image is set on the WP post. The pin image is a custom-designed image generated specifically for Pinterest."},
-                {t:"Auto-pin",d:"Enable 'Auto-pin after publish' in Settings → Pinterest to pin every new article automatically. Uses your configured boards and delay."},
+                {t:"Pinterest Access Token",d:<>Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>developers.pinterest.com</a> → My Apps → Create App → Generate Access Token. Need <code>boards:read</code> and <code>pins:write</code> scopes.</>},
+                {t:"Add token in Settings",d:"Settings → Pinterest tab → paste token → Save Settings."},
+                {t:"Load your boards",d:"Pinterest page → Load Boards → select which boards to pin to."},
+                {t:"Pin image generation",d:"For each article, NicheFlow generates a custom pin image using Pillow. Uses article body image as background, dark overlay, 4-word AI hook title overlaid. Uploaded to WordPress and used as Pinterest pin image."},
+                {t:"Hook title (4 words)",d:"AI generates exactly 4 punchy words (e.g. 'SECRETS TO PERFECT PASTA'). Include 'hook_title' in your Pinterest Pin Prompt JSON to customize."},
+                {t:"Pin image design",d:<>Customize in Settings → Pin Image Design. Key:value pairs: <code>background_color</code>, <code>overlay_opacity</code>, <code>title_color</code>, <code>title_size</code>, <code>subtitle_color</code>, <code>canvas_width</code>, <code>canvas_height</code>, <code>title_position</code>, <code>logo_text</code>, <code>gradient</code>, <code>gradient_color</code>.</>},
+                {t:"Pin image ≠ featured image",d:"The Pinterest pin image and WordPress featured image are different. Featured = set on the WP post. Pin image = custom design uploaded separately for Pinterest."},
               ].map((s,i)=>(
                 <div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>
               ))}
@@ -1333,11 +1383,12 @@ Pinterest: custom pin image generated (Pro only)
         {section==="billing"&&(
           <div className="doc-section">
             <h3>💳 Billing & Plans</h3>
-            <div className="alert alert-info" style={{marginBottom:16}}>ℹ️ New users get <strong>2 days free trial</strong> — no credit card required. After 2 days, choose a plan to continue.</div>
+            <div className="alert alert-info" style={{marginBottom:16}}>ℹ️ New users get <strong>2 days free trial</strong> — no credit card required. After 2 days, the app blocks access until you pay. A countdown shows in the top bar.</div>
+            <div className="alert alert-info" style={{marginBottom:16}}>🔄 After payment, a <strong>monthly subscription countdown</strong> shows in the top bar. When it reaches 0, you'll be notified to renew.</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
               {[
-                {name:"Basic",price:"$30/mo",features:["Unlimited articles","Custom article prompt","Custom card prompt","4 images per article (1 featured + 3 body)","WordPress auto-publish","Featured image auto-set","Internal link injection","History"],color:"var(--accent2)"},
-                {name:"Pro",price:"$40/mo",features:["Everything in Basic","Pinterest auto-pinning","AI-generated pin images","4-word hook title overlay","Custom pin image design","Board selection","Pin scheduling delay","Auto-pin after publish"],color:"var(--pro)"},
+                {name:"Basic",price:"$30/mo",features:["Unlimited articles","Custom prompts","4 images per article","WordPress auto-publish","Featured image auto-set","Internal links","History"],color:"var(--accent2)"},
+                {name:"Pro",price:"$40/mo",features:["Everything in Basic","Pinterest auto-pinning","AI-generated pin images","4-word hook title overlay","Custom pin image design","Board selection","Auto-pin after publish"],color:"var(--pro)"},
               ].map(p=>(
                 <div key={p.name} style={{background:"var(--bg3)",border:`1px solid ${p.color}40`,borderRadius:"var(--radius-lg)",padding:20}}>
                   <div style={{fontFamily:"var(--font-display)",fontWeight:700,fontSize:16,color:p.color,marginBottom:4}}>{p.name}</div>
@@ -1346,7 +1397,7 @@ Pinterest: custom pin image generated (Pro only)
                 </div>
               ))}
             </div>
-            <div className="alert alert-info">Payments processed via LemonSqueezy. Plan updated automatically after payment. Cancel anytime.</div>
+            <div className="alert alert-info">Payments via LemonSqueezy. Plan updates automatically after payment. Click "Refresh Plan" in sidebar if needed.</div>
             {plan!=="pro"&&<button className="btn btn-pro" style={{width:"100%",marginTop:12}} onClick={()=>onUpgrade("pro")}>Upgrade to Pro — $40/mo ★</button>}
           </div>
         )}
@@ -1360,6 +1411,7 @@ function AppShell({ user, onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [config, setConfig] = useState(getStoredConfig);
   const [plan, setPlan] = useState("basic");
+  const [planExpires, setPlanExpires] = useState(null);
   const [createdAt, setCreatedAt] = useState(new Date().toISOString());
   const [history, setHistory] = useState(()=>{try{return JSON.parse(localStorage.getItem("nicheflow_history")||"[]");}catch{return [];}});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -1372,13 +1424,14 @@ function AppShell({ user, onLogout }) {
 
   const refreshPlan = useCallback(() => {
     if (!userId || !token) return;
-    fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=plan,created_at`, {
+    fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=plan,plan_expires,created_at`, {
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` }
     }).then(async r => {
       if (r.ok) {
         const rows = await r.json();
         if (rows && rows[0]) {
           setPlan(rows[0].plan || "basic");
+          setPlanExpires(rows[0].plan_expires || null);
           setCreatedAt(rows[0].created_at || new Date().toISOString());
         }
       }
@@ -1387,43 +1440,59 @@ function AppShell({ user, onLogout }) {
 
   useEffect(() => { refreshPlan(); }, [refreshPlan]);
 
-  // Auto refresh plan every 30s (catches LemonSqueezy webhook upgrade)
+  // Auto refresh plan every 30s
   useEffect(() => {
     const interval = setInterval(refreshPlan, 30000);
     return () => clearInterval(interval);
   }, [refreshPlan]);
 
+  // Load settings from backend on mount
   useEffect(() => {
     if (!token || settingsLoaded) return;
-    fetch(`${API_URL}/settings`, { headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` } })
-      .then(async res => {
-        if (res.ok) {
-          const data = await res.json();
-          const dbSettings = data.settings || {};
-          const merged = { ...config };
-          Object.keys(dbSettings).forEach(k => {
-            if (dbSettings[k] !== null && dbSettings[k] !== undefined && dbSettings[k] !== "") merged[k] = dbSettings[k];
-          });
-          setConfig(merged);
-          localStorage.setItem("nicheflow_config", JSON.stringify(merged));
-        }
-        setSettingsLoaded(true);
-      }).catch(() => setSettingsLoaded(true));
+    fetch(`${API_URL}/settings`, {
+      headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` }
+    }).then(async res => {
+      if (res.ok) {
+        const data = await res.json();
+        const dbSettings = data.settings || {};
+        // Also update plan/expires from settings response
+        if (data.plan) setPlan(data.plan);
+        if (data.plan_expires) setPlanExpires(data.plan_expires);
+        const merged = { ...config };
+        Object.keys(dbSettings).forEach(k => {
+          if (dbSettings[k] !== null && dbSettings[k] !== undefined && dbSettings[k] !== "") merged[k] = dbSettings[k];
+        });
+        setConfig(merged);
+        localStorage.setItem("nicheflow_config", JSON.stringify(merged));
+      }
+      setSettingsLoaded(true);
+    }).catch(() => setSettingsLoaded(true));
   }, [token]);
 
   function saveConfig(cfg) {
     setConfig(cfg);
     localStorage.setItem("nicheflow_config", JSON.stringify(cfg));
-    fetch(`${API_URL}/settings`, { method:"POST", headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`}, body:JSON.stringify(cfg) }).catch(()=>{});
+    fetch(`${API_URL}/settings`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
+      body:JSON.stringify(cfg)
+    }).catch(()=>{});
   }
-  function addHistory(item) { const next=[...history,item]; setHistory(next); localStorage.setItem("nicheflow_history",JSON.stringify(next)); }
-  function clearHistory() { setHistory([]); localStorage.removeItem("nicheflow_history"); }
+
+  function addHistory(item) {
+    const next=[...history, item];
+    setHistory(next);
+    localStorage.setItem("nicheflow_history", JSON.stringify(next));
+  }
+
+  function clearHistory() {
+    setHistory([]);
+    localStorage.removeItem("nicheflow_history");
+  }
 
   function handleUpgrade(targetPlan="pro") {
     setCheckoutModal(targetPlan);
   }
-
-  const trialExpired = isTrialExpired(createdAt) && plan !== "pro";
 
   const navItems=[
     {id:"dashboard",icon:"◉",label:"Dashboard"},
@@ -1434,6 +1503,7 @@ function AppShell({ user, onLogout }) {
     {id:"docs",icon:"📖",label:"Docs"},
     {id:"settings",icon:"⚙️",label:"Settings"},
   ];
+
   const pageInfo={
     dashboard:["Dashboard","Welcome back."],
     generate:["Generate Articles","Paste titles, let AI handle everything."],
@@ -1480,13 +1550,14 @@ function AppShell({ user, onLogout }) {
         </div>
       </aside>
       <main className="main-content">
-        <TrialBar createdAt={createdAt} plan={plan} onUpgrade={handleUpgrade}/>
+        {/* TOP BAR: shows trial countdown OR subscription countdown */}
+        <TopBar createdAt={createdAt} plan={plan} planExpires={planExpires} onUpgrade={handleUpgrade}/>
         <div className="page-header">
           <h1 className="page-title">{pageTitle}</h1>
           <p className="page-sub">{pageSub}</p>
         </div>
         <div className="page-body">
-          {page==="dashboard"&&<Dashboard history={history} plan={plan} onUpgrade={handleUpgrade} createdAt={createdAt}/>}
+          {page==="dashboard"&&<Dashboard history={history} plan={plan} onUpgrade={handleUpgrade} createdAt={createdAt} planExpires={planExpires}/>}
           {page==="generate"&&<GeneratePage config={config} onHistoryUpdate={addHistory} plan={plan} createdAt={createdAt} onUpgrade={handleUpgrade}/>}
           {page==="preview"&&<PreviewPage config={config}/>}
           {page==="history"&&<HistoryPage history={history} onClear={clearHistory}/>}
@@ -1503,31 +1574,27 @@ function AppShell({ user, onLogout }) {
 export default function NicheFlowAI() {
   const [view, setView] = useState("landing");
   const [user, setUser] = useState(null);
-  const [pendingCheckout, setPendingCheckout] = useState(null);
 
   useEffect(()=>{
     const stored = localStorage.getItem("nicheflow_user");
-    if (stored) { try { const u=JSON.parse(stored); setUser(u); setView("app"); } catch {} }
+    if (stored) {
+      try { const u=JSON.parse(stored); setUser(u); setView("app"); } catch {}
+    }
   },[]);
 
   function handleAuthSuccess(userData) {
     localStorage.setItem("nicheflow_user", JSON.stringify(userData));
     setUser(userData);
-    if (pendingCheckout) {
-      setView("app");
-      // Will show checkout modal via AppShell
-      setPendingCheckout(null);
-    } else {
-      setView("app");
-    }
+    setView("app");
   }
 
   function handleLogout() {
     localStorage.removeItem("nicheflow_user");
-    setUser(null); setView("landing");
+    setUser(null);
+    setView("landing");
   }
 
-  // Called from landing page plan buttons — go directly to checkout
+  // Landing page plan buttons → go directly to checkout (no login required)
   function handleCheckoutFromLanding(planType) {
     const url = planType === "pro" ? CHECKOUT_PRO : CHECKOUT_BASIC;
     window.open(url, "_blank");
