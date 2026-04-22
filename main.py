@@ -220,6 +220,7 @@ class PinterestRunRequest(BaseModel):
     article_ids: Optional[List[str]] = None
     board_ids: List[str]
     pin_image_prompt: Optional[str] = ""
+    scheduled_at: Optional[str] = None  # ISO8601 e.g. "2026-04-25T14:00:00"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -612,6 +613,7 @@ def pinterest_run(body: PinterestRunRequest, auth=Depends(get_current_user)):
         pin_image_prompt=pin_image_prompt,
         wp_url=cfg.get("wp_url", ""),
         wp_password=cfg.get("wp_password", ""),
+        scheduled_at=body.scheduled_at,
     )
 
     for r in results:

@@ -1042,7 +1042,12 @@ function PreviewPage({ config }) {
   );
 }
 
-// ─── PINTEREST PAGE ─────────────────────────────────────────────────────────
+// ─── PINTEREST PAGE — PATCHED ─────────────────────────────────────────────
+// Changes:
+// 1. Auto-loads boards on mount (useEffect)
+// 2. Added scheduled_at date+time picker
+// 3. Passes scheduled_at to /pinterest/run API call
+
 function PinterestPage({ config, history, plan, onUpgrade }) {
   const [boards, setBoards] = useState([]);
   const [selectedBoards, setSelectedBoards] = useState([]);
@@ -1052,6 +1057,10 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
   const [logs, setLogs] = useState([]);
   const [pinPreviews, setPinPreviews] = useState([]);
   const [previewModal, setPreviewModal] = useState(null);
+  // Schedule state
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("09:00");
   const logRef = useRef(null);
 
   if(plan!=="pro"){
@@ -1073,6 +1082,14 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
     setTimeout(()=>{if(logRef.current)logRef.current.scrollTop=logRef.current.scrollHeight;},50);
   },[]);
 
+  // AUTO-LOAD boards when page opens (if token is configured)
+  useEffect(()=>{
+    if(config.pinterest_token && boards.length === 0){
+      loadBoards();
+    }
+  // eslint-disable-next-line
+  },[config.pinterest_token]);
+
   const publishedArticles = history.filter(h=>h.status==="published"&&h.post_url);
 
   async function loadBoards(){
@@ -1080,8 +1097,10 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
     try{
       const res=await apiCall("/pinterest/boards");
       const data=await res.json();
-      if(res.ok){setBoards(data.boards||[]);if(!data.boards?.length)setBoardError("No boards found.");}
-      else setBoardError(data.detail||"Failed to load boards");
+      if(res.ok){
+        setBoards(data.boards||[]);
+        if(!data.boards?.length) setBoardError("No boards found. Check your Pinterest token in Settings.");
+      } else setBoardError(data.detail||"Failed to load boards");
     }catch(e){setBoardError(e.message);}
     finally{setLoadingBoards(false);}
   }
@@ -1089,10 +1108,22 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
   async function runPinterest(){
     if(!publishedArticles.length){addLog("No published articles to pin.","warn");return;}
     if(!selectedBoards.length){addLog("Select at least one board.","warn");return;}
+
+    // Build scheduled_at ISO string if scheduling enabled
+    let scheduled_at = null;
+    if(scheduleEnabled && scheduleDate){
+      scheduled_at = `${scheduleDate}T${scheduleTime || "09:00"}:00`;
+      addLog(`📅 Scheduling pins for: ${scheduled_at}`, "info");
+    }
+
     setRunning(true);
     addLog(`Starting Pinterest bot: ${publishedArticles.length} articles → ${selectedBoards.length} board(s)`,"ok");
     try{
-      const res=await apiCall("/pinterest/run",{method:"POST",body:JSON.stringify({board_ids:selectedBoards,pin_image_prompt:config.pin_image_prompt||""})});
+      const res=await apiCall("/pinterest/run",{method:"POST",body:JSON.stringify({
+        board_ids:selectedBoards,
+        pin_image_prompt:config.pin_image_prompt||"",
+        scheduled_at,
+      })});
       const data=await res.json();
       if(res.ok){
         const results=data.results||[];
@@ -1109,6 +1140,10 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
 
   function toggleBoard(id){setSelectedBoards(prev=>prev.includes(id)?prev.filter(b=>b!==id):[...prev,id]);}
   const logCls={ok:"log-ok",err:"log-err",info:"log-info",warn:"log-warn"};
+
+  // Get tomorrow's date as default minimum for scheduling
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
   return (
     <div className="fade-up">
@@ -1136,39 +1171,96 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
         <div className="card">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
             <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600}}>Pinterest Boards</div>
-            <button className="btn btn-ghost btn-sm" onClick={loadBoards} disabled={loadingBoards}>{loadingBoards?<><span className="spinner spinner-accent"/>Loading...</>:"↺ Load Boards"}</button>
+            <button className="btn btn-ghost btn-sm" onClick={loadBoards} disabled={loadingBoards}>
+              {loadingBoards?<><span className="spinner spinner-accent"/>Loading...</>:"↺ Refresh Boards"}
+            </button>
           </div>
+          {!config.pinterest_token&&<div className="alert alert-warn" style={{marginTop:10}}>⚠️ No Pinterest token. Go to Settings → Pinterest first.</div>}
           {boardError&&<div className="alert alert-err" style={{marginTop:10}}>{boardError}</div>}
+          {loadingBoards&&<div style={{textAlign:"center",padding:"20px 0",color:"var(--text3)",fontSize:13}}>Loading your boards...</div>}
           {boards.length>0?(
             <div className="board-grid">
               {boards.map(b=>(
                 <div key={b.id} className={`board-item ${selectedBoards.includes(b.id)?"selected":""}`} onClick={()=>toggleBoard(b.id)}>
                   <div style={{fontSize:22,marginBottom:6}}>📋</div>
                   <div style={{fontSize:12,fontWeight:500,color:"var(--text2)"}}>{b.name}</div>
-                  {selectedBoards.includes(b.id)&&<div style={{fontSize:11,color:"var(--accent2)",marginTop:4}}>✓</div>}
+                  {selectedBoards.includes(b.id)&&<div style={{fontSize:11,color:"var(--accent2)",marginTop:4}}>✓ Selected</div>}
                 </div>
               ))}
             </div>
           ):(
-            <div style={{marginTop:14,color:"var(--text3)",fontSize:13,textAlign:"center",padding:"20px 0"}}>
-              {loadingBoards?"Fetching...":"Click Load Boards"}
+            !loadingBoards&&config.pinterest_token&&<div style={{marginTop:14,color:"var(--text3)",fontSize:13,textAlign:"center",padding:"20px 0"}}>
+              No boards loaded yet. Click Refresh Boards.
             </div>
           )}
         </div>
 
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div className="card">
-            <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:12}}>Queue</div>
+            <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:12}}>Queue Status</div>
             <div style={{fontSize:28,fontWeight:700,fontFamily:"var(--font-display)",marginBottom:4}}>{publishedArticles.length}</div>
             <div style={{fontSize:13,color:"var(--text3)"}}>articles ready to pin</div>
             <div className="divider"/>
-            <div style={{fontSize:13,color:"var(--text2)"}}>{selectedBoards.length} board{selectedBoards.length!==1?"s":""} selected</div>
+            <div style={{fontSize:13,color:"var(--text2)",marginBottom:8}}>{selectedBoards.length} board{selectedBoards.length!==1?"s":""} selected</div>
           </div>
-          <button className="btn btn-pro" style={{width:"100%",padding:"13px"}} onClick={runPinterest} disabled={running||!publishedArticles.length||!selectedBoards.length}>
-            {running?<><span className="spinner"/>Pinning...</>:`📌 Pin ${publishedArticles.length} Article${publishedArticles.length!==1?"s":""}`}
+
+          {/* Schedule picker */}
+          <div className="card">
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:scheduleEnabled?14:0}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:500}}>📅 Schedule pins</div>
+                <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Pin at a specific date & time</div>
+              </div>
+              <label className="toggle">
+                <input type="checkbox" checked={scheduleEnabled} onChange={e=>setScheduleEnabled(e.target.checked)}/>
+                <span className="toggle-slider"/>
+              </label>
+            </div>
+            {scheduleEnabled&&(
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <div>
+                  <label className="form-label">Date</label>
+                  <input className="input" type="date" value={scheduleDate} min={tomorrowStr}
+                    onChange={e=>setScheduleDate(e.target.value)}/>
+                </div>
+                <div>
+                  <label className="form-label">Time</label>
+                  <input className="input" type="time" value={scheduleTime}
+                    onChange={e=>setScheduleTime(e.target.value)}/>
+                </div>
+                {scheduleDate&&<div className="alert alert-info" style={{fontSize:12}}>
+                  📅 Pins will be scheduled for {scheduleDate} at {scheduleTime}
+                </div>}
+              </div>
+            )}
+          </div>
+
+          <button className="btn btn-pro" style={{width:"100%",padding:"13px"}} onClick={runPinterest}
+            disabled={running||!publishedArticles.length||!selectedBoards.length||(scheduleEnabled&&!scheduleDate)}>
+            {running?<><span className="spinner"/>Pinning...</>:
+              scheduleEnabled&&scheduleDate
+                ? `📅 Schedule ${publishedArticles.length} Pin${publishedArticles.length!==1?"s":""}`
+                : `📌 Pin ${publishedArticles.length} Article${publishedArticles.length!==1?"s":""}`
+            }
           </button>
         </div>
       </div>
+
+      {pinPreviews.length>0&&(
+        <div className="card" style={{marginBottom:18}}>
+          <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:14}}>Pin Results</div>
+          {pinPreviews.map((p,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:i<pinPreviews.length-1?"1px solid var(--border)":"none",cursor:"pointer"}} onClick={()=>setPreviewModal(p)}>
+              <span className={`dot ${p.status==="sent"?"dot-green":"dot-red"}`}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:500}}>{p.title}</div>
+                <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>📌 {p.pin_title} · Hook: "{p.hook_title}"</div>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();setPreviewModal(p);}}>Preview →</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="card">
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
@@ -1177,7 +1269,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
           <button className="btn btn-ghost btn-sm" style={{marginLeft:"auto"}} onClick={()=>setLogs([])}>Clear</button>
         </div>
         <div className="process-log" ref={logRef}>
-          {logs.length===0?<div style={{color:"var(--text3)",fontFamily:"var(--font)"}}>Load boards, select them, and click Pin to start...</div>
+          {logs.length===0?<div style={{color:"var(--text3)",fontFamily:"var(--font)"}}>Select boards and click Pin to start...</div>
             :logs.map((l,i)=><div key={i} className="log-line"><span className="log-time">[{l.time}]</span><span className={logCls[l.type]||""}>{l.msg}</span></div>)
           }
         </div>
