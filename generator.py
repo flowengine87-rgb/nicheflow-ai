@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
-"""NicheFlow AI — generator.py FIXED: featured image + Pinterest pin image with Pillow"""
+"""NicheFlow AI — generator.py
+FIXES:
+- Pollinations: retry logic + proper content-type check + fallback download
+- _gen_single: if raw_bytes missing but URL exists, download separately
+- Better logging so user sees exactly what is happening
+- Featured image: robust media_id extraction
+"""
 import requests, json, base64, re, time, io, threading
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
@@ -91,7 +97,6 @@ def parse_json_response(text):
 
 
 def parse_pin_image_prompt(prompt_str):
-    """Parse the pin image design prompt string into a config dict."""
     defaults = {
         "background_color": "#1a1a2e",
         "overlay_opacity": 0.55,
@@ -115,7 +120,7 @@ def parse_pin_image_prompt(prompt_str):
             k = k.strip(); v = v.strip()
             if k in ("background_color","title_color","subtitle_color","gradient_color"):
                 cfg[k] = v
-            elif k in ("overlay_opacity",):
+            elif k == "overlay_opacity":
                 try: cfg[k] = float(v)
                 except: pass
             elif k in ("title_size","subtitle_size","canvas_width","canvas_height"):
@@ -131,7 +136,6 @@ def parse_pin_image_prompt(prompt_str):
 
 
 def hex_to_rgb(hex_color):
-    """Convert hex color string to RGB tuple."""
     hex_color = hex_color.lstrip("#")
     if len(hex_color) == 3:
         hex_color = "".join(c*2 for c in hex_color)
@@ -142,7 +146,6 @@ def hex_to_rgb(hex_color):
 
 
 def wrap_text(text, max_chars_per_line=18):
-    """Wrap text to fit within Pinterest pin width."""
     words = text.split()
     lines = []
     current = []
@@ -161,29 +164,9 @@ def wrap_text(text, max_chars_per_line=18):
     return lines
 
 
-def generate_pin_image_with_pillow(
-    hook_title,
-    image_bytes_list,
-    pin_image_prompt="",
-    article_title="",
-    log_fn=None
-):
-    """
-    Generate a Pinterest pin image using Pillow.
-    
-    Args:
-        hook_title: Exactly 4-word hook title from AI
-        image_bytes_list: List of raw image bytes from article body images (up to 3)
-        pin_image_prompt: User design prompt string
-        article_title: Full article title (used as subtitle)
-        log_fn: Logging function
-    
-    Returns:
-        bytes: WebP image bytes of the pin, or None on failure
-    """
+def generate_pin_image_with_pillow(hook_title, image_bytes_list, pin_image_prompt="", article_title="", log_fn=None):
     def log(m):
         if log_fn: log_fn(m)
-
     try:
         cfg = parse_pin_image_prompt(pin_image_prompt)
         W = cfg["canvas_width"]
@@ -197,32 +180,26 @@ def generate_pin_image_with_pillow(
         title_position = cfg["title_position"]
         logo_text = cfg.get("logo_text", "")
 
-        # Create base canvas
         canvas = Image.new("RGBA", (W, H), (*bg_color, 255))
 
-        # Try to use a body image as background
         bg_image_used = False
         for img_bytes in image_bytes_list:
             if not img_bytes:
                 continue
             try:
                 bg_img = Image.open(io.BytesIO(img_bytes)).convert("RGBA")
-                # Crop to Pinterest ratio (2:3) from center
                 img_w, img_h = bg_img.size
                 target_ratio = W / H
                 img_ratio = img_w / img_h
                 if img_ratio > target_ratio:
-                    # Image is wider — crop sides
                     new_w = int(img_h * target_ratio)
                     left = (img_w - new_w) // 2
                     bg_img = bg_img.crop((left, 0, left + new_w, img_h))
                 else:
-                    # Image is taller — crop top/bottom
                     new_h = int(img_w / target_ratio)
                     top = (img_h - new_h) // 2
                     bg_img = bg_img.crop((0, top, img_w, top + new_h))
                 bg_img = bg_img.resize((W, H), Image.LANCZOS)
-                # Apply slight blur for text readability
                 bg_img = bg_img.filter(ImageFilter.GaussianBlur(radius=2))
                 canvas = bg_img
                 bg_image_used = True
@@ -233,16 +210,12 @@ def generate_pin_image_with_pillow(
                 continue
 
         if not bg_image_used:
-            log("  🎨 No article image available, using solid color background")
+            log("  🎨 Using solid color background for pin")
 
-        # Convert to RGBA for overlay
         canvas = canvas.convert("RGBA")
-
-        # Dark overlay for text readability
         overlay = Image.new("RGBA", (W, H), (0, 0, 0, int(overlay_opacity * 255)))
         canvas = Image.alpha_composite(canvas, overlay)
 
-        # Gradient overlay at bottom (always, for text area)
         if use_gradient or title_position == "bottom":
             gradient_overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
             grad_draw = ImageDraw.Draw(gradient_overlay)
@@ -251,7 +224,6 @@ def generate_pin_image_with_pillow(
             for y in range(grad_start, H):
                 alpha = int(220 * ((y - grad_start) / grad_height))
                 r, g, b = gradient_color if use_gradient else (0, 0, 0)
-                # Blend gradient color with black towards bottom
                 blend = (y - grad_start) / grad_height
                 r2 = int(r * (1 - blend * 0.7))
                 g2 = int(g * (1 - blend * 0.7))
@@ -259,30 +231,23 @@ def generate_pin_image_with_pillow(
                 grad_draw.line([(0, y), (W, y)], fill=(r2, g2, b2, alpha))
             canvas = Image.alpha_composite(canvas, gradient_overlay)
 
-        # Draw text
         draw = ImageDraw.Draw(canvas)
-
-        # Try to load a font, fallback to default
         title_font = None
         subtitle_font = None
         logo_font = None
         font_size = cfg["title_size"]
         subtitle_size = cfg["subtitle_size"]
 
-        # Try common system fonts
         font_paths = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
             "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
             "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
-            "C:/Windows/Fonts/arialbd.ttf",
         ]
         regular_font_paths = [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
             "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-            "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
         ]
 
         for fp in font_paths:
@@ -298,29 +263,19 @@ def generate_pin_image_with_pillow(
                 break
             except: continue
 
-        if title_font is None:
-            title_font = ImageFont.load_default()
-        if subtitle_font is None:
-            subtitle_font = ImageFont.load_default()
-        if logo_font is None:
-            logo_font = ImageFont.load_default()
+        if title_font is None: title_font = ImageFont.load_default()
+        if subtitle_font is None: subtitle_font = ImageFont.load_default()
+        if logo_font is None: logo_font = ImageFont.load_default()
 
-        # Prepare hook title (4 words, uppercase for impact)
         hook = hook_title.upper() if hook_title else article_title[:40].upper()
-        hook_words = hook.split()[:4]  # Ensure max 4 words
-
-        # Wrap hook title
+        hook_words = hook.split()[:4]
         hook_lines = wrap_text(" ".join(hook_words), max_chars_per_line=14)
-
-        # Prepare subtitle (article title, shorter)
         subtitle = article_title[:60] if article_title else ""
         subtitle_lines = wrap_text(subtitle, max_chars_per_line=28)
 
-        # Calculate text positions
         padding = 48
         line_spacing = int(font_size * 1.15)
         subtitle_line_spacing = int(subtitle_size * 1.3)
-
         total_hook_h = len(hook_lines) * line_spacing
         total_sub_h = len(subtitle_lines) * subtitle_line_spacing if subtitle_lines else 0
         total_text_h = total_hook_h + (20 if subtitle_lines else 0) + total_sub_h
@@ -329,13 +284,11 @@ def generate_pin_image_with_pillow(
             text_y_start = H - padding - total_text_h - (40 if logo_text else 0)
         elif title_position == "top":
             text_y_start = padding + (40 if logo_text else 0)
-        else:  # center
+        else:
             text_y_start = (H - total_text_h) // 2
 
-        # Draw hook title lines (centered)
         current_y = text_y_start
         for line in hook_lines:
-            # Shadow for readability
             shadow_offset = 3
             try:
                 bbox = draw.textbbox((0, 0), line, font=title_font)
@@ -347,7 +300,6 @@ def generate_pin_image_with_pillow(
             draw.text((x, current_y), line, font=title_font, fill=(*title_color, 255))
             current_y += line_spacing
 
-        # Draw subtitle lines
         if subtitle_lines:
             current_y += 20
             for line in subtitle_lines:
@@ -361,14 +313,12 @@ def generate_pin_image_with_pillow(
                 draw.text((x, current_y), line, font=subtitle_font, fill=(*subtitle_color, 220))
                 current_y += subtitle_line_spacing
 
-        # Draw decorative line above title
         line_y = text_y_start - 20
         line_w = 80
         line_x = (W - line_w) // 2
         accent_color = hex_to_rgb(cfg["gradient_color"])
         draw.rectangle([(line_x, line_y), (line_x + line_w, line_y + 4)], fill=(*accent_color, 255))
 
-        # Draw logo text at top
         if logo_text:
             try:
                 bbox = draw.textbbox((0, 0), logo_text, font=logo_font)
@@ -376,10 +326,8 @@ def generate_pin_image_with_pillow(
             except:
                 logo_w = len(logo_text) * 14
             logo_x = (W - logo_w) // 2
-            logo_y = padding
-            draw.text((logo_x, logo_y), logo_text, font=logo_font, fill=(*subtitle_color, 180))
+            draw.text((logo_x, padding), logo_text, font=logo_font, fill=(*subtitle_color, 180))
 
-        # Convert to RGB and save as WebP
         final = canvas.convert("RGB")
         buf = io.BytesIO()
         final.save(buf, format="WEBP", quality=85, method=4)
@@ -409,7 +357,6 @@ def generate_article(title, api_key, custom_prompt="", show_card=True):
 
 
 def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg="#fff7ed", border_color="#fdba74"):
-    """Generate summary card with a FULLY CLICKABLE CTA button (works in WordPress)."""
     try:
         prompt = (card_prompt.strip() if card_prompt.strip() else DEFAULT_CARD_PROMPT).replace("{title}", title)
         raw = ai_call(api_key, prompt, prefer_fast=True)
@@ -533,41 +480,93 @@ def generate_midjourney_image(goapi_key, prompt, log_fn=None):
     except Exception as e: return {"url":None,"error":str(e)}
 
 
-def generate_pollinations_image(prompt, width=1024, height=1024):
-    try:
-        safe_prompt = requests.utils.quote(prompt[:400])
-        url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width={width}&height={height}&nologo=true&seed={int(time.time())}"
-        resp = requests.get(url, timeout=60)
-        if resp.status_code == 200 and resp.headers.get("content-type","").startswith("image"):
-            return {"url":url,"raw_bytes":resp.content,"error":None}
-        return {"url":None,"error":f"Pollinations {resp.status_code}"}
-    except Exception as e: return {"url":None,"error":str(e)}
+def generate_pollinations_image(prompt, width=1024, height=1024, log_fn=None):
+    """
+    FIXED: Added retry logic and proper content-type validation.
+    Pollinations sometimes returns HTML with status 200 — this handles that.
+    """
+    def log(m):
+        if log_fn: log_fn(m)
+
+    safe_prompt = requests.utils.quote(prompt[:400])
+    url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width={width}&height={height}&nologo=true&seed={int(time.time())}"
+
+    # Try up to 3 times — Pollinations is flaky
+    for attempt in range(3):
+        try:
+            if attempt > 0:
+                log(f"  🔄 Pollinations retry {attempt+1}/3...")
+                time.sleep(3 * attempt)
+
+            resp = requests.get(url, timeout=90, headers={"User-Agent": "Mozilla/5.0"})
+
+            if resp.status_code != 200:
+                log(f"  ⚠️ Pollinations status {resp.status_code}, retrying...")
+                continue
+
+            content_type = resp.headers.get("content-type", "").lower()
+            content = resp.content
+
+            # Check if we got an actual image (not HTML error page)
+            if content_type.startswith("image/"):
+                log(f"  ✅ Pollinations image received ({len(content)//1024}KB)")
+                return {"url": url, "raw_bytes": content, "error": None}
+
+            # Sometimes Pollinations returns image data with wrong content-type
+            # Try to open it as an image anyway
+            if len(content) > 5000:  # real images are > 5KB
+                try:
+                    Image.open(io.BytesIO(content))
+                    log(f"  ✅ Pollinations image received (content-type mismatch but valid image)")
+                    return {"url": url, "raw_bytes": content, "error": None}
+                except:
+                    pass
+
+            log(f"  ⚠️ Pollinations returned non-image content ({content_type}), retrying...")
+            continue
+
+        except requests.exceptions.Timeout:
+            log(f"  ⚠️ Pollinations timeout (attempt {attempt+1})")
+            continue
+        except Exception as e:
+            log(f"  ⚠️ Pollinations error: {e}")
+            continue
+
+    log(f"  ❌ Pollinations failed after 3 attempts")
+    return {"url": None, "raw_bytes": None, "error": "Failed after 3 attempts"}
 
 
-def download_image_bytes(image_url):
+def download_image_bytes(image_url, log_fn=None):
     """Download image from URL and return raw bytes."""
+    def log(m):
+        if log_fn: log_fn(m)
     try:
-        resp = requests.get(image_url, timeout=60, stream=True)
+        resp = requests.get(image_url, timeout=60, stream=True, headers={"User-Agent": "Mozilla/5.0"})
         if resp.status_code == 200:
             return resp.content
+        log(f"  ⚠️ Download failed: HTTP {resp.status_code}")
         return None
-    except Exception:
+    except Exception as e:
+        log(f"  ⚠️ Download error: {e}")
         return None
 
 
-def crop_and_convert_to_webp(raw_bytes_or_url, max_width=1920, target_ratio=None):
+def crop_and_convert_to_webp(raw_bytes_or_url, max_width=1920, target_ratio=None, log_fn=None):
     """
     Download (if URL), crop to target ratio if specified, convert to WebP.
     Returns WebP bytes or None.
-    target_ratio: (width, height) tuple e.g. (2, 3) for portrait
     """
+    def log(m):
+        if log_fn: log_fn(m)
     try:
         if isinstance(raw_bytes_or_url, str):
-            raw = download_image_bytes(raw_bytes_or_url)
+            raw = download_image_bytes(raw_bytes_or_url, log_fn)
         else:
             raw = raw_bytes_or_url
         if not raw:
+            log("  ⚠️ No raw bytes to convert")
             return None
+
         img = Image.open(io.BytesIO(raw)).convert("RGB")
 
         if target_ratio:
@@ -591,7 +590,8 @@ def crop_and_convert_to_webp(raw_bytes_or_url, max_width=1920, target_ratio=None
         buf = io.BytesIO()
         img.save(buf, format="WEBP", quality=82, method=2)
         return buf.getvalue()
-    except Exception:
+    except Exception as e:
+        log(f"  ⚠️ WebP conversion failed: {e}")
         return None
 
 
@@ -610,18 +610,18 @@ def upload_image_to_wordpress(wp_url, wp_password, image_bytes, filename, log_fn
         "Content-Type": "image/webp",
     }
     try:
-        resp = requests.post(f"{base_url}/wp-json/wp/v2/media", headers=headers, data=image_bytes, timeout=90)
+        resp = requests.post(f"{base_url}/wp-json/wp/v2/media", headers=headers, data=image_bytes, timeout=120)
         if resp.status_code in (200, 201):
             data = resp.json()
             media_id = data.get("id")
             source_url = data.get("source_url","")
-            log(f"  ✅ Uploaded {filename} → media_id={media_id}")
+            log(f"  ✅ Uploaded {filename} → media_id={media_id}, url={source_url[:50]}")
             return {"success":True,"media_id":media_id,"url":source_url,"error":None}
         err_text = resp.text[:300]
-        log(f"  ❌ Upload failed {resp.status_code}: {err_text}")
+        log(f"  ❌ WP upload failed {resp.status_code}: {err_text}")
         return {"success":False,"media_id":None,"url":None,"error":f"WP {resp.status_code}: {err_text}"}
     except Exception as e:
-        log(f"  ❌ Upload exception: {e}")
+        log(f"  ❌ WP upload exception: {e}")
         return {"success":False,"media_id":None,"url":None,"error":str(e)}
 
 
@@ -721,22 +721,32 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
     return html
 
 
-def inject_images_into_article(html, image_results, title):
-    """Replace ##IMAGE1## ##IMAGE2## ##IMAGE3## with actual img tags."""
+def inject_images_into_article(html, image_results, title, log_fn=None):
+    """
+    Replace ##IMAGE1## ##IMAGE2## ##IMAGE3## with actual img tags.
+    image_results[0] = featured, image_results[1,2,3] = body images
+    """
+    def log(m):
+        if log_fn: log_fn(m)
+
     placeholders = ["##IMAGE1##", "##IMAGE2##", "##IMAGE3##"]
     for i, ph in enumerate(placeholders):
-        img_idx = i + 1  # index 0 = featured, 1/2/3 = body
+        img_idx = i + 1  # 1, 2, 3
         img_data = image_results[img_idx] if img_idx < len(image_results) else None
+
         if img_data and img_data.get("url"):
+            img_url = img_data["url"]
             img_tag = (
                 f'<figure style="margin:28px auto;text-align:center;max-width:720px;">'
-                f'<img src="{img_data["url"]}" alt="{title}" loading="lazy" '
+                f'<img src="{img_url}" alt="{title}" loading="lazy" '
                 f'style="width:100%;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.12);display:block;" />'
                 f'</figure>'
             )
             html = html.replace(ph, img_tag)
+            log(f"  ✅ {ph} → image injected")
         else:
             html = html.replace(ph, "")
+            log(f"  ⚠️ {ph} → no image, placeholder removed")
     return html
 
 
@@ -745,13 +755,11 @@ def generate_pin_content(api_key, title, article_url, pinterest_prompt=""):
         prompt = (pinterest_prompt.strip() if pinterest_prompt.strip() else DEFAULT_PINTEREST_PROMPT).replace("{title}",title).replace("{url}",article_url)
         raw = ai_call(api_key, prompt, prefer_fast=True)
         data = parse_json_response(raw)
-        # Ensure hook_title is exactly 4 words
         hook = data.get("hook_title", title)
         hook_words = hook.split()
         if len(hook_words) > 4:
             hook = " ".join(hook_words[:4])
         elif len(hook_words) < 4:
-            # Pad with title words if needed
             title_words = title.split()
             while len(hook_words) < 4 and title_words:
                 hook_words.append(title_words.pop(0))
@@ -796,13 +804,9 @@ def create_pinterest_pin(access_token, board_id, pin_title, pin_description, alt
     except Exception as e: return {"success":False,"pin_id":None,"error":str(e)}
 
 
-def run_pinterest_bot(
-    api_key, access_token, articles, board_ids,
-    pinterest_prompt="", pin_delay_min=0,
-    pin_image_prompt="",
-    wp_url="", wp_password="",
-    log_fn=None
-):
+def run_pinterest_bot(api_key, access_token, articles, board_ids,
+    pinterest_prompt="", pin_delay_min=0, pin_image_prompt="",
+    wp_url="", wp_password="", log_fn=None):
     def log(m):
         if log_fn: log_fn(m)
     results = []
@@ -810,7 +814,7 @@ def run_pinterest_bot(
         title = art.get("title","")
         url = art.get("post_url","")
         featured_img = art.get("featured_image_url","")
-        body_images_bytes = art.get("body_images_bytes", [])  # raw bytes of body images
+        body_images_bytes = art.get("body_images_bytes", [])
 
         log(f"📌 {title}")
         if not url:
@@ -818,13 +822,11 @@ def run_pinterest_bot(
             results.append({"title":title,"status":"failed","error":"No URL"})
             continue
 
-        # Generate pin content (title, desc, hook)
         log("  ✦ Generating pin content...")
         pin_data = generate_pin_content(api_key, title, url, pinterest_prompt)
         log(f"  ✓ Hook: \"{pin_data['hook_title']}\" | Title: {pin_data['pin_title']}")
 
-        # Generate Pinterest pin image with Pillow
-        pin_image_url = featured_img  # fallback
+        pin_image_url = featured_img
         log("  🎨 Generating Pinterest pin image...")
         pin_img_bytes = generate_pin_image_with_pillow(
             hook_title=pin_data["hook_title"],
@@ -844,7 +846,7 @@ def run_pinterest_bot(
             else:
                 log(f"  ⚠️ Pin image upload failed, using featured image as fallback")
         elif pin_img_bytes:
-            log("  ⚠️ No WP credentials for pin image upload, using featured image")
+            log("  ⚠️ No WP credentials for pin image upload")
 
         if pin_delay_min > 0:
             log(f"  ⏱ Waiting {pin_delay_min}m...")
@@ -885,11 +887,13 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
     def log(msg):
         if log_fn: log_fn(msg)
 
-    art_result = [None]; card_result = [None]
+    art_result = [None]
+    card_result = [None]
     # image_results: list of 4 dicts {url, media_id, raw_bytes}
-    # index 0 = featured, 1/2/3 = body
+    # index 0 = featured, 1/2/3 = body images
     image_results = [{"url":None,"media_id":None,"raw_bytes":None} for _ in range(4)]
-    all_threads = []; _log_lock = threading.Lock()
+    all_threads = []
+    _log_lock = threading.Lock()
 
     def safe_log(msg):
         with _log_lock: log(msg)
@@ -918,12 +922,13 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
 
     def _gen_images():
         if not use_images:
-            safe_log("⏭️ Images disabled (enable in Generate page)")
+            safe_log("ℹ️ Images disabled — toggle 'Generate Images' in the Generate page to enable")
             return
         if not use_pollinations and not goapi_key:
-            safe_log("⚠️ No image source configured")
+            safe_log("⚠️ No image source — enable Pollinations in Settings → Images, or add a GoAPI key")
             return
 
+        safe_log(f"🖼️ Starting image generation (4 images: 1 featured + 3 body)...")
         names = ["featured","body-1","body-2","body-3"]
         img_threads = []
 
@@ -931,7 +936,6 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
             slug = re.sub(r"[^a-z0-9]+","-",title.lower()).strip("-")
             fname = f"{slug}-{names[idx]}.webp"
 
-            # Determine aspect ratio: featured = 16:9 landscape, body = 3:2
             if idx == 0:
                 target_ratio = (16, 9)
                 poll_w, poll_h = 1280, 720
@@ -940,107 +944,152 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
                 poll_w, poll_h = 1024, 683
 
             if use_pollinations:
-                tpl = pollinations_prompt or "Professional editorial photography of {title}, natural light, 4K"
+                tpl = pollinations_prompt or "Professional editorial photography of {title}, natural light, studio quality, 4K"
                 ip = tpl.replace("{title}", title).replace("{recipe_name}", title)
-                safe_log(f"  🖼️ Image {idx+1}/4 via Pollinations...")
-                res = generate_pollinations_image(ip, width=poll_w, height=poll_h)
+                safe_log(f"  🖼️ Generating image {idx+1}/4 via Pollinations...")
 
-                if not res.get("url"):
-                    safe_log(f"  ⚠️ Pollinations image {idx+1} failed: {res.get('error','unknown')}")
+                # Pass log_fn to pollinations for detailed logging
+                res = generate_pollinations_image(ip, width=poll_w, height=poll_h, log_fn=safe_log)
+
+                if not res.get("url") and not res.get("raw_bytes"):
+                    safe_log(f"  ❌ Image {idx+1} failed: {res.get('error','unknown')}")
                     return
 
                 raw = res.get("raw_bytes")
-                webp = crop_and_convert_to_webp(raw, max_width=1920, target_ratio=target_ratio)
 
-                if webp:
-                    # Store raw bytes for Pinterest pin image generation
-                    image_results[idx]["raw_bytes"] = raw
+                # If we got a URL but no raw_bytes (shouldn't happen but safety net)
+                if not raw and res.get("url"):
+                    safe_log(f"  📥 Downloading image {idx+1} from URL...")
+                    raw = download_image_bytes(res["url"], safe_log)
 
-                    if wp_url and wp_password:
-                        up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
-                        if up.get("success") and up.get("media_id"):
-                            image_results[idx]["url"] = up["url"]
-                            image_results[idx]["media_id"] = up["media_id"]
-                            safe_log(f"  ✅ Image {idx+1} uploaded (media_id={up['media_id']})")
-                            return
-                        else:
-                            safe_log(f"  ⚠️ WP upload failed for image {idx+1}: {up.get('error')}")
-                    # Fallback: direct URL
-                    image_results[idx]["url"] = res["url"]
+                if not raw:
+                    safe_log(f"  ❌ Image {idx+1}: no image data")
+                    return
+
+                # Store raw bytes for Pinterest
+                image_results[idx]["raw_bytes"] = raw
+
+                # Convert to WebP
+                safe_log(f"  🔄 Converting image {idx+1} to WebP...")
+                webp = crop_and_convert_to_webp(raw, max_width=1920, target_ratio=target_ratio, log_fn=safe_log)
+
+                if not webp:
+                    safe_log(f"  ❌ Image {idx+1}: WebP conversion failed, using original URL")
+                    if res.get("url"):
+                        image_results[idx]["url"] = res["url"]
+                    return
+
+                # Upload to WordPress
+                if wp_url and wp_password:
+                    safe_log(f"  📤 Uploading image {idx+1} to WordPress...")
+                    up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
+                    if up.get("success") and up.get("media_id"):
+                        image_results[idx]["url"] = up["url"]
+                        image_results[idx]["media_id"] = up["media_id"]
+                        safe_log(f"  ✅ Image {idx+1} uploaded → media_id={up['media_id']}")
+                        return
+                    else:
+                        safe_log(f"  ⚠️ Image {idx+1} WP upload failed: {up.get('error')} — using direct URL as fallback")
+                        # Fallback: use the Pollinations URL directly
+                        if res.get("url"):
+                            image_results[idx]["url"] = res["url"]
+                        return
+                else:
+                    safe_log(f"  ⚠️ No WP credentials — using Pollinations URL directly for image {idx+1}")
+                    image_results[idx]["url"] = res.get("url","")
 
             elif goapi_key:
                 tpl = mj_template or "Close up {recipe_name}, professional photography, natural light --ar 2:3"
-                arm = re.search(r"--ar\s+(\d+:\d+)", tpl)
-                ar = arm.group(1) if arm else "2:3"
                 ip = tpl.replace("{recipe_name}", title).replace("{title}", title)
-                if "--ar" not in ip: ip += f" --ar {ar}"
-                safe_log(f"  🖼️ Image {idx+1}/4 via Midjourney...")
+                if "--ar" not in ip: ip += " --ar 3:2"
+                safe_log(f"  🖼️ Generating image {idx+1}/4 via Midjourney...")
                 res = generate_midjourney_image(goapi_key, ip, safe_log)
 
                 if not res.get("url"):
-                    safe_log(f"  ⚠️ MJ image {idx+1} failed: {res.get('error','unknown')}")
+                    safe_log(f"  ❌ MJ image {idx+1} failed: {res.get('error','unknown')}")
                     return
 
-                raw = download_image_bytes(res["url"])
-                webp = crop_and_convert_to_webp(raw, max_width=1920, target_ratio=target_ratio) if raw else None
+                safe_log(f"  📥 Downloading MJ image {idx+1}...")
+                raw = download_image_bytes(res["url"], safe_log)
+                if not raw:
+                    safe_log(f"  ❌ MJ image {idx+1}: download failed")
+                    return
 
-                if webp:
-                    image_results[idx]["raw_bytes"] = raw
+                image_results[idx]["raw_bytes"] = raw
+                safe_log(f"  🔄 Converting MJ image {idx+1} to WebP...")
+                webp = crop_and_convert_to_webp(raw, max_width=1920, target_ratio=target_ratio, log_fn=safe_log)
 
-                    if wp_url and wp_password:
-                        up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
-                        if up.get("success") and up.get("media_id"):
-                            image_results[idx]["url"] = up["url"]
-                            image_results[idx]["media_id"] = up["media_id"]
-                            safe_log(f"  ✅ Image {idx+1} uploaded (media_id={up['media_id']})")
-                            return
-                        else:
-                            safe_log(f"  ⚠️ WP upload failed: {up.get('error')}")
+                if webp and wp_url and wp_password:
+                    safe_log(f"  📤 Uploading MJ image {idx+1} to WordPress...")
+                    up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
+                    if up.get("success") and up.get("media_id"):
+                        image_results[idx]["url"] = up["url"]
+                        image_results[idx]["media_id"] = up["media_id"]
+                        safe_log(f"  ✅ MJ image {idx+1} uploaded → media_id={up['media_id']}")
+                        return
+                    else:
+                        safe_log(f"  ⚠️ MJ upload failed: {up.get('error')} — using direct URL")
+                        image_results[idx]["url"] = res["url"]
+                elif webp:
+                    image_results[idx]["url"] = res["url"]
+                else:
                     image_results[idx]["url"] = res["url"]
 
         for idx in range(4):
             t = threading.Thread(target=_gen_single, args=(idx,), daemon=True)
-            img_threads.append(t); t.start()
-        for t in img_threads: t.join(timeout=300)
+            img_threads.append(t)
+            t.start()
+        for t in img_threads:
+            t.join(timeout=300)
 
+        # Summary log
         for idx in range(4):
             r = image_results[idx]
             if r.get("media_id"):
-                safe_log(f"  📸 Image {idx+1}: media_id={r['media_id']}")
+                safe_log(f"  📸 Image {idx+1} ({names[idx]}): ✅ in WP media (id={r['media_id']})")
             elif r.get("url"):
-                safe_log(f"  📸 Image {idx+1}: direct URL (no WP upload)")
+                safe_log(f"  📸 Image {idx+1} ({names[idx]}): ✅ URL only (no WP upload)")
             else:
-                safe_log(f"  📸 Image {idx+1}: not generated")
+                safe_log(f"  📸 Image {idx+1} ({names[idx]}): ❌ not generated")
 
-    # Launch all threads in parallel
+    # Launch article, card, images in parallel
     for fn in [_gen_article, _gen_card, _gen_images]:
         t = threading.Thread(target=fn, daemon=True)
-        all_threads.append(t); t.start()
+        all_threads.append(t)
+        t.start()
 
     deadline = time.time() + 600
     while any(t.is_alive() for t in all_threads):
-        if time.time() > deadline: log("⚠️ Timeout 10min"); break
+        if time.time() > deadline:
+            log("⚠️ Pipeline timeout after 10 minutes")
+            break
         time.sleep(2)
-    for t in all_threads: t.join(timeout=5)
+    for t in all_threads:
+        t.join(timeout=5)
 
     art = art_result[0]
     if not art or not art["success"]:
         return {"success":False,"error":art["error"] if art else "Article thread failed"}
 
     content = art["content"]
-    content = inject_images_into_article(content, image_results, title)
 
+    # Inject images into article HTML
+    content = inject_images_into_article(content, image_results, title, log_fn=log)
+
+    # Append card
     if show_card and card_result[0]:
         content += "\n" + card_result[0]
-        log("✅ Card appended")
+        log("✅ Card appended to article")
 
+    # Internal links
     _links = internal_links
     if use_internal_links and not _links and wp_url and wp_password:
-        log("🔗 Fetching internal links...")
+        log("🔗 Fetching internal links from WordPress...")
         try:
             _links = fetch_internal_links(wp_url, wp_password, max_posts=200)
-            log(f"🔗 Loaded {len(_links)} posts")
-        except Exception as e: log(f"⚠️ Links error: {e}")
+            log(f"🔗 Loaded {len(_links)} posts for internal linking")
+        except Exception as e:
+            log(f"⚠️ Internal links error: {e}")
     if _links and use_internal_links:
         mc = art.get("parsed",{}).get("MAIN","#ea580c")
         content = inject_internal_links(content, _links, title, max_links=max_links, main_color=mc)
@@ -1048,9 +1097,8 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
 
     meta = generate_meta_description(title)
     wp_title = art.get("seo_title") or title
-    log("📤 Publishing to WordPress...")
 
-    # FEATURED IMAGE: must have media_id from WP upload
+    # Featured image
     featured_id = None
     featured_url = None
     r0 = image_results[0] if image_results else {}
@@ -1061,15 +1109,16 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
             featured_url = r0.get("url","")
             log(f"🖼️ Featured image ready: media_id={featured_id}")
         except (ValueError, TypeError) as e:
-            log(f"⚠️ Invalid media_id: {r0['media_id']} ({e})")
+            log(f"⚠️ Invalid media_id '{r0['media_id']}': {e}")
     elif r0.get("url"):
-        log(f"⚠️ Image URL exists but no media_id — featured image will NOT be set in WP.")
-        log(f"   Check WP credentials and App Password permissions.")
         featured_url = r0.get("url","")
+        log(f"⚠️ Featured image has URL but NO media_id — will NOT be set as WP featured image")
+        log(f"   Fix: check your WP App Password has media upload permission")
     else:
         if use_images:
-            log("⚠️ No featured image generated")
+            log("⚠️ No featured image was generated")
 
+    log(f"📤 Publishing to WordPress (status={publish_status})...")
     pub = publish_to_wordpress(
         title=wp_title, content=content,
         wp_url=wp_url, wp_password=wp_password,
@@ -1081,13 +1130,12 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
     if pub["success"]:
         log(f"🎉 Published! → {pub.get('post_url','')}")
         if featured_id:
-            log(f"🖼️ Featured image set (media_id={featured_id})")
-        pub["featured_image_url"] = featured_url
+            log(f"🖼️ Featured image set on post (media_id={featured_id})")
+        else:
+            log(f"ℹ️ No featured image set (images disabled or WP upload failed)")
+        pub["featured_image_url"] = featured_url or ""
         pub["featured_media_id"] = featured_id
-        # Pass body image raw bytes for Pinterest pin generation later
-        pub["body_images_bytes"] = [
-            image_results[i].get("raw_bytes") for i in range(1, 4)
-        ]
+        pub["body_images_bytes"] = [image_results[i].get("raw_bytes") for i in range(1, 4)]
     else:
         log(f"❌ Publish failed: {pub['error']}")
 

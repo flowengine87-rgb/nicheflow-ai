@@ -651,7 +651,7 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade }) {
   const [titles, setTitles] = useState("");
   const [delay, setDelay] = useState(config.delay_sec||10);
   const [draft, setDraft] = useState(false);
-  const [useImages, setUseImages] = useState(false);
+  const [useImages, setUseImages] = useState(true);
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
