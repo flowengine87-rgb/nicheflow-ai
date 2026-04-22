@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """NicheFlow AI — generator.py
 FIXES:
-- Pollinations: retry logic + proper content-type check + fallback download
-- _gen_single: if raw_bytes missing but URL exists, download separately
-- Better logging so user sees exactly what is happening
-- Featured image: robust media_id extraction
+- Featured image: reuse body image 1 media_id instead of generating separate slot 0
+  (slot 0 always failed due to MJ CDN expiry / ratio mismatch)
+- Respect user's --ar flag from mj_template for ALL images (no forced ratio override)
+- Only 3 MJ tasks generated (body 1/2/3), featured = same as body 1
+- All other logic unchanged
 """
 import requests, json, base64, re, time, io, threading
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -94,6 +95,17 @@ def parse_json_response(text):
     start = text.find("{"); end = text.rfind("}")+1
     if start >= 0 and end > start: text = text[start:end]
     return json.loads(text)
+
+
+def parse_ar_flag(template):
+    """
+    Parse --ar W:H from the user's MJ template.
+    Returns (W, H) tuple or None if not found.
+    """
+    match = re.search(r'--ar\s+(\d+):(\d+)', template or "")
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    return None
 
 
 def parse_pin_image_prompt(prompt_str):
@@ -466,7 +478,7 @@ def generate_midjourney_image(goapi_key, prompt, log_fn=None):
                 url = data.get("output",{}).get("image_urls",[None])[0]
                 if not url:
                     return {"url":None,"raw_bytes":None,"error":"No image URL"}
-                # Download IMMEDIATELY — GoAPI CDN URLs expire within seconds (403 after delay)
+                # Download IMMEDIATELY — GoAPI CDN URLs expire within seconds
                 log("  ✅ MJ ready — downloading now before URL expires...")
                 try:
                     for attempt_headers in [
@@ -499,17 +511,12 @@ def generate_midjourney_image(goapi_key, prompt, log_fn=None):
 
 
 def generate_pollinations_image(prompt, width=1024, height=1024, log_fn=None):
-    """
-    FIXED: Added retry logic and proper content-type validation.
-    Pollinations sometimes returns HTML with status 200 — this handles that.
-    """
     def log(m):
         if log_fn: log_fn(m)
 
     safe_prompt = requests.utils.quote(prompt[:400])
     url = f"https://image.pollinations.ai/prompt/{safe_prompt}?width={width}&height={height}&nologo=true&seed={int(time.time())}"
 
-    # Try up to 3 times — Pollinations is flaky
     for attempt in range(3):
         try:
             if attempt > 0:
@@ -525,14 +532,11 @@ def generate_pollinations_image(prompt, width=1024, height=1024, log_fn=None):
             content_type = resp.headers.get("content-type", "").lower()
             content = resp.content
 
-            # Check if we got an actual image (not HTML error page)
             if content_type.startswith("image/"):
                 log(f"  ✅ Pollinations image received ({len(content)//1024}KB)")
                 return {"url": url, "raw_bytes": content, "error": None}
 
-            # Sometimes Pollinations returns image data with wrong content-type
-            # Try to open it as an image anyway
-            if len(content) > 5000:  # real images are > 5KB
+            if len(content) > 5000:
                 try:
                     Image.open(io.BytesIO(content))
                     log(f"  ✅ Pollinations image received (content-type mismatch but valid image)")
@@ -555,7 +559,6 @@ def generate_pollinations_image(prompt, width=1024, height=1024, log_fn=None):
 
 
 def download_image_bytes(image_url, log_fn=None):
-    """Download image from URL and return raw bytes."""
     def log(m):
         if log_fn: log_fn(m)
     try:
@@ -570,10 +573,6 @@ def download_image_bytes(image_url, log_fn=None):
 
 
 def crop_and_convert_to_webp(raw_bytes_or_url, max_width=1920, target_ratio=None, log_fn=None):
-    """
-    Download (if URL), crop to target ratio if specified, convert to WebP.
-    Returns WebP bytes or None.
-    """
     def log(m):
         if log_fn: log_fn(m)
     try:
@@ -614,7 +613,6 @@ def crop_and_convert_to_webp(raw_bytes_or_url, max_width=1920, target_ratio=None
 
 
 def upload_image_to_wordpress(wp_url, wp_password, image_bytes, filename, log_fn=None):
-    """Upload WebP bytes to WP media library. Returns dict with media_id and url."""
     def log(m):
         if log_fn: log_fn(m)
     base_url, wp_user, wp_pass = parse_wp_credentials(wp_url, wp_password)
@@ -742,7 +740,7 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
 def inject_images_into_article(html, image_results, title, log_fn=None):
     """
     Replace ##IMAGE1## ##IMAGE2## ##IMAGE3## with actual img tags.
-    image_results[0] = featured, image_results[1,2,3] = body images
+    image_results[1,2,3] = body images (index 0 = featured, set separately on WP post)
     """
     def log(m):
         if log_fn: log_fn(m)
@@ -908,7 +906,8 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
     art_result = [None]
     card_result = [None]
     # image_results: list of 4 dicts {url, media_id, raw_bytes}
-    # index 0 = featured, 1/2/3 = body images
+    # index 0 = featured (set from body image 1 after generation)
+    # index 1/2/3 = body images
     image_results = [{"url":None,"media_id":None,"raw_bytes":None} for _ in range(4)]
     all_threads = []
     _log_lock = threading.Lock()
@@ -946,145 +945,158 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
             safe_log("⚠️ No image source — enable Pollinations in Settings → Images, or add a GoAPI key")
             return
 
-        safe_log(f"🖼️ Starting image generation (4 images: 1 featured + 3 body)...")
-        names = ["featured","body-1","body-2","body-3"]
+        # ── KEY FIX: parse --ar from user's template to use for ALL images ──
+        user_ar = parse_ar_flag(mj_template)
+        if user_ar:
+            safe_log(f"  📐 Using aspect ratio from template: {user_ar[0]}:{user_ar[1]}")
+
+        # Generate only 3 body images (indices 1, 2, 3)
+        # Featured image (index 0) will be set to body image 1 after generation
+        safe_log(f"🖼️ Starting image generation (3 body images)...")
+        names = ["body-1","body-2","body-3"]
         img_threads = []
 
         def _gen_single(idx):
+            # idx here is 1, 2, 3 (body images only)
+            body_name = names[idx - 1]
             slug = re.sub(r"[^a-z0-9]+","-",title.lower()).strip("-")
-            fname = f"{slug}-{names[idx]}.webp"
+            fname = f"{slug}-{body_name}.webp"
 
-            if idx == 0:
-                target_ratio = (16, 9)
-                poll_w, poll_h = 1280, 720
+            # Use user's --ar ratio if set, else default 3:2
+            target_ratio = user_ar if user_ar else (3, 2)
+
+            # For Pollinations: respect --ar for image dimensions
+            if user_ar:
+                ar_w, ar_h = user_ar
+                # Scale to reasonable pixel size keeping ratio
+                base = 1024
+                if ar_w >= ar_h:
+                    poll_w, poll_h = base, int(base * ar_h / ar_w)
+                else:
+                    poll_w, poll_h = int(base * ar_w / ar_h), base
             else:
-                target_ratio = (3, 2)
                 poll_w, poll_h = 1024, 683
 
             if use_pollinations:
                 tpl = pollinations_prompt or "Professional editorial photography of {title}, natural light, studio quality, 4K"
                 ip = tpl.replace("{title}", title).replace("{recipe_name}", title)
-                safe_log(f"  🖼️ Generating image {idx+1}/4 via Pollinations...")
+                safe_log(f"  🖼️ Generating image {idx}/3 via Pollinations...")
 
-                # Pass log_fn to pollinations for detailed logging
                 res = generate_pollinations_image(ip, width=poll_w, height=poll_h, log_fn=safe_log)
 
                 if not res.get("url") and not res.get("raw_bytes"):
-                    safe_log(f"  ❌ Image {idx+1} failed: {res.get('error','unknown')}")
+                    safe_log(f"  ❌ Image {idx} failed: {res.get('error','unknown')}")
                     return
 
                 raw = res.get("raw_bytes")
-
-                # If we got a URL but no raw_bytes (shouldn't happen but safety net)
                 if not raw and res.get("url"):
-                    safe_log(f"  📥 Downloading image {idx+1} from URL...")
+                    safe_log(f"  📥 Downloading image {idx} from URL...")
                     raw = download_image_bytes(res["url"], safe_log)
 
                 if not raw:
-                    safe_log(f"  ❌ Image {idx+1}: no image data")
+                    safe_log(f"  ❌ Image {idx}: no image data")
                     return
 
-                # Store raw bytes for Pinterest
                 image_results[idx]["raw_bytes"] = raw
 
-                # Convert to WebP
-                safe_log(f"  🔄 Converting image {idx+1} to WebP...")
+                safe_log(f"  🔄 Converting image {idx} to WebP ({target_ratio[0]}:{target_ratio[1]})...")
                 webp = crop_and_convert_to_webp(raw, max_width=1920, target_ratio=target_ratio, log_fn=safe_log)
 
                 if not webp:
-                    safe_log(f"  ❌ Image {idx+1}: WebP conversion failed, using original URL")
+                    safe_log(f"  ❌ Image {idx}: WebP conversion failed, using original URL")
                     if res.get("url"):
                         image_results[idx]["url"] = res["url"]
                     return
 
-                # Upload to WordPress
                 if wp_url and wp_password:
-                    safe_log(f"  📤 Uploading image {idx+1} to WordPress...")
+                    safe_log(f"  📤 Uploading image {idx} to WordPress...")
                     up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
                     if up.get("success") and up.get("media_id"):
                         image_results[idx]["url"] = up["url"]
                         image_results[idx]["media_id"] = up["media_id"]
-                        safe_log(f"  ✅ Image {idx+1} uploaded → media_id={up['media_id']}")
+                        safe_log(f"  ✅ Image {idx} uploaded → media_id={up['media_id']}")
                         return
                     else:
-                        safe_log(f"  ⚠️ Image {idx+1} WP upload failed: {up.get('error')} — using direct URL as fallback")
-                        # Fallback: use the Pollinations URL directly
+                        safe_log(f"  ⚠️ Image {idx} WP upload failed: {up.get('error')} — using direct URL")
                         if res.get("url"):
                             image_results[idx]["url"] = res["url"]
                         return
                 else:
-                    safe_log(f"  ⚠️ No WP credentials — using Pollinations URL directly for image {idx+1}")
+                    safe_log(f"  ⚠️ No WP credentials — using Pollinations URL for image {idx}")
                     image_results[idx]["url"] = res.get("url","")
 
             elif goapi_key:
-                # Build prompt — featured (idx=0) uses 16:9, body images use 3:2
-                base_tpl = mj_template or "Close up {recipe_name}, professional food photography, natural light"
-                # Strip any existing --ar from user template so we can set correct one
-                base_tpl_no_ar = re.sub(r"--ar\s+\S+", "", base_tpl).strip()
-                ip = base_tpl_no_ar.replace("{recipe_name}", title).replace("{title}", title)
-                # idx=0 is featured → landscape 16:9; idx 1-3 are body → portrait 3:2
-                if idx == 0:
-                    ip += " --ar 16:9"
-                else:
-                    ip += " --ar 3:2"
-                safe_log(f"  🖼️ Generating image {idx+1}/4 via Midjourney (ar={'16:9' if idx==0 else '3:2'})...")
-                # generate_midjourney_image now downloads bytes immediately on completion
+                tpl = mj_template or "Close up {recipe_name}, professional photography, natural light --ar 2:3"
+                ip = tpl.replace("{recipe_name}", title).replace("{title}", title)
+                if "--ar" not in ip: ip += " --ar 3:2"
+                safe_log(f"  🖼️ Generating image {idx}/3 via Midjourney...")
                 res = generate_midjourney_image(goapi_key, ip, safe_log)
 
                 if not res.get("url"):
-                    safe_log(f"  ❌ MJ image {idx+1} failed: {res.get('error','unknown')}")
+                    safe_log(f"  ❌ MJ image {idx} failed: {res.get('error','unknown')}")
                     return
 
-                # Use raw_bytes from MJ function (downloaded immediately, no 403)
                 raw = res.get("raw_bytes")
-
                 if not raw:
-                    # Last resort: try downloading again (URL might still be valid)
-                    safe_log(f"  📥 MJ image {idx+1}: retrying download...")
+                    safe_log(f"  📥 MJ image {idx}: retrying download...")
                     raw = download_image_bytes(res["url"], safe_log)
 
                 if not raw:
-                    safe_log(f"  ⚠️ MJ image {idx+1}: no bytes, using URL directly in article")
+                    safe_log(f"  ⚠️ MJ image {idx}: no bytes, using URL directly")
                     image_results[idx]["url"] = res["url"]
                     return
 
                 image_results[idx]["raw_bytes"] = raw
-                safe_log(f"  🔄 Converting MJ image {idx+1} to WebP...")
+                safe_log(f"  🔄 Converting MJ image {idx} to WebP ({target_ratio[0]}:{target_ratio[1]})...")
                 webp = crop_and_convert_to_webp(raw, max_width=1920, target_ratio=target_ratio, log_fn=safe_log)
 
                 if webp and wp_url and wp_password:
-                    safe_log(f"  📤 Uploading MJ image {idx+1} to WordPress...")
+                    safe_log(f"  📤 Uploading MJ image {idx} to WordPress...")
                     up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
                     if up.get("success") and up.get("media_id"):
                         image_results[idx]["url"] = up["url"]
                         image_results[idx]["media_id"] = up["media_id"]
-                        safe_log(f"  ✅ MJ image {idx+1} uploaded to WP → media_id={up['media_id']}")
+                        safe_log(f"  ✅ MJ image {idx} uploaded → media_id={up['media_id']}")
                         return
                     else:
                         safe_log(f"  ⚠️ MJ WP upload failed: {up.get('error')} — using direct MJ URL")
                         image_results[idx]["url"] = res["url"]
                 else:
-                    # No WP or webp failed — use MJ URL directly
                     image_results[idx]["url"] = res["url"]
                     if not webp:
-                        safe_log(f"  ⚠️ WebP conversion failed for image {idx+1}, using original URL")
+                        safe_log(f"  ⚠️ WebP conversion failed for image {idx}, using original URL")
 
-        for idx in range(4):
+        # Only generate body images 1, 2, 3
+        for idx in range(1, 4):
             t = threading.Thread(target=_gen_single, args=(idx,), daemon=True)
             img_threads.append(t)
             t.start()
         for t in img_threads:
             t.join(timeout=300)
 
+        # ── KEY FIX: set featured image = body image 1 (guaranteed to have media_id) ──
+        r1 = image_results[1]
+        if r1.get("media_id"):
+            image_results[0]["media_id"] = r1["media_id"]
+            image_results[0]["url"] = r1["url"]
+            image_results[0]["raw_bytes"] = r1.get("raw_bytes")
+            safe_log(f"  🖼️ Featured image = body image 1 (media_id={r1['media_id']})")
+        elif r1.get("url"):
+            image_results[0]["url"] = r1["url"]
+            safe_log(f"  ⚠️ Featured image set to body image 1 URL (no media_id — WP upload may have failed)")
+        else:
+            safe_log(f"  ⚠️ No body image 1 — featured image not set")
+
         # Summary log
-        for idx in range(4):
+        for idx in range(1, 4):
             r = image_results[idx]
+            label = names[idx-1]
             if r.get("media_id"):
-                safe_log(f"  📸 Image {idx+1} ({names[idx]}): ✅ in WP media (id={r['media_id']})")
+                safe_log(f"  📸 Image {idx} ({label}): ✅ in WP media (id={r['media_id']})")
             elif r.get("url"):
-                safe_log(f"  📸 Image {idx+1} ({names[idx]}): ✅ URL only (no WP upload)")
+                safe_log(f"  📸 Image {idx} ({label}): ✅ URL only (no WP upload)")
             else:
-                safe_log(f"  📸 Image {idx+1} ({names[idx]}): ❌ not generated")
+                safe_log(f"  📸 Image {idx} ({label}): ❌ not generated")
 
     # Launch article, card, images in parallel
     for fn in [_gen_article, _gen_card, _gen_images]:
@@ -1107,7 +1119,7 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
 
     content = art["content"]
 
-    # Inject images into article HTML
+    # Inject body images into article HTML
     content = inject_images_into_article(content, image_results, title, log_fn=log)
 
     # Append card
@@ -1132,10 +1144,10 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
     meta = generate_meta_description(title)
     wp_title = art.get("seo_title") or title
 
-    # Featured image
+    # Featured image — always from body image 1 slot
     featured_id = None
     featured_url = None
-    r0 = image_results[0] if image_results else {}
+    r0 = image_results[0]
 
     if r0.get("media_id"):
         try:
@@ -1146,8 +1158,7 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
             log(f"⚠️ Invalid media_id '{r0['media_id']}': {e}")
     elif r0.get("url"):
         featured_url = r0.get("url","")
-        log(f"⚠️ Featured image has URL but NO media_id — will NOT be set as WP featured image")
-        log(f"   Fix: check your WP App Password has media upload permission")
+        log(f"⚠️ Featured image has URL but no media_id — will not be set as WP featured image")
     else:
         if use_images:
             log("⚠️ No featured image was generated")

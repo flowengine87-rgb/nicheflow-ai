@@ -8,6 +8,9 @@ const API_URL = "https://web-production-1f143.up.railway.app";
 const CHECKOUT_BASIC = "https://nicheflowai.lemonsqueezy.com/buy/basic";
 const CHECKOUT_PRO   = "https://nicheflowai.lemonsqueezy.com/buy/pro";
 
+// ── ADMIN: your email — bypasses trial gate, always has full Pro access locally
+const ADMIN_EMAIL = "flowengine87@gmail.com";
+
 const TRIAL_DAYS = 2;
 
 // ─── Auth helpers ──────────────────────────────────────────────────────────
@@ -143,6 +146,7 @@ select.input{cursor:pointer;}
 .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500;}
 .badge-pro{background:var(--pro-dim);color:var(--pro);border:1px solid rgba(245,158,11,.2);}
 .badge-basic{background:var(--accent-dim);color:var(--accent2);border:1px solid rgba(99,102,241,.2);}
+.badge-admin{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.25);}
 
 .alert{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-radius:var(--radius);font-size:13px;margin-bottom:12px;line-height:1.5;}
 .alert-warn{background:rgba(245,158,11,.1);color:var(--pro);border:1px solid rgba(245,158,11,.2);}
@@ -290,6 +294,7 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .top-bar-sub-ok{background:rgba(16,185,129,0.08);border-bottom:1px solid rgba(16,185,129,0.15);color:var(--green);}
 .top-bar-sub-warn{background:rgba(245,158,11,0.13);border-bottom:1px solid rgba(245,158,11,0.22);color:var(--pro);}
 .top-bar-sub-expired{background:rgba(239,68,68,0.18);border-bottom:1px solid rgba(239,68,68,0.3);color:var(--red);}
+.top-bar-admin{background:rgba(239,68,68,0.1);border-bottom:1px solid rgba(239,68,68,0.2);color:#ef4444;}
 
 @media(max-width:900px){
   .nav{padding:14px 20px;}
@@ -316,9 +321,18 @@ function Hint({ children }) {
   return <p className="hint"><span style={{ flexShrink: 0 }}>ℹ</span><span>{children}</span></p>;
 }
 
-// ─── TOP BAR — trial OR subscription countdown ─────────────────────────────
-function TopBar({ createdAt, plan, planExpires, onUpgrade }) {
-  // If pro with plan_expires — show subscription countdown
+// ─── TOP BAR — trial OR subscription countdown (hidden for admin) ──────────
+function TopBar({ createdAt, plan, planExpires, onUpgrade, isAdmin }) {
+  // Admin: show admin badge, no trial
+  if (isAdmin) {
+    return (
+      <div className="top-bar top-bar-admin">
+        <span>🔧 <strong>Admin mode</strong> — trial and plan restrictions bypassed</span>
+      </div>
+    );
+  }
+
+  // Pro with plan_expires — show subscription countdown
   if (plan === "pro" && planExpires) {
     const daysLeft = getSubDaysLeft(planExpires);
     if (daysLeft === null) return null;
@@ -606,19 +620,19 @@ function UpgradeBanner({ onUpgrade }) {
 }
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────
-function Dashboard({ history, plan, onUpgrade, createdAt, planExpires }) {
+function Dashboard({ history, plan, onUpgrade, createdAt, planExpires, isAdmin }) {
   const published = history.filter(h=>h.status==="published").length;
   const failed = history.filter(h=>h.status==="failed").length;
-  const daysLeft = plan === "pro" ? (getSubDaysLeft(planExpires) || "∞") : getDaysLeft(createdAt);
+  const daysLeft = isAdmin ? "∞" : plan === "pro" ? (getSubDaysLeft(planExpires) || "∞") : getDaysLeft(createdAt);
   return (
     <div className="fade-up">
-      {plan !== "pro" && <UpgradeBanner onUpgrade={()=>onUpgrade("pro")} />}
+      {plan !== "pro" && !isAdmin && <UpgradeBanner onUpgrade={()=>onUpgrade("pro")} />}
       <div className="stat-grid">
         {[
           {num:history.length,label:"Total articles"},
           {num:published,label:"Published",sub:published>0?`${Math.round(published/Math.max(history.length,1)*100)}% success`:""},
           {num:failed,label:"Failed"},
-          {num:daysLeft,label:plan==="pro"?"Sub days left":"Trial days left",sub:plan==="pro"?"Pro active":"basic trial"},
+          {num:daysLeft,label:isAdmin?"Admin (∞)":plan==="pro"?"Sub days left":"Trial days left",sub:isAdmin?"Full access":plan==="pro"?"Pro active":"basic trial"},
         ].map((s,i)=>(
           <div className="stat-card" key={i}>
             <div className="stat-card-num">{s.num}</div>
@@ -647,7 +661,7 @@ function Dashboard({ history, plan, onUpgrade, createdAt, planExpires }) {
 }
 
 // ─── GENERATE ──────────────────────────────────────────────────────────────
-function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade }) {
+function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isAdmin }) {
   const [titles, setTitles] = useState("");
   const [delay, setDelay] = useState(config.delay_sec||10);
   const [draft, setDraft] = useState(false);
@@ -657,7 +671,8 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade }) {
   const [progress, setProgress] = useState(0);
   const logRef = useRef(null);
 
-  const expired = isTrialExpired(createdAt) && plan !== "pro";
+  // Admin bypasses trial gate entirely
+  const expired = isTrialExpired(createdAt) && plan !== "pro" && !isAdmin;
 
   const addLog = useCallback((msg, type="info") => {
     const time = new Date().toLocaleTimeString("en",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
@@ -670,7 +685,6 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade }) {
 
   if (expired) return <TrialExpiredGate onUpgrade={onUpgrade} />;
 
-  // Detect log type from message content
   function detectLogType(msg) {
     if (msg.includes("✅") || msg.includes("🎉") || msg.includes("Published")) return "ok";
     if (msg.includes("❌") || msg.includes("Failed") || msg.includes("failed")) return "err";
@@ -906,8 +920,8 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
         <div className="settings-section fade-up">
           <div className="settings-header"><span>🖼️</span><h3>Image Settings</h3></div>
           <div className="settings-body">
-            <div className="alert alert-info">✦ 4 images per article: 1 featured (set on WP post) + 3 body (at ##IMAGE1## ##IMAGE2## ##IMAGE3##). All cropped, WebP, uploaded to WordPress.</div>
-            <div><label className="form-label">Midjourney Image Template</label><textarea className="input" style={{minHeight:90}} value={cfg.mj_template||""} onChange={e=>update("mj_template",e.target.value)} placeholder="Close up {recipe_name}, food photography, natural light --ar 2:3"/><Hint>Use {"{recipe_name}"} or {"{title}"}. Requires GoAPI key.</Hint></div>
+            <div className="alert alert-info">✦ 4 images per article: 1 featured (set on WP post) + 3 body (at ##IMAGE1## ##IMAGE2## ##IMAGE3##). All cropped to your --ar ratio, WebP, uploaded to WordPress.</div>
+            <div><label className="form-label">Midjourney Image Template</label><textarea className="input" style={{minHeight:90}} value={cfg.mj_template||""} onChange={e=>update("mj_template",e.target.value)} placeholder="Close up {recipe_name}, food photography, natural light --ar 1:1"/><Hint>Use {"{recipe_name}"} or {"{title}"}. The --ar flag controls crop ratio for ALL images including featured. Requires GoAPI key.</Hint></div>
             <div className="divider"/>
             <div className="setting-row"><div className="setting-info"><div className="setting-name">Use Pollinations (free)</div><div className="setting-desc">Free AI images — no API key needed</div></div><label className="toggle"><input type="checkbox" checked={cfg.use_pollinations||false} onChange={e=>update("use_pollinations",e.target.checked)}/><span className="toggle-slider"/></label></div>
             {cfg.use_pollinations&&<div><label className="form-label">Pollinations Prompt Template</label><textarea className="input" style={{minHeight:80}} value={cfg.pollinations_prompt||""} onChange={e=>update("pollinations_prompt",e.target.value)} placeholder="Professional editorial photography of {title}, natural light, 4K"/></div>}
@@ -1046,9 +1060,8 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
         <div style={{textAlign:"center",maxWidth:400}}>
           <div style={{fontSize:52,marginBottom:14}}>📌</div>
           <div style={{fontFamily:"var(--font-display)",fontSize:22,fontWeight:700,marginBottom:8}}>Pinterest Bot</div>
-          <div style={{fontSize:14,color:"var(--text2)",lineHeight:1.7,marginBottom:24}}>Auto-pin every published article with AI-generated pin images. The AI creates a 4-word hook title overlaid on your article images for maximum engagement.</div>
+          <div style={{fontSize:14,color:"var(--text2)",lineHeight:1.7,marginBottom:24}}>Auto-pin every published article with AI-generated pin images.</div>
           <button className="btn btn-pro btn-lg" style={{width:"100%",marginBottom:12}} onClick={()=>onUpgrade("pro")}>Upgrade to Pro — $40/mo ★</button>
-          <p style={{fontSize:12,color:"var(--text3)"}}>Includes everything in Basic plus full Pinterest automation</p>
         </div>
       </div>
     );
@@ -1067,7 +1080,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
     try{
       const res=await apiCall("/pinterest/boards");
       const data=await res.json();
-      if(res.ok){setBoards(data.boards||[]);if(!data.boards?.length)setBoardError("No boards found. Check your Pinterest token in Settings → Pinterest.");}
+      if(res.ok){setBoards(data.boards||[]);if(!data.boards?.length)setBoardError("No boards found.");}
       else setBoardError(data.detail||"Failed to load boards");
     }catch(e){setBoardError(e.message);}
     finally{setLoadingBoards(false);}
@@ -1079,23 +1092,16 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
     setRunning(true);
     addLog(`Starting Pinterest bot: ${publishedArticles.length} articles → ${selectedBoards.length} board(s)`,"ok");
     try{
-      const res=await apiCall("/pinterest/run",{method:"POST",body:JSON.stringify({
-        board_ids:selectedBoards,
-        pin_image_prompt:config.pin_image_prompt||"",
-      })});
+      const res=await apiCall("/pinterest/run",{method:"POST",body:JSON.stringify({board_ids:selectedBoards,pin_image_prompt:config.pin_image_prompt||""})});
       const data=await res.json();
       if(res.ok){
         const results=data.results||[];
         setPinPreviews(results);
         results.forEach(r=>{
           addLog(`📌 ${r.title}`,"info");
-          addLog(`  Hook: "${r.hook_title}" | Title: "${r.pin_title}"`,"info");
-          r.boards?.forEach(b=>{
-            addLog(b.success?`  ✅ Board ${b.board_id} → Pin ${b.pin_id}`:`  ❌ Board ${b.board_id}: ${b.error}`,b.success?"ok":"err");
-          });
+          r.boards?.forEach(b=>{addLog(b.success?`  ✅ Board ${b.board_id} → Pin ${b.pin_id}`:`  ❌ ${b.error}`,b.success?"ok":"err");});
         });
-        const sent=results.filter(r=>r.status==="sent").length;
-        addLog(`Done! ${sent}/${results.length} articles pinned.`,"ok");
+        addLog(`Done! ${results.filter(r=>r.status==="sent").length}/${results.length} pinned.`,"ok");
       } else addLog(`❌ ${data.detail||"Pinterest run failed"}`,"err");
     }catch(e){addLog(`❌ ${e.message}`,"err");}
     finally{setRunning(false);}
@@ -1110,22 +1116,15 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
         <div className="modal-overlay" onClick={()=>setPreviewModal(null)}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
             <button className="modal-close" onClick={()=>setPreviewModal(null)}>✕</button>
-            <div style={{fontFamily:"var(--font-display)",fontSize:18,fontWeight:700,marginBottom:4}}>Pin Preview</div>
-            <div style={{fontSize:13,color:"var(--text2)",marginBottom:20}}>Custom pin image with hook title overlay</div>
+            <div style={{fontFamily:"var(--font-display)",fontSize:18,fontWeight:700,marginBottom:16}}>Pin Preview</div>
             <div className="pin-preview">
               {(previewModal.pin_image_url||previewModal.featured_image_url)
-                ?<img src={previewModal.pin_image_url||previewModal.featured_image_url} alt={previewModal.pin_title} className="pin-img" style={{height:240,objectFit:"cover"}}/>
-                :<div className="pin-img" style={{height:240,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)",fontSize:13}}>No pin image generated</div>
+                ?<img src={previewModal.pin_image_url||previewModal.featured_image_url} alt={previewModal.pin_title} className="pin-img" style={{height:240}}/>
+                :<div className="pin-img" style={{height:240,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)"}}>No pin image</div>
               }
-              {previewModal.hook_title&&(
-                <div style={{background:"rgba(0,0,0,0.8)",color:"#fff",fontSize:12,padding:"6px 14px",textAlign:"center",fontWeight:700,letterSpacing:1.5,textTransform:"uppercase"}}>
-                  Hook: {previewModal.hook_title}
-                </div>
-              )}
               <div className="pin-body">
                 <div className="pin-title">{previewModal.pin_title}</div>
                 <div className="pin-desc">{previewModal.pin_description}</div>
-                {previewModal.alt_text&&<div style={{fontSize:11,color:"var(--text3)",marginBottom:8}}>Alt: {previewModal.alt_text}</div>}
                 {previewModal.hashtags?.length>0&&<div className="pin-tags">{previewModal.hashtags.map(h=><span key={h} className="pin-tag">#{h}</span>)}</div>}
               </div>
             </div>
@@ -1140,70 +1139,36 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
             <button className="btn btn-ghost btn-sm" onClick={loadBoards} disabled={loadingBoards}>{loadingBoards?<><span className="spinner spinner-accent"/>Loading...</>:"↺ Load Boards"}</button>
           </div>
           {boardError&&<div className="alert alert-err" style={{marginTop:10}}>{boardError}</div>}
-          {!config.pinterest_token&&<div className="alert alert-warn" style={{marginTop:10}}>⚠️ No Pinterest token. Go to Settings → Pinterest first.</div>}
           {boards.length>0?(
             <div className="board-grid">
               {boards.map(b=>(
                 <div key={b.id} className={`board-item ${selectedBoards.includes(b.id)?"selected":""}`} onClick={()=>toggleBoard(b.id)}>
                   <div style={{fontSize:22,marginBottom:6}}>📋</div>
                   <div style={{fontSize:12,fontWeight:500,color:"var(--text2)"}}>{b.name}</div>
-                  {selectedBoards.includes(b.id)&&<div style={{fontSize:11,color:"var(--accent2)",marginTop:4}}>✓ Selected</div>}
+                  {selectedBoards.includes(b.id)&&<div style={{fontSize:11,color:"var(--accent2)",marginTop:4}}>✓</div>}
                 </div>
               ))}
             </div>
           ):(
             <div style={{marginTop:14,color:"var(--text3)",fontSize:13,textAlign:"center",padding:"20px 0"}}>
-              {loadingBoards?"Fetching boards...":"Click \"Load Boards\" to see your Pinterest boards"}
-            </div>
-          )}
-          {boards.length===0&&!loadingBoards&&config.pinterest_boards&&(
-            <div style={{marginTop:12}}>
-              <div style={{fontSize:12,color:"var(--text3)",marginBottom:8}}>Using board IDs from Settings:</div>
-              <div className="board-grid">
-                {config.pinterest_boards.split(",").map(id=>id.trim()).filter(Boolean).map(id=>(
-                  <div key={id} className={`board-item ${selectedBoards.includes(id)?"selected":""}`} onClick={()=>toggleBoard(id)}>
-                    <div style={{fontSize:22,marginBottom:6}}>📋</div>
-                    <div style={{fontSize:12,fontWeight:500,color:"var(--text2)",wordBreak:"break-all"}}>{id}</div>
-                    {selectedBoards.includes(id)&&<div style={{fontSize:11,color:"var(--accent2)",marginTop:4}}>✓</div>}
-                  </div>
-                ))}
-              </div>
+              {loadingBoards?"Fetching...":"Click Load Boards"}
             </div>
           )}
         </div>
 
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div className="card">
-            <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:12}}>Queue Status</div>
+            <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:12}}>Queue</div>
             <div style={{fontSize:28,fontWeight:700,fontFamily:"var(--font-display)",marginBottom:4}}>{publishedArticles.length}</div>
-            <div style={{fontSize:13,color:"var(--text3)"}}>published articles ready to pin</div>
+            <div style={{fontSize:13,color:"var(--text3)"}}>articles ready to pin</div>
             <div className="divider"/>
             <div style={{fontSize:13,color:"var(--text2)"}}>{selectedBoards.length} board{selectedBoards.length!==1?"s":""} selected</div>
-          </div>
-          <div className="alert alert-info" style={{fontSize:13}}>
-            ✦ AI generates a 4-word hook title per article<br/>
-            ✦ Hook overlaid on article body image for pin<br/>
-            ✦ Pin image separate from featured image<br/>
-            ✦ Customize design in Settings → Pin Image Design
           </div>
           <button className="btn btn-pro" style={{width:"100%",padding:"13px"}} onClick={runPinterest} disabled={running||!publishedArticles.length||!selectedBoards.length}>
             {running?<><span className="spinner"/>Pinning...</>:`📌 Pin ${publishedArticles.length} Article${publishedArticles.length!==1?"s":""}`}
           </button>
         </div>
       </div>
-
-      {pinPreviews.length>0&&(
-        <div className="card" style={{marginBottom:18}}>
-          <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:14}}>Pin Results</div>
-          {pinPreviews.map((p,i)=>(
-            <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:i<pinPreviews.length-1?"1px solid var(--border)":"none",cursor:"pointer"}} onClick={()=>setPreviewModal(p)}>
-              <span className={`dot ${p.status==="sent"?"dot-green":"dot-red"}`}/>
-              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:500}}>{p.title}</div><div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>📌 {p.pin_title} · Hook: "{p.hook_title}"</div></div>
-              <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();setPreviewModal(p);}}>Preview →</button>
-            </div>
-          ))}
-        </div>
-      )}
 
       <div className="card">
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
@@ -1225,14 +1190,9 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
 function DocsPage({ plan, onUpgrade }) {
   const [section, setSection] = useState("start");
   const sections = [
-    {id:"start",label:"Quick Start"},
-    {id:"api",label:"API Keys"},
-    {id:"wordpress",label:"WordPress"},
-    {id:"prompts",label:"Prompts & Cards"},
-    {id:"images",label:"Images & WebP"},
-    {id:"links",label:"Internal Links"},
-    {id:"pinterest",label:"Pinterest (Pro)"},
-    {id:"billing",label:"Billing & Plans"},
+    {id:"start",label:"Quick Start"},{id:"api",label:"API Keys"},{id:"wordpress",label:"WordPress"},
+    {id:"prompts",label:"Prompts & Cards"},{id:"images",label:"Images & WebP"},
+    {id:"links",label:"Internal Links"},{id:"pinterest",label:"Pinterest (Pro)"},{id:"billing",label:"Billing & Plans"},
   ];
   return (
     <div className="fade-up" style={{display:"flex",gap:24}}>
@@ -1247,157 +1207,33 @@ function DocsPage({ plan, onUpgrade }) {
       </div>
       <div style={{flex:1}}>
         {section==="start"&&(
-          <>
-            <div className="doc-section">
-              <h3>🚀 Quick Start — Up in 5 minutes</h3>
-              {[
-                {n:"1",t:"Get a free AI key",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> — create a free API key starting with <code>gsk_</code>. 14,400 requests/day free.</>},
-                {n:"2",t:"Configure Settings",d:"Go to Settings → API Keys → paste your key → click Test → Save Settings."},
-                {n:"3",t:"Connect WordPress",d:<>Settings → WordPress → enter your site URL and App Password. Format: <code>username:xxxx xxxx xxxx xxxx</code>.</>},
-                {n:"4",t:"Write your Prompt",d:<>Settings → Prompts → write your article prompt. Use <code>{"{title}"}</code> as placeholder.</>},
-                {n:"5",t:"Generate your first article",d:"Go to Generate → paste one title → click Generate. Watch the process log for image upload status."},
-              ].map(s=>(
-                <div key={s.n} className="doc-step">
-                  <div className="doc-step-num">{s.n}</div>
-                  <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-                </div>
-              ))}
-            </div>
-            <div className="doc-section">
-              <h3>⚡ How the pipeline works</h3>
-              <pre>{`User clicks Generate
-    ↓
-Model 1: Writes article body (HTML, 1000+ words)
-Model 2: Generates summary card (runs in parallel)
-Images: 4 generated in parallel (if enabled)
-  → Image 0: Featured (uploaded to WP, set as featured_media)
-  → Images 1-3: Body (injected at ##IMAGE1## ##IMAGE2## ##IMAGE3##)
-  → All center-cropped → converted to WebP → uploaded to WP media
-    ↓
-Internal links fetched and injected
-Article + card published to WordPress
-Pipeline logs returned to frontend for display
-    ↓
-Pinterest: custom pin image generated (Pro only)
-  → AI generates 4-word hook title
-  → Hook title overlaid on article body image (Pillow)
-  → Pin image uploaded to WP → used as Pinterest pin image`}</pre>
-            </div>
-          </>
-        )}
-        {section==="api"&&(
           <div className="doc-section">
-            <h3>🔑 API Keys Explained</h3>
-            <div className="doc-step"><div className="doc-step-num">G</div><div className="doc-step-text"><div className="doc-step-title">Groq API Key (recommended — free)</div><div className="doc-step-desc">Get at <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a>. Starts with <code>gsk_</code>. 14,400 requests/day free.</div></div></div>
-            <div className="doc-step"><div className="doc-step-num">A</div><div className="doc-step-text"><div className="doc-step-title">Gemini API Key (fallback)</div><div className="doc-step-desc">Get at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a>. Starts with <code>AIza</code>. Add after comma: <code>gsk_xxx,AIzayyy</code> for zero-downtime fallback.</div></div></div>
-            <div className="doc-step"><div className="doc-step-num">M</div><div className="doc-step-text"><div className="doc-step-title">GoAPI Key (Midjourney images)</div><div className="doc-step-desc">Get at <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a>. Paid. Only needed for Midjourney. Skip if using free Pollinations.</div></div></div>
-          </div>
-        )}
-        {section==="wordpress"&&(
-          <div className="doc-section">
-            <h3>🌐 WordPress Connection</h3>
+            <h3>🚀 Quick Start</h3>
             {[
-              {t:"Create an Application Password",d:<>WordPress: <strong>Users → Your Profile → Application Passwords</strong> → enter name → Add → copy password.</>},
-              {t:"Format the credentials",d:<>Enter as: <code>yourusername:xxxx xxxx xxxx xxxx</code>. Keep spaces in password.</>},
-              {t:"Featured image",d:"Image 0 is uploaded to WP media with media_id and set as the post's featured_media field automatically."},
-              {t:"If featured image is not setting",d:"The App Password user must have the 'upload_files' capability. Create a new App Password or check user role has media permissions."},
-            ].map((s,i)=>(
-              <div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>
-            ))}
+              {n:"1",t:"Get a free AI key",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> — free key starting with <code>gsk_</code>.</>},
+              {n:"2",t:"Configure Settings",d:"Settings → API Keys → paste key → Test → Save."},
+              {n:"3",t:"Connect WordPress",d:<>Settings → WordPress → site URL + App Password. Format: <code>username:xxxx xxxx xxxx xxxx</code>.</>},
+              {n:"4",t:"Write your Prompt",d:<>Settings → Prompts → use <code>{"{title}"}</code> as placeholder.</>},
+              {n:"5",t:"Generate",d:"Generate → paste title → click Generate. Watch logs for image upload status."},
+            ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
           </div>
-        )}
-        {section==="prompts"&&(
-          <>
-            <div className="doc-section">
-              <h3>💬 Article Prompt</h3>
-              <pre>{`{
-  "seo_title": "Under 60 characters",
-  "excerpt": "2-sentence summary",
-  "html_content": "Full article HTML as single-line string",
-  "MAIN": "#hexcolor",
-  "MAIN_DARK": "#hexcolor",
-  "LIGHT_BG": "#hexcolor",
-  "BORDER": "#hexcolor"
-}`}</pre>
-              <p style={{fontSize:13,color:"var(--text2)",margin:"12px 0"}}>Include <code>##IMAGE1##</code>, <code>##IMAGE2##</code>, <code>##IMAGE3##</code> where you want body images inserted.</p>
-            </div>
-            <div className="doc-section">
-              <h3>🃏 Card Prompt</h3>
-              <pre>{`{
-  "card_title": "Short display title under 40 chars",
-  "summary": "2-sentence summary",
-  "key_points": ["Point 1", "Point 2", "Point 3"],
-  "quick_facts": [{"label": "Time", "value": "30 mins"}],
-  "cta_text": "Save this! 📌"
-}`}</pre>
-            </div>
-          </>
         )}
         {section==="images"&&(
           <div className="doc-section">
             <h3>🖼️ Images & WebP</h3>
             {[
-              {t:"4 images per article",d:"Image 0 = featured. Images 1-3 = body (injected at ##IMAGE1## ##IMAGE2## ##IMAGE3##)."},
-              {t:"Cropping ratios",d:"Featured: 16:9 landscape. Body: 3:2. Center-cropped before WebP conversion."},
+              {t:"3 body images generated",d:"Images 1-3 are body images (##IMAGE1## ##IMAGE2## ##IMAGE3##). Featured image = body image 1 (reused, guaranteed to have media_id)."},
+              {t:"Aspect ratio from your template",d:"The --ar flag in your MJ template controls crop ratio for ALL images. e.g. --ar 1:1 gives square images."},
+              {t:"Featured image fix",d:"Featured image now always equals body image 1. Previously a 4th separate MJ task was generated for featured which often failed due to CDN expiry. Now body image 1 is reused — so featured is always set."},
               {t:"WebP upload",d:"All uploaded to WP media library. Featured image set on post via media_id (featured_media field)."},
-              {t:"Pipeline logs in frontend",d:"All image generation/upload logs now appear in the Generate page log panel in real time."},
-              {t:"Pollinations (free)",d:"Enable in Settings → Images. No API key. Quality lower than Midjourney but free."},
-            ].map((s,i)=>(
-              <div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>
-            ))}
+            ].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
           </div>
-        )}
-        {section==="links"&&(
-          <div className="doc-section">
-            <h3>🔗 Internal Links</h3>
-            {[
-              {t:"Fetches all published posts",d:"Up to 200 posts from your WordPress site."},
-              {t:"Long-tail phrase matching only",d:"Only titles with 3+ words used as anchor text. Single/2-word titles ignored."},
-              {t:"Exact match first",d:"Looks for exact title text in article HTML. Case-insensitive."},
-              {t:"Fallback: last 3 words",d:"If full title not found, tries matching last 3 words of the title."},
-              {t:"Max links setting",d:"Set max internal links per article in Settings → WordPress. Default is 4."},
-            ].map((s,i)=>(
-              <div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>
-            ))}
-          </div>
-        )}
-        {section==="pinterest"&&(
-          <>
-            {plan!=="pro"&&<div className="upgrade-banner" style={{marginBottom:20}}><div className="upgrade-banner-text"><strong>Pinterest is a Pro feature</strong></div><button className="btn btn-pro btn-sm" onClick={()=>onUpgrade("pro")}>Upgrade →</button></div>}
-            <div className="doc-section" style={{opacity:plan!=="pro"?0.5:1}}>
-              <h3>📌 Pinterest Bot</h3>
-              {[
-                {t:"Pinterest Access Token",d:<>Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>developers.pinterest.com</a> → My Apps → Create App → Generate Access Token. Need <code>boards:read</code> and <code>pins:write</code> scopes.</>},
-                {t:"Add token in Settings",d:"Settings → Pinterest tab → paste token → Save Settings."},
-                {t:"Load your boards",d:"Pinterest page → Load Boards → select which boards to pin to."},
-                {t:"Pin image generation",d:"For each article, NicheFlow generates a custom pin image using Pillow. Uses article body image as background, dark overlay, 4-word AI hook title overlaid. Uploaded to WordPress and used as Pinterest pin image."},
-                {t:"Hook title (4 words)",d:"AI generates exactly 4 punchy words (e.g. 'SECRETS TO PERFECT PASTA'). Include 'hook_title' in your Pinterest Pin Prompt JSON to customize."},
-                {t:"Pin image design",d:<>Customize in Settings → Pin Image Design. Key:value pairs: <code>background_color</code>, <code>overlay_opacity</code>, <code>title_color</code>, <code>title_size</code>, <code>subtitle_color</code>, <code>canvas_width</code>, <code>canvas_height</code>, <code>title_position</code>, <code>logo_text</code>, <code>gradient</code>, <code>gradient_color</code>.</>},
-                {t:"Pin image ≠ featured image",d:"The Pinterest pin image and WordPress featured image are different. Featured = set on the WP post. Pin image = custom design uploaded separately for Pinterest."},
-              ].map((s,i)=>(
-                <div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>
-              ))}
-            </div>
-          </>
         )}
         {section==="billing"&&(
           <div className="doc-section">
             <h3>💳 Billing & Plans</h3>
-            <div className="alert alert-info" style={{marginBottom:16}}>ℹ️ New users get <strong>2 days free trial</strong> — no credit card required. After 2 days, the app blocks access until you pay. A countdown shows in the top bar.</div>
-            <div className="alert alert-info" style={{marginBottom:16}}>🔄 After payment, a <strong>monthly subscription countdown</strong> shows in the top bar. When it reaches 0, you'll be notified to renew.</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
-              {[
-                {name:"Basic",price:"$30/mo",features:["Unlimited articles","Custom prompts","4 images per article","WordPress auto-publish","Featured image auto-set","Internal links","History"],color:"var(--accent2)"},
-                {name:"Pro",price:"$40/mo",features:["Everything in Basic","Pinterest auto-pinning","AI-generated pin images","4-word hook title overlay","Custom pin image design","Board selection","Auto-pin after publish"],color:"var(--pro)"},
-              ].map(p=>(
-                <div key={p.name} style={{background:"var(--bg3)",border:`1px solid ${p.color}40`,borderRadius:"var(--radius-lg)",padding:20}}>
-                  <div style={{fontFamily:"var(--font-display)",fontWeight:700,fontSize:16,color:p.color,marginBottom:4}}>{p.name}</div>
-                  <div style={{fontFamily:"var(--font-display)",fontSize:28,fontWeight:800,marginBottom:12}}>{p.price}</div>
-                  <ul style={{listStyle:"none",padding:0}}>{p.features.map(f=><li key={f} style={{fontSize:13,color:"var(--text2)",padding:"4px 0",borderBottom:"1px solid var(--border)",display:"flex",gap:8}}><span style={{color:"var(--green)"}}>✓</span>{f}</li>)}</ul>
-                </div>
-              ))}
-            </div>
-            <div className="alert alert-info">Payments via LemonSqueezy. Plan updates automatically after payment. Click "Refresh Plan" in sidebar if needed.</div>
+            <div className="alert alert-info" style={{marginBottom:16}}>New users get <strong>2 days free trial</strong>. After 2 days the app blocks until you pay.</div>
+            <div className="alert alert-info" style={{marginBottom:16}}>After payment, a <strong>monthly countdown</strong> shows in the top bar. When it reaches 0, you're notified to renew.</div>
             {plan!=="pro"&&<button className="btn btn-pro" style={{width:"100%",marginTop:12}} onClick={()=>onUpgrade("pro")}>Upgrade to Pro — $40/mo ★</button>}
           </div>
         )}
@@ -1422,6 +1258,11 @@ function AppShell({ user, onLogout }) {
   const token = user?.access_token || getStoredToken();
   const avatarLetter = email[0]?.toUpperCase() || "U";
 
+  // ── Admin check — your email bypasses everything
+  const isAdmin = email === ADMIN_EMAIL;
+  // Admin always gets pro-level access in the UI
+  const effectivePlan = isAdmin ? "pro" : plan;
+
   const refreshPlan = useCallback(() => {
     if (!userId || !token) return;
     fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=plan,plan_expires,created_at`, {
@@ -1440,13 +1281,11 @@ function AppShell({ user, onLogout }) {
 
   useEffect(() => { refreshPlan(); }, [refreshPlan]);
 
-  // Auto refresh plan every 30s
   useEffect(() => {
     const interval = setInterval(refreshPlan, 30000);
     return () => clearInterval(interval);
   }, [refreshPlan]);
 
-  // Load settings from backend on mount
   useEffect(() => {
     if (!token || settingsLoaded) return;
     fetch(`${API_URL}/settings`, {
@@ -1455,7 +1294,6 @@ function AppShell({ user, onLogout }) {
       if (res.ok) {
         const data = await res.json();
         const dbSettings = data.settings || {};
-        // Also update plan/expires from settings response
         if (data.plan) setPlan(data.plan);
         if (data.plan_expires) setPlanExpires(data.plan_expires);
         const merged = { ...config };
@@ -1529,7 +1367,7 @@ function AppShell({ user, onLogout }) {
               {item.pro&&<span className="nav-badge">PRO</span>}
             </button>
           ))}
-          {plan!=="pro"&&(
+          {effectivePlan!=="pro"&&(
             <button className="nav-item" onClick={()=>handleUpgrade("pro")} style={{marginTop:8,color:"var(--pro)",background:"var(--pro-dim)",border:"1px solid rgba(245,158,11,.2)"}}>
               <span>★</span>Upgrade to Pro
             </button>
@@ -1540,30 +1378,31 @@ function AppShell({ user, onLogout }) {
             <div className="user-avatar">{avatarLetter}</div>
             <div style={{flex:1,minWidth:0}}>
               <div className="user-email">{email}</div>
-              <div className="user-plan" style={{color:plan==="pro"?"var(--pro)":"var(--accent2)"}}>{plan==="pro"?"★ Pro":"Basic"}</div>
+              <div className="user-plan" style={{color:isAdmin?"#ef4444":effectivePlan==="pro"?"var(--pro)":"var(--accent2)"}}>
+                {isAdmin?"🔧 Admin":effectivePlan==="pro"?"★ Pro":"Basic"}
+              </div>
             </div>
           </div>
-          <button className="nav-item" onClick={refreshPlan} style={{marginTop:4,color:"var(--text3)",fontSize:12,padding:"6px 12px"}} title="Click after payment to refresh your plan">
+          <button className="nav-item" onClick={refreshPlan} style={{marginTop:4,color:"var(--text3)",fontSize:12,padding:"6px 12px"}}>
             <span>↺</span>Refresh Plan
           </button>
           <button className="nav-item" onClick={onLogout} style={{marginTop:2,color:"var(--text3)"}}><span>→</span>Sign out</button>
         </div>
       </aside>
       <main className="main-content">
-        {/* TOP BAR: shows trial countdown OR subscription countdown */}
-        <TopBar createdAt={createdAt} plan={plan} planExpires={planExpires} onUpgrade={handleUpgrade}/>
+        <TopBar createdAt={createdAt} plan={effectivePlan} planExpires={planExpires} onUpgrade={handleUpgrade} isAdmin={isAdmin}/>
         <div className="page-header">
           <h1 className="page-title">{pageTitle}</h1>
           <p className="page-sub">{pageSub}</p>
         </div>
         <div className="page-body">
-          {page==="dashboard"&&<Dashboard history={history} plan={plan} onUpgrade={handleUpgrade} createdAt={createdAt} planExpires={planExpires}/>}
-          {page==="generate"&&<GeneratePage config={config} onHistoryUpdate={addHistory} plan={plan} createdAt={createdAt} onUpgrade={handleUpgrade}/>}
+          {page==="dashboard"&&<Dashboard history={history} plan={effectivePlan} onUpgrade={handleUpgrade} createdAt={createdAt} planExpires={planExpires} isAdmin={isAdmin}/>}
+          {page==="generate"&&<GeneratePage config={config} onHistoryUpdate={addHistory} plan={effectivePlan} createdAt={createdAt} onUpgrade={handleUpgrade} isAdmin={isAdmin}/>}
           {page==="preview"&&<PreviewPage config={config}/>}
           {page==="history"&&<HistoryPage history={history} onClear={clearHistory}/>}
-          {page==="pinterest"&&<PinterestPage config={config} history={history} plan={plan} onUpgrade={handleUpgrade}/>}
-          {page==="docs"&&<DocsPage plan={plan} onUpgrade={handleUpgrade}/>}
-          {page==="settings"&&<SettingsPage config={config} onSave={saveConfig} plan={plan} onUpgrade={handleUpgrade}/>}
+          {page==="pinterest"&&<PinterestPage config={config} history={history} plan={effectivePlan} onUpgrade={handleUpgrade}/>}
+          {page==="docs"&&<DocsPage plan={effectivePlan} onUpgrade={handleUpgrade}/>}
+          {page==="settings"&&<SettingsPage config={config} onSave={saveConfig} plan={effectivePlan} onUpgrade={handleUpgrade}/>}
         </div>
       </main>
     </div>
@@ -1594,7 +1433,6 @@ export default function NicheFlowAI() {
     setView("landing");
   }
 
-  // Landing page plan buttons → go directly to checkout (no login required)
   function handleCheckoutFromLanding(planType) {
     const url = planType === "pro" ? CHECKOUT_PRO : CHECKOUT_BASIC;
     window.open(url, "_blank");
