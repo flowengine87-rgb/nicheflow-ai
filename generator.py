@@ -464,8 +464,26 @@ def generate_midjourney_image(goapi_key, prompt, log_fn=None):
             status = data.get("status","")
             if status == "completed":
                 url = data.get("output",{}).get("image_urls",[None])[0]
-                if url: log("  ✅ MJ ready"); return {"url":url,"error":None}
-                return {"url":None,"error":"No image URL"}
+                if not url:
+                    return {"url":None,"raw_bytes":None,"error":"No image URL"}
+                # Download IMMEDIATELY — GoAPI CDN URLs expire within seconds (403 after delay)
+                log("  ✅ MJ ready — downloading now before URL expires...")
+                try:
+                    for attempt_headers in [
+                        {"User-Agent":"Mozilla/5.0","Referer":"https://goapi.ai"},
+                        {"User-Agent":"Mozilla/5.0 (compatible)","Accept":"image/*,*/*"},
+                        {},
+                    ]:
+                        dl_resp = requests.get(url, timeout=90, headers=attempt_headers)
+                        if dl_resp.status_code == 200 and len(dl_resp.content) > 1000:
+                            log(f"  ✅ MJ image downloaded ({len(dl_resp.content)//1024}KB)")
+                            return {"url":url,"raw_bytes":dl_resp.content,"error":None}
+                        log(f"  ⚠️ MJ download attempt failed: HTTP {dl_resp.status_code}")
+                    log("  ⚠️ All MJ download attempts failed — returning URL only")
+                    return {"url":url,"raw_bytes":None,"error":None}
+                except Exception as dl_e:
+                    log(f"  ⚠️ MJ download exception: {dl_e}")
+                    return {"url":url,"raw_bytes":None,"error":None}
             elif status == "failed":
                 err = data.get("error",{}).get("message","Unknown")
                 if "fast" in err.lower() or "quota" in err.lower():
@@ -1003,16 +1021,24 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
                 ip = tpl.replace("{recipe_name}", title).replace("{title}", title)
                 if "--ar" not in ip: ip += " --ar 3:2"
                 safe_log(f"  🖼️ Generating image {idx+1}/4 via Midjourney...")
+                # generate_midjourney_image now downloads bytes immediately on completion
                 res = generate_midjourney_image(goapi_key, ip, safe_log)
 
                 if not res.get("url"):
                     safe_log(f"  ❌ MJ image {idx+1} failed: {res.get('error','unknown')}")
                     return
 
-                safe_log(f"  📥 Downloading MJ image {idx+1}...")
-                raw = download_image_bytes(res["url"], safe_log)
+                # Use raw_bytes from MJ function (downloaded immediately, no 403)
+                raw = res.get("raw_bytes")
+
                 if not raw:
-                    safe_log(f"  ❌ MJ image {idx+1}: download failed")
+                    # Last resort: try downloading again (URL might still be valid)
+                    safe_log(f"  📥 MJ image {idx+1}: retrying download...")
+                    raw = download_image_bytes(res["url"], safe_log)
+
+                if not raw:
+                    safe_log(f"  ⚠️ MJ image {idx+1}: no bytes, using URL directly in article")
+                    image_results[idx]["url"] = res["url"]
                     return
 
                 image_results[idx]["raw_bytes"] = raw
@@ -1025,15 +1051,16 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
                     if up.get("success") and up.get("media_id"):
                         image_results[idx]["url"] = up["url"]
                         image_results[idx]["media_id"] = up["media_id"]
-                        safe_log(f"  ✅ MJ image {idx+1} uploaded → media_id={up['media_id']}")
+                        safe_log(f"  ✅ MJ image {idx+1} uploaded to WP → media_id={up['media_id']}")
                         return
                     else:
-                        safe_log(f"  ⚠️ MJ upload failed: {up.get('error')} — using direct URL")
+                        safe_log(f"  ⚠️ MJ WP upload failed: {up.get('error')} — using direct MJ URL")
                         image_results[idx]["url"] = res["url"]
-                elif webp:
-                    image_results[idx]["url"] = res["url"]
                 else:
+                    # No WP or webp failed — use MJ URL directly
                     image_results[idx]["url"] = res["url"]
+                    if not webp:
+                        safe_log(f"  ⚠️ WebP conversion failed for image {idx+1}, using original URL")
 
         for idx in range(4):
             t = threading.Thread(target=_gen_single, args=(idx,), daemon=True)
