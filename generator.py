@@ -1017,10 +1017,17 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
                     image_results[idx]["url"] = res.get("url","")
 
             elif goapi_key:
-                tpl = mj_template or "Close up {recipe_name}, professional photography, natural light --ar 2:3"
-                ip = tpl.replace("{recipe_name}", title).replace("{title}", title)
-                if "--ar" not in ip: ip += " --ar 3:2"
-                safe_log(f"  🖼️ Generating image {idx+1}/4 via Midjourney...")
+                # Build prompt — featured (idx=0) uses 16:9, body images use 3:2
+                base_tpl = mj_template or "Close up {recipe_name}, professional food photography, natural light"
+                # Strip any existing --ar from user template so we can set correct one
+                base_tpl_no_ar = re.sub(r"--ar\s+\S+", "", base_tpl).strip()
+                ip = base_tpl_no_ar.replace("{recipe_name}", title).replace("{title}", title)
+                # idx=0 is featured → landscape 16:9; idx 1-3 are body → portrait 3:2
+                if idx == 0:
+                    ip += " --ar 16:9"
+                else:
+                    ip += " --ar 3:2"
+                safe_log(f"  🖼️ Generating image {idx+1}/4 via Midjourney (ar={'16:9' if idx==0 else '3:2'})...")
                 # generate_midjourney_image now downloads bytes immediately on completion
                 res = generate_midjourney_image(goapi_key, ip, safe_log)
 
