@@ -1,6 +1,4 @@
-cat > /home/claude/App.jsx << 'ENDOFFILE'
 import { useState, useEffect, useRef, useCallback } from "react";
-
 // ─── Config ────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://gfulpvqqpakcgubkilwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_U9zJp_BBd-jkJCwvGimNmw_E4NyynFN";
@@ -1671,8 +1669,7 @@ export default function NicheFlowAI() {
   );
 }
 ENDOFFILE
-echo "Done. Lines: $(wc -l < /home/claude/App.jsx)"
-Sortie
 
-Command argument is 131_315 bytes, exceeding the 100_000-byte per-argument limit. For large content, pipe via stdin or use a file-write API instead of embedding the content inline in the command. Argument preview: 'cat > /home/claude/App.jsx << \'ENDOFFILE\'\nimport { useState, useEffect, useRef, useCallback } from "react";\n\n// ─── Config ────────────────────────────────────────────────────────────────\nconst SUPABA'
-Terminé
+
+
+
