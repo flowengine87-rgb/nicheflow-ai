@@ -1,3 +1,4 @@
+cat > /home/claude/App.jsx << 'ENDOFFILE'
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Config ────────────────────────────────────────────────────────────────
@@ -5,8 +6,9 @@ const SUPABASE_URL = "https://gfulpvqqpakcgubkilwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_U9zJp_BBd-jkJCwvGimNmw_E4NyynFN";
 const API_URL = "https://web-production-1f143.up.railway.app";
 
-const CHECKOUT_BASIC = "https://nicheflowai.lemonsqueezy.com/buy/basic";
-const CHECKOUT_PRO   = "https://nicheflowai.lemonsqueezy.com/buy/pro";
+// ── PADDLE CHECKOUT LINKS — replace with your real Paddle links after approval
+const CHECKOUT_BASIC = "https://buy.paddle.com/product/REPLACE_WITH_BASIC_ID";
+const CHECKOUT_PRO   = "https://buy.paddle.com/product/REPLACE_WITH_PRO_ID";
 
 // ── ADMIN: your email — bypasses trial gate, always has full Pro access locally
 const ADMIN_EMAIL = "flowengine87@gmail.com";
@@ -52,7 +54,6 @@ function getStoredConfig() {
 }
 function estimateTokens(text) { return Math.ceil(text.length / 4); }
 
-// Trial: days left since account creation
 function getDaysLeft(createdAt) {
   if (!createdAt) return TRIAL_DAYS;
   const diff = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
@@ -60,7 +61,6 @@ function getDaysLeft(createdAt) {
 }
 function isTrialExpired(createdAt) { return getDaysLeft(createdAt) === 0; }
 
-// Subscription: days left until plan_expires
 function getSubDaysLeft(planExpires) {
   if (!planExpires) return null;
   const diff = (new Date(planExpires).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
@@ -236,6 +236,29 @@ select.input{cursor:pointer;}
 code{background:var(--bg3);border:1px solid var(--border);padding:1px 6px;border-radius:5px;font-size:12px;font-family:'Courier New',monospace;color:var(--accent2);}
 pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px;font-size:12px;line-height:1.7;overflow-x:auto;color:var(--text2);font-family:'Courier New',monospace;margin:10px 0;}
 
+.legal-page{min-height:100vh;background:var(--bg);}
+.legal-container{max-width:760px;margin:0 auto;padding:60px 24px 100px;}
+.legal-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;background:var(--accent-dim);border:1px solid rgba(99,102,241,.25);border-radius:20px;font-size:12px;font-weight:600;color:var(--accent2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:20px;}
+.legal-h1{font-family:var(--font-display);font-size:clamp(28px,5vw,42px);font-weight:800;letter-spacing:-1px;margin-bottom:8px;}
+.legal-subtitle{color:var(--text3);font-size:14px;margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border);}
+.legal-h2{font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text);margin:40px 0 12px;display:flex;align-items:center;gap:10px;}
+.legal-h2::before{content:'';display:inline-block;width:4px;height:18px;background:var(--accent);border-radius:2px;flex-shrink:0;}
+.legal-p{color:var(--text2);font-size:15px;margin-bottom:14px;line-height:1.7;}
+.legal-ul{color:var(--text2);font-size:15px;padding-left:20px;margin-bottom:14px;}
+.legal-ul li{margin-bottom:8px;line-height:1.6;}
+.legal-highlight{background:var(--accent-dim);border:1px solid rgba(99,102,241,.18);border-radius:12px;padding:16px 20px;margin:20px 0;color:var(--accent2);font-size:14px;line-height:1.6;}
+.legal-green{background:var(--green-dim);border:1px solid rgba(16,185,129,.25);border-radius:12px;padding:20px 24px;margin:16px 0;}
+.legal-red{background:var(--red-dim);border:1px solid rgba(239,68,68,.2);border-radius:12px;padding:20px 24px;margin:16px 0;}
+.legal-green-title{font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--green);margin-bottom:12px;}
+.legal-red-title{font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--red);margin-bottom:12px;}
+.legal-step{display:flex;gap:16px;margin-bottom:20px;align-items:flex-start;}
+.legal-step-num{width:32px;height:32px;border-radius:50%;background:var(--accent-dim);border:1px solid rgba(99,102,241,.3);color:var(--accent2);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.legal-step-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.legal-step-desc{font-size:14px;color:var(--text2);line-height:1.6;}
+.legal-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;}
+.legal-table th{text-align:left;padding:10px 14px;background:var(--accent-dim);color:var(--accent2);font-weight:600;border:1px solid rgba(99,102,241,.2);}
+.legal-table td{padding:10px 14px;color:var(--text2);border:1px solid var(--border);}
+
 .landing{min-height:100vh;background:var(--bg);}
 .nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:14px 48px;background:rgba(8,9,13,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
 .nav-brand{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:17px;font-weight:700;background:linear-gradient(135deg,var(--accent2),#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
@@ -321,9 +344,232 @@ function Hint({ children }) {
   return <p className="hint"><span style={{ flexShrink: 0 }}>ℹ</span><span>{children}</span></p>;
 }
 
-// ─── TOP BAR — trial OR subscription countdown (hidden for admin) ──────────
+// ─── LEGAL PAGE NAV ────────────────────────────────────────────────────────
+function LegalNav() {
+  return (
+    <nav className="nav">
+      <div className="nav-brand" style={{cursor:"pointer"}} onClick={()=>window.location.href="/"}>
+        <Logo size={26}/><span>NicheFlow AI</span>
+      </div>
+      <a href="mailto:flowengine87@gmail.com" style={{fontSize:13,color:"var(--text3)",textDecoration:"none"}}>Contact</a>
+    </nav>
+  );
+}
+
+function LegalFooter() {
+  return (
+    <footer style={{borderTop:"1px solid var(--border)",padding:"28px 24px",textAlign:"center"}}>
+      <div style={{display:"flex",justifyContent:"center",gap:28,flexWrap:"wrap",marginBottom:12}}>
+        <a href="/terms" style={{fontSize:13,color:"var(--text3)",textDecoration:"none"}}>Terms of Service</a>
+        <a href="/privacy" style={{fontSize:13,color:"var(--text3)",textDecoration:"none"}}>Privacy Policy</a>
+        <a href="/refund" style={{fontSize:13,color:"var(--text3)",textDecoration:"none"}}>Refund Policy</a>
+      </div>
+      <div style={{fontSize:13,color:"var(--text3)"}}>© 2026 NicheFlow AI. All rights reserved.</div>
+    </footer>
+  );
+}
+
+// ─── TERMS OF SERVICE PAGE ─────────────────────────────────────────────────
+function TermsPage() {
+  return (
+    <div className="legal-page">
+      <style>{css}</style>
+      <LegalNav/>
+      <div className="legal-container" style={{paddingTop:100}}>
+        <div className="legal-badge">✦ Legal</div>
+        <h1 className="legal-h1">Terms of Service</h1>
+        <p className="legal-subtitle">Last updated: April 23, 2026 · Effective immediately upon account creation</p>
+        <div className="legal-highlight">By creating an account or using NicheFlow AI, you agree to these Terms of Service in full. Please read them carefully before using the platform.</div>
+
+        <h2 className="legal-h2">1. About NicheFlow AI</h2>
+        <p className="legal-p">NicheFlow AI is a SaaS platform that automates content creation, image generation, and WordPress publishing for content creators. Contact: <a href="mailto:flowengine87@gmail.com" style={{color:"var(--accent2)"}}>flowengine87@gmail.com</a></p>
+
+        <h2 className="legal-h2">2. Eligibility</h2>
+        <p className="legal-p">You must be at least 18 years old to use NicheFlow AI. By using the service, you confirm that you are legally capable of entering into a binding agreement.</p>
+
+        <h2 className="legal-h2">3. Account Registration</h2>
+        <p className="legal-p">You must provide a valid email address and a secure password to create an account. You are responsible for keeping your login credentials confidential and all activity that occurs under your account.</p>
+
+        <h2 className="legal-h2">4. Free Trial</h2>
+        <p className="legal-p">New accounts receive a 2-day free trial with full access to the platform. No credit card is required during the trial. After 2 days, access is restricted until a paid plan is purchased.</p>
+
+        <h2 className="legal-h2">5. Paid Plans & Billing</h2>
+        <p className="legal-p">NicheFlow AI offers subscription plans billed monthly:</p>
+        <ul className="legal-ul">
+          <li><strong style={{color:"var(--text)"}}>Basic — $30/month:</strong> Unlimited articles, images, WordPress publishing, internal linking.</li>
+          <li><strong style={{color:"var(--text)"}}>Pro — $40/month:</strong> Everything in Basic plus Pinterest automation, AI pin images, and scheduling.</li>
+        </ul>
+        <p className="legal-p">Payments are processed securely by Paddle. By subscribing, you authorize recurring monthly charges to your payment method until you cancel.</p>
+
+        <h2 className="legal-h2">6. Cancellation & Refunds</h2>
+        <p className="legal-p">You may cancel your subscription at any time. Cancellation takes effect at the end of the current billing period. See our <a href="/refund" style={{color:"var(--accent2)"}}>Refund Policy</a> for details on refunds.</p>
+
+        <h2 className="legal-h2">7. Acceptable Use</h2>
+        <p className="legal-p">You agree not to use NicheFlow AI to generate spam or deceptive content, violate any applicable law, reverse engineer or resell the platform, or abuse the service in a way that degrades performance for other users.</p>
+
+        <h2 className="legal-h2">8. Third-Party Services</h2>
+        <p className="legal-p">NicheFlow AI integrates with Groq, Google Gemini, GoAPI (Midjourney), WordPress REST API, Pinterest API, Supabase, and Paddle. Your use of these services is subject to their respective terms. We are not responsible for third-party service availability.</p>
+
+        <h2 className="legal-h2">9. Content Ownership</h2>
+        <p className="legal-p">You retain full ownership of all content you generate using NicheFlow AI. We do not claim any rights to your articles, images, or published posts.</p>
+
+        <h2 className="legal-h2">10. Limitation of Liability</h2>
+        <p className="legal-p">NicheFlow AI is provided "as is" without warranties of any kind. To the maximum extent permitted by law, NicheFlow AI shall not be liable for any indirect, incidental, or consequential damages arising from your use of the platform.</p>
+
+        <h2 className="legal-h2">11. Termination</h2>
+        <p className="legal-p">We reserve the right to suspend or terminate your account at any time for violation of these Terms or fraudulent activity.</p>
+
+        <h2 className="legal-h2">12. Changes to Terms</h2>
+        <p className="legal-p">We may update these Terms from time to time. Continued use after changes are posted constitutes acceptance. We will notify users of significant changes by email.</p>
+
+        <h2 className="legal-h2">13. Contact</h2>
+        <p className="legal-p">For questions: <a href="mailto:flowengine87@gmail.com" style={{color:"var(--accent2)"}}>flowengine87@gmail.com</a></p>
+      </div>
+      <LegalFooter/>
+    </div>
+  );
+}
+
+// ─── PRIVACY POLICY PAGE ───────────────────────────────────────────────────
+function PrivacyPage() {
+  return (
+    <div className="legal-page">
+      <style>{css}</style>
+      <LegalNav/>
+      <div className="legal-container" style={{paddingTop:100}}>
+        <div className="legal-badge">✦ Legal</div>
+        <h1 className="legal-h1">Privacy Policy</h1>
+        <p className="legal-subtitle">Last updated: April 23, 2026 · We take your privacy seriously.</p>
+        <div className="legal-highlight">This Privacy Policy explains what data we collect, how we use it, and your rights regarding your personal information when you use NicheFlow AI.</div>
+
+        <h2 className="legal-h2">1. Who We Are</h2>
+        <p className="legal-p">NicheFlow AI is a SaaS content automation platform. Contact: <a href="mailto:flowengine87@gmail.com" style={{color:"var(--accent2)"}}>flowengine87@gmail.com</a></p>
+
+        <h2 className="legal-h2">2. Data We Collect</h2>
+        <table className="legal-table">
+          <thead><tr><th>Data Type</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>Email address</td><td>Account creation, login, and communication</td></tr>
+            <tr><td>Password (hashed)</td><td>Authentication — never stored in plain text</td></tr>
+            <tr><td>API keys you enter</td><td>Stored encrypted to connect your AI and WordPress services</td></tr>
+            <tr><td>Generated article titles</td><td>Displayed in your history dashboard</td></tr>
+            <tr><td>Published post URLs</td><td>Stored for your history and Pinterest automation</td></tr>
+            <tr><td>Subscription plan & status</td><td>To determine your access level</td></tr>
+          </tbody>
+        </table>
+        <p className="legal-p">We do not collect your full name, phone number, home address, or financial payment information (payments are handled by Paddle).</p>
+
+        <h2 className="legal-h2">3. How We Use Your Data</h2>
+        <ul className="legal-ul">
+          <li>To provide and operate the NicheFlow AI service</li>
+          <li>To authenticate your account and protect against unauthorized access</li>
+          <li>To process subscription payments via Paddle</li>
+          <li>To send transactional emails (account confirmation, payment receipts)</li>
+          <li>To respond to your support requests</li>
+        </ul>
+        <p className="legal-p">We do <strong style={{color:"var(--text)"}}>not</strong> sell, rent, or share your personal data with third parties for marketing purposes.</p>
+
+        <h2 className="legal-h2">4. Third-Party Services</h2>
+        <ul className="legal-ul">
+          <li><strong style={{color:"var(--text)"}}>Supabase</strong> — Database and authentication</li>
+          <li><strong style={{color:"var(--text)"}}>Groq / Google Gemini</strong> — AI text generation. Your article titles are sent to these APIs.</li>
+          <li><strong style={{color:"var(--text)"}}>GoAPI (Midjourney)</strong> — Image generation. Your image prompts are sent to this API.</li>
+          <li><strong style={{color:"var(--text)"}}>WordPress REST API</strong> — Publishing to your own WordPress site</li>
+          <li><strong style={{color:"var(--text)"}}>Pinterest API</strong> — Pin creation using your access token</li>
+          <li><strong style={{color:"var(--text)"}}>Paddle</strong> — Processes subscription payments. We never see your card details.</li>
+          <li><strong style={{color:"var(--text)"}}>Railway / Vercel</strong> — Hosting infrastructure</li>
+        </ul>
+
+        <h2 className="legal-h2">5. Data Storage & Security</h2>
+        <p className="legal-p">Your data is stored securely on Supabase with row-level security. API keys are stored encrypted. Passwords are hashed and never stored in plain text. We use HTTPS for all data transmission.</p>
+
+        <h2 className="legal-h2">6. Your Rights</h2>
+        <ul className="legal-ul">
+          <li><strong style={{color:"var(--text)"}}>Access</strong> — Request a copy of the data we hold about you</li>
+          <li><strong style={{color:"var(--text)"}}>Correction</strong> — Ask us to correct inaccurate data</li>
+          <li><strong style={{color:"var(--text)"}}>Deletion</strong> — Request deletion of your account and personal data</li>
+          <li><strong style={{color:"var(--text)"}}>Portability</strong> — Request your data in a portable format</li>
+        </ul>
+        <p className="legal-p">To exercise these rights: <a href="mailto:flowengine87@gmail.com" style={{color:"var(--accent2)"}}>flowengine87@gmail.com</a></p>
+
+        <h2 className="legal-h2">7. Cookies</h2>
+        <p className="legal-p">NicheFlow AI uses minimal cookies and browser local storage for session management and saving your settings locally. We do not use tracking cookies or third-party advertising cookies.</p>
+
+        <h2 className="legal-h2">8. Contact</h2>
+        <p className="legal-p">For privacy questions: <a href="mailto:flowengine87@gmail.com" style={{color:"var(--accent2)"}}>flowengine87@gmail.com</a></p>
+      </div>
+      <LegalFooter/>
+    </div>
+  );
+}
+
+// ─── REFUND POLICY PAGE ────────────────────────────────────────────────────
+function RefundPage() {
+  return (
+    <div className="legal-page">
+      <style>{css}</style>
+      <LegalNav/>
+      <div className="legal-container" style={{paddingTop:100}}>
+        <div className="legal-badge">✦ Legal</div>
+        <h1 className="legal-h1">Refund Policy</h1>
+        <p className="legal-subtitle">Last updated: April 23, 2026 · We want you to be satisfied.</p>
+        <div className="legal-highlight">We offer a <strong>7-day money-back guarantee</strong> for all new paid subscriptions. If you are not satisfied within the first 7 days of your first payment, contact us for a full refund — no questions asked.</div>
+
+        <h2 className="legal-h2">Free Trial First</h2>
+        <p className="legal-p">Before any payment, every new user gets a <strong style={{color:"var(--text)"}}>2-day free trial</strong> with full access to the platform. We encourage you to use the trial to evaluate the service before subscribing. No credit card is required.</p>
+
+        <h2 className="legal-h2">Eligible for a Refund</h2>
+        <div className="legal-green">
+          <div className="legal-green-title">✓ You qualify for a full refund if:</div>
+          <ul className="legal-ul">
+            <li>You request a refund within <strong>7 days</strong> of your first payment on a new subscription</li>
+            <li>You experienced a technical issue on our end that prevented you from using the service</li>
+            <li>You were charged incorrectly or more than once due to a billing error</li>
+          </ul>
+        </div>
+
+        <h2 className="legal-h2">Not Eligible for a Refund</h2>
+        <div className="legal-red">
+          <div className="legal-red-title">✗ Refunds are not issued if:</div>
+          <ul className="legal-ul">
+            <li>More than 7 days have passed since your first payment on the current subscription</li>
+            <li>You are requesting a refund for a renewal charge (you had access during the billing period)</li>
+            <li>Your account was suspended due to a violation of our Terms of Service</li>
+            <li>You forgot to cancel before the renewal date</li>
+          </ul>
+        </div>
+
+        <h2 className="legal-h2">How to Request a Refund</h2>
+        <div>
+          {[
+            {n:"1", t:"Email us within 7 days", d:<>Send an email to <a href="mailto:flowengine87@gmail.com" style={{color:"var(--accent2)"}}>flowengine87@gmail.com</a> with subject: <strong>"Refund Request — NicheFlow AI"</strong></>},
+            {n:"2", t:"Include your details", d:"Provide the email address you used to sign up and the approximate date of your payment."},
+            {n:"3", t:"Processed within 3–5 business days", d:"Once approved, your refund is processed through Paddle. Funds appear within 5–10 business days depending on your bank."},
+          ].map(s=>(
+            <div key={s.n} className="legal-step">
+              <div className="legal-step-num">{s.n}</div>
+              <div>
+                <div className="legal-step-title">{s.t}</div>
+                <div className="legal-step-desc">{s.d}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <h2 className="legal-h2">Cancellation</h2>
+        <p className="legal-p">You can cancel your subscription at any time. Cancellation stops future charges but does not issue a refund for the current billing period — you keep access until the end of the period you paid for.</p>
+        <p className="legal-p">To cancel, contact us at <a href="mailto:flowengine87@gmail.com" style={{color:"var(--accent2)"}}>flowengine87@gmail.com</a> or manage your subscription via Paddle's customer portal (link sent in your payment confirmation email).</p>
+
+        <h2 className="legal-h2">Contact</h2>
+        <p className="legal-p"><a href="mailto:flowengine87@gmail.com" style={{color:"var(--accent2)"}}>flowengine87@gmail.com</a> — We respond within 24 hours on business days.</p>
+      </div>
+      <LegalFooter/>
+    </div>
+  );
+}
+
+// ─── TOP BAR ───────────────────────────────────────────────────────────────
 function TopBar({ createdAt, plan, planExpires, onUpgrade, isAdmin }) {
-  // Admin: show admin badge, no trial
   if (isAdmin) {
     return (
       <div className="top-bar top-bar-admin">
@@ -331,8 +577,6 @@ function TopBar({ createdAt, plan, planExpires, onUpgrade, isAdmin }) {
       </div>
     );
   }
-
-  // Pro with plan_expires — show subscription countdown
   if (plan === "pro" && planExpires) {
     const daysLeft = getSubDaysLeft(planExpires);
     if (daysLeft === null) return null;
@@ -353,8 +597,6 @@ function TopBar({ createdAt, plan, planExpires, onUpgrade, isAdmin }) {
       </div>
     );
   }
-
-  // Basic user — show trial countdown
   if (plan !== "pro") {
     const daysLeft = getDaysLeft(createdAt);
     const expired = daysLeft === 0;
@@ -364,7 +606,6 @@ function TopBar({ createdAt, plan, planExpires, onUpgrade, isAdmin }) {
       : daysLeft === 1
       ? "⏰ Last day of your free trial — upgrade before it expires"
       : `🎉 ${daysLeft} days left in your free trial`;
-
     return (
       <div className={`top-bar ${cls}`}>
         <span><strong>{msg}</strong></span>
@@ -375,7 +616,6 @@ function TopBar({ createdAt, plan, planExpires, onUpgrade, isAdmin }) {
       </div>
     );
   }
-
   return null;
 }
 
@@ -406,16 +646,16 @@ function TrialExpiredGate({ onUpgrade }) {
             <button className="btn btn-pro" style={{width:"100%"}} onClick={()=>onUpgrade("pro")}>Get Pro ★</button>
           </div>
         </div>
-        <p style={{fontSize:12,color:"var(--text3)"}}>Secure checkout · Cancel anytime</p>
+        <p style={{fontSize:12,color:"var(--text3)"}}>Secure checkout via Paddle · Cancel anytime</p>
       </div>
     </div>
   );
 }
 
-// ─── CHECKOUT MODAL ────────────────────────────────────────────────────────
+// ─── CHECKOUT MODAL — PADDLE ───────────────────────────────────────────────
 function CheckoutModal({ plan, onClose, userEmail }) {
   const url = plan === "pro" ? CHECKOUT_PRO : CHECKOUT_BASIC;
-  const fullUrl = `${url}?checkout[email]=${encodeURIComponent(userEmail || "")}`;
+  const fullUrl = `${url}?prefilled_email=${encodeURIComponent(userEmail || "")}`;
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e=>e.stopPropagation()} style={{ maxWidth:480 }}>
@@ -438,7 +678,7 @@ function CheckoutModal({ plan, onClose, userEmail }) {
             style={{ width:"100%",marginBottom:12 }}>
             Continue to Payment →
           </a>
-          <p style={{ fontSize:12,color:"var(--text3)" }}>Secure checkout via LemonSqueezy · Cancel anytime</p>
+          <p style={{ fontSize:12,color:"var(--text3)" }}>Secure checkout via Paddle · Cancel anytime</p>
         </div>
       </div>
     </div>
@@ -522,9 +762,17 @@ function LandingPage({ onLogin, onSignup, onCheckout }) {
           <button className="btn btn-ghost" onClick={onSignup} style={{fontSize:13,color:"var(--text3)"}}>Or try free for 2 days — no credit card needed →</button>
         </div>
       </section>
-      <footer style={{ borderTop:"1px solid var(--border)",padding:"32px 48px",display:"flex",justifyContent:"space-between",alignItems:"center",maxWidth:1100,margin:"0 auto" }}>
-        <div className="nav-brand"><Logo size={20}/><span>NicheFlow AI</span></div>
-        <div style={{ fontSize:13,color:"var(--text3)" }}>© 2026 NicheFlow AI. All rights reserved.</div>
+      {/* ── FOOTER WITH LEGAL LINKS ── */}
+      <footer style={{ borderTop:"1px solid var(--border)",padding:"32px 48px",maxWidth:1100,margin:"0 auto" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:16 }}>
+          <div className="nav-brand"><Logo size={20}/><span>NicheFlow AI</span></div>
+          <div style={{ display:"flex",gap:24,flexWrap:"wrap" }}>
+            <a href="/terms" style={{ fontSize:13,color:"var(--text3)",textDecoration:"none" }}>Terms of Service</a>
+            <a href="/privacy" style={{ fontSize:13,color:"var(--text3)",textDecoration:"none" }}>Privacy Policy</a>
+            <a href="/refund" style={{ fontSize:13,color:"var(--text3)",textDecoration:"none" }}>Refund Policy</a>
+          </div>
+          <div style={{ fontSize:13,color:"var(--text3)" }}>© 2026 NicheFlow AI. All rights reserved.</div>
+        </div>
       </footer>
     </div>
   );
@@ -671,7 +919,6 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
   const [progress, setProgress] = useState(0);
   const logRef = useRef(null);
 
-  // Admin bypasses trial gate entirely
   const expired = isTrialExpired(createdAt) && plan !== "pro" && !isAdmin;
 
   const addLog = useCallback((msg, type="info") => {
@@ -729,14 +976,9 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
         });
         let data;
         try{data=await res.json();}catch{data={success:false,error:`Server ${res.status}`};}
-
-        // Show pipeline logs from backend (image generation, upload, etc.)
         if(data.logs && Array.isArray(data.logs)){
-          for(const logMsg of data.logs){
-            addLog(logMsg, detectLogType(logMsg));
-          }
+          for(const logMsg of data.logs){ addLog(logMsg, detectLogType(logMsg)); }
         }
-
         if(data.success){
           addLog(`✅ Published → ${data.post_url}`,"ok");
           if(data.featured_image_url) addLog(`🖼️ Featured image set`,"ok");
@@ -1042,12 +1284,7 @@ function PreviewPage({ config }) {
   );
 }
 
-// ─── PINTEREST PAGE — PATCHED ─────────────────────────────────────────────
-// Changes:
-// 1. Auto-loads boards on mount (useEffect)
-// 2. Added scheduled_at date+time picker
-// 3. Passes scheduled_at to /pinterest/run API call
-
+// ─── PINTEREST PAGE ────────────────────────────────────────────────────────
 function PinterestPage({ config, history, plan, onUpgrade }) {
   const [boards, setBoards] = useState([]);
   const [selectedBoards, setSelectedBoards] = useState([]);
@@ -1057,7 +1294,6 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
   const [logs, setLogs] = useState([]);
   const [pinPreviews, setPinPreviews] = useState([]);
   const [previewModal, setPreviewModal] = useState(null);
-  // Schedule state
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("09:00");
@@ -1082,11 +1318,8 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
     setTimeout(()=>{if(logRef.current)logRef.current.scrollTop=logRef.current.scrollHeight;},50);
   },[]);
 
-  // AUTO-LOAD boards when page opens (if token is configured)
   useEffect(()=>{
-    if(config.pinterest_token && boards.length === 0){
-      loadBoards();
-    }
+    if(config.pinterest_token && boards.length === 0){ loadBoards(); }
   // eslint-disable-next-line
   },[config.pinterest_token]);
 
@@ -1097,10 +1330,8 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
     try{
       const res=await apiCall("/pinterest/boards");
       const data=await res.json();
-      if(res.ok){
-        setBoards(data.boards||[]);
-        if(!data.boards?.length) setBoardError("No boards found. Check your Pinterest token in Settings.");
-      } else setBoardError(data.detail||"Failed to load boards");
+      if(res.ok){ setBoards(data.boards||[]); if(!data.boards?.length) setBoardError("No boards found. Check your Pinterest token in Settings."); }
+      else setBoardError(data.detail||"Failed to load boards");
     }catch(e){setBoardError(e.message);}
     finally{setLoadingBoards(false);}
   }
@@ -1108,30 +1339,20 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
   async function runPinterest(){
     if(!publishedArticles.length){addLog("No published articles to pin.","warn");return;}
     if(!selectedBoards.length){addLog("Select at least one board.","warn");return;}
-
-    // Build scheduled_at ISO string if scheduling enabled
     let scheduled_at = null;
     if(scheduleEnabled && scheduleDate){
       scheduled_at = `${scheduleDate}T${scheduleTime || "09:00"}:00`;
       addLog(`📅 Scheduling pins for: ${scheduled_at}`, "info");
     }
-
     setRunning(true);
     addLog(`Starting Pinterest bot: ${publishedArticles.length} articles → ${selectedBoards.length} board(s)`,"ok");
     try{
-      const res=await apiCall("/pinterest/run",{method:"POST",body:JSON.stringify({
-        board_ids:selectedBoards,
-        pin_image_prompt:config.pin_image_prompt||"",
-        scheduled_at,
-      })});
+      const res=await apiCall("/pinterest/run",{method:"POST",body:JSON.stringify({board_ids:selectedBoards,pin_image_prompt:config.pin_image_prompt||"",scheduled_at})});
       const data=await res.json();
       if(res.ok){
         const results=data.results||[];
         setPinPreviews(results);
-        results.forEach(r=>{
-          addLog(`📌 ${r.title}`,"info");
-          r.boards?.forEach(b=>{addLog(b.success?`  ✅ Board ${b.board_id} → Pin ${b.pin_id}`:`  ❌ ${b.error}`,b.success?"ok":"err");});
-        });
+        results.forEach(r=>{ addLog(`📌 ${r.title}`,"info"); r.boards?.forEach(b=>{addLog(b.success?`  ✅ Board ${b.board_id} → Pin ${b.pin_id}`:`  ❌ ${b.error}`,b.success?"ok":"err");}); });
         addLog(`Done! ${results.filter(r=>r.status==="sent").length}/${results.length} pinned.`,"ok");
       } else addLog(`❌ ${data.detail||"Pinterest run failed"}`,"err");
     }catch(e){addLog(`❌ ${e.message}`,"err");}
@@ -1140,8 +1361,6 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
 
   function toggleBoard(id){setSelectedBoards(prev=>prev.includes(id)?prev.filter(b=>b!==id):[...prev,id]);}
   const logCls={ok:"log-ok",err:"log-err",info:"log-info",warn:"log-warn"};
-
-  // Get tomorrow's date as default minimum for scheduling
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
@@ -1155,8 +1374,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
             <div className="pin-preview">
               {(previewModal.pin_image_url||previewModal.featured_image_url)
                 ?<img src={previewModal.pin_image_url||previewModal.featured_image_url} alt={previewModal.pin_title} className="pin-img" style={{height:240}}/>
-                :<div className="pin-img" style={{height:240,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)"}}>No pin image</div>
-              }
+                :<div className="pin-img" style={{height:240,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)"}}>No pin image</div>}
               <div className="pin-body">
                 <div className="pin-title">{previewModal.pin_title}</div>
                 <div className="pin-desc">{previewModal.pin_description}</div>
@@ -1166,14 +1384,11 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
           </div>
         </div>
       )}
-
       <div style={{display:"grid",gridTemplateColumns:"1.3fr 1fr",gap:18,marginBottom:18}}>
         <div className="card">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
             <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600}}>Pinterest Boards</div>
-            <button className="btn btn-ghost btn-sm" onClick={loadBoards} disabled={loadingBoards}>
-              {loadingBoards?<><span className="spinner spinner-accent"/>Loading...</>:"↺ Refresh Boards"}
-            </button>
+            <button className="btn btn-ghost btn-sm" onClick={loadBoards} disabled={loadingBoards}>{loadingBoards?<><span className="spinner spinner-accent"/>Loading...</>:"↺ Refresh Boards"}</button>
           </div>
           {!config.pinterest_token&&<div className="alert alert-warn" style={{marginTop:10}}>⚠️ No Pinterest token. Go to Settings → Pinterest first.</div>}
           {boardError&&<div className="alert alert-err" style={{marginTop:10}}>{boardError}</div>}
@@ -1188,13 +1403,8 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
                 </div>
               ))}
             </div>
-          ):(
-            !loadingBoards&&config.pinterest_token&&<div style={{marginTop:14,color:"var(--text3)",fontSize:13,textAlign:"center",padding:"20px 0"}}>
-              No boards loaded yet. Click Refresh Boards.
-            </div>
-          )}
+          ):(!loadingBoards&&config.pinterest_token&&<div style={{marginTop:14,color:"var(--text3)",fontSize:13,textAlign:"center",padding:"20px 0"}}>No boards loaded yet. Click Refresh Boards.</div>)}
         </div>
-
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div className="card">
             <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:12}}>Queue Status</div>
@@ -1203,65 +1413,36 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
             <div className="divider"/>
             <div style={{fontSize:13,color:"var(--text2)",marginBottom:8}}>{selectedBoards.length} board{selectedBoards.length!==1?"s":""} selected</div>
           </div>
-
-          {/* Schedule picker */}
           <div className="card">
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:scheduleEnabled?14:0}}>
-              <div>
-                <div style={{fontSize:14,fontWeight:500}}>📅 Schedule pins</div>
-                <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Pin at a specific date & time</div>
-              </div>
-              <label className="toggle">
-                <input type="checkbox" checked={scheduleEnabled} onChange={e=>setScheduleEnabled(e.target.checked)}/>
-                <span className="toggle-slider"/>
-              </label>
+              <div><div style={{fontSize:14,fontWeight:500}}>📅 Schedule pins</div><div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>Pin at a specific date & time</div></div>
+              <label className="toggle"><input type="checkbox" checked={scheduleEnabled} onChange={e=>setScheduleEnabled(e.target.checked)}/><span className="toggle-slider"/></label>
             </div>
             {scheduleEnabled&&(
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <div>
-                  <label className="form-label">Date</label>
-                  <input className="input" type="date" value={scheduleDate} min={tomorrowStr}
-                    onChange={e=>setScheduleDate(e.target.value)}/>
-                </div>
-                <div>
-                  <label className="form-label">Time</label>
-                  <input className="input" type="time" value={scheduleTime}
-                    onChange={e=>setScheduleTime(e.target.value)}/>
-                </div>
-                {scheduleDate&&<div className="alert alert-info" style={{fontSize:12}}>
-                  📅 Pins will be scheduled for {scheduleDate} at {scheduleTime}
-                </div>}
+                <div><label className="form-label">Date</label><input className="input" type="date" value={scheduleDate} min={tomorrowStr} onChange={e=>setScheduleDate(e.target.value)}/></div>
+                <div><label className="form-label">Time</label><input className="input" type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)}/></div>
+                {scheduleDate&&<div className="alert alert-info" style={{fontSize:12}}>📅 Pins will be scheduled for {scheduleDate} at {scheduleTime}</div>}
               </div>
             )}
           </div>
-
-          <button className="btn btn-pro" style={{width:"100%",padding:"13px"}} onClick={runPinterest}
-            disabled={running||!publishedArticles.length||!selectedBoards.length||(scheduleEnabled&&!scheduleDate)}>
-            {running?<><span className="spinner"/>Pinning...</>:
-              scheduleEnabled&&scheduleDate
-                ? `📅 Schedule ${publishedArticles.length} Pin${publishedArticles.length!==1?"s":""}`
-                : `📌 Pin ${publishedArticles.length} Article${publishedArticles.length!==1?"s":""}`
-            }
+          <button className="btn btn-pro" style={{width:"100%",padding:"13px"}} onClick={runPinterest} disabled={running||!publishedArticles.length||!selectedBoards.length||(scheduleEnabled&&!scheduleDate)}>
+            {running?<><span className="spinner"/>Pinning...</>: scheduleEnabled&&scheduleDate ? `📅 Schedule ${publishedArticles.length} Pin${publishedArticles.length!==1?"s":""}` : `📌 Pin ${publishedArticles.length} Article${publishedArticles.length!==1?"s":""}`}
           </button>
         </div>
       </div>
-
       {pinPreviews.length>0&&(
         <div className="card" style={{marginBottom:18}}>
           <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:14}}>Pin Results</div>
           {pinPreviews.map((p,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:i<pinPreviews.length-1?"1px solid var(--border)":"none",cursor:"pointer"}} onClick={()=>setPreviewModal(p)}>
               <span className={`dot ${p.status==="sent"?"dot-green":"dot-red"}`}/>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:500}}>{p.title}</div>
-                <div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>📌 {p.pin_title} · Hook: "{p.hook_title}"</div>
-              </div>
+              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:500}}>{p.title}</div><div style={{fontSize:12,color:"var(--text3)",marginTop:2}}>📌 {p.pin_title} · Hook: "{p.hook_title}"</div></div>
               <button className="btn btn-ghost btn-sm" onClick={e=>{e.stopPropagation();setPreviewModal(p);}}>Preview →</button>
             </div>
           ))}
         </div>
       )}
-
       <div className="card">
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
           <span className={`dot ${running?"dot-green dot-pulse":"dot-yellow"}`}/>
@@ -1270,34 +1451,24 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
         </div>
         <div className="process-log" ref={logRef}>
           {logs.length===0?<div style={{color:"var(--text3)",fontFamily:"var(--font)"}}>Select boards and click Pin to start...</div>
-            :logs.map((l,i)=><div key={i} className="log-line"><span className="log-time">[{l.time}]</span><span className={logCls[l.type]||""}>{l.msg}</span></div>)
-          }
+            :logs.map((l,i)=><div key={i} className="log-line"><span className="log-time">[{l.time}]</span><span className={logCls[l.type]||""}>{l.msg}</span></div>)}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── DOCUMENTATION PAGE ─────────────────────────────────────────────────────
-// ─── DOCUMENTATION PAGE (FIXED — all sections complete) ───────────────────
-// Replace the entire DocsPage function in App.jsx with this.
-
+// ─── DOCS PAGE ─────────────────────────────────────────────────────────────
 function DocsPage({ plan, onUpgrade }) {
   const [section, setSection] = useState("start");
   const sections = [
-    { id: "start",     label: "🚀 Quick Start" },
-    { id: "api",       label: "🔑 API Keys" },
-    { id: "wordpress", label: "🌐 WordPress" },
-    { id: "prompts",   label: "💬 Prompts & Cards" },
-    { id: "images",    label: "🖼️ Images & WebP" },
-    { id: "links",     label: "🔗 Internal Links" },
-    { id: "pinterest", label: "📌 Pinterest (Pro)" },
-    { id: "billing",   label: "💳 Billing & Plans" },
+    { id: "start", label: "🚀 Quick Start" },{ id: "api", label: "🔑 API Keys" },
+    { id: "wordpress", label: "🌐 WordPress" },{ id: "prompts", label: "💬 Prompts & Cards" },
+    { id: "images", label: "🖼️ Images & WebP" },{ id: "links", label: "🔗 Internal Links" },
+    { id: "pinterest", label: "📌 Pinterest (Pro)" },{ id: "billing", label: "💳 Billing & Plans" },
   ];
-
   return (
     <div className="fade-up" style={{ display: "flex", gap: 24 }}>
-      {/* Sidebar nav */}
       <div style={{ width: 190, flexShrink: 0 }}>
         <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 8, position: "sticky", top: 20 }}>
           {sections.map(s => (
@@ -1311,387 +1482,15 @@ function DocsPage({ plan, onUpgrade }) {
           ))}
         </div>
       </div>
-
-      {/* Content */}
       <div style={{ flex: 1 }}>
-
-        {/* ── QUICK START ── */}
-        {section === "start" && (
-          <div className="doc-section">
-            <h3>🚀 Quick Start</h3>
-            <p style={{ fontSize: 14, color: "var(--text2)", marginBottom: 20, lineHeight: 1.7 }}>
-              Get your first article published in under 5 minutes.
-            </p>
-            {[
-              { n: "1", t: "Get a free AI key",
-                d: <> Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>console.groq.com</a> — free key starting with <code>gsk_</code>. Or use Gemini at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>aistudio.google.com</a> (starts with <code>AIza</code>). Both are free. </> },
-              { n: "2", t: "Configure API Keys",
-                d: <> Go to <strong>Settings → API Keys</strong>, paste your key, hit <strong>Test</strong>, then <strong>Save Settings</strong>. If you have both Groq and Gemini, enter them comma-separated — the app uses Groq first and falls back to Gemini automatically. </> },
-              { n: "3", t: "Connect WordPress",
-                d: <> Go to <strong>Settings → WordPress</strong>. Enter your site URL (e.g. <code>https://yoursite.com</code>) and an App Password in format <code>username:xxxx xxxx xxxx xxxx</code>. Hit <strong>Test Connection</strong> to confirm. </> },
-              { n: "4", t: "Write your Prompts",
-                d: <> Go to <strong>Settings → Prompts</strong>. Write your Article Prompt (use <code>{"{title}"}</code> as placeholder) and your Card Prompt. The AI will follow your exact instructions for tone, style, structure. </> },
-              { n: "5", t: "Set up Images (optional)",
-                d: <> Go to <strong>Settings → Images</strong>. Paste a Midjourney template (needs GoAPI key) or turn on Pollinations for free images. Include <code>--ar 1:1</code> to control crop ratio. </> },
-              { n: "6", t: "Generate your first article",
-                d: <> Go to <strong>Generate</strong>, paste one or more article titles (one per line), and click <strong>Generate</strong>. Watch the Process Log — it shows every step including image upload status. </> },
-            ].map(s => (
-              <div key={s.n} className="doc-step">
-                <div className="doc-step-num">{s.n}</div>
-                <div className="doc-step-text">
-                  <div className="doc-step-title">{s.t}</div>
-                  <div className="doc-step-desc">{s.d}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── API KEYS ── */}
-        {section === "api" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="doc-section">
-              <h3>🔑 AI Keys — Groq & Gemini</h3>
-              <div className="alert alert-info" style={{ marginBottom: 16 }}>
-                You can use Groq, Gemini, or both. Enter both comma-separated for automatic fallback — if Groq hits a rate limit, Gemini is used instead.
-              </div>
-              {[
-                { t: "Groq (recommended, free)",
-                  d: <> Sign up at <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>console.groq.com</a>. Go to <strong>API Keys → Create API Key</strong>. Key starts with <code>gsk_</code>. Free tier includes generous daily limits. Model used: <code>llama-3.1-8b-instant</code>. </> },
-                { t: "Gemini (backup, free)",
-                  d: <> Sign up at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>aistudio.google.com</a>. Click <strong>Get API Key</strong>. Key starts with <code>AIza</code>. Model used: <code>gemini-2.0-flash</code>. </> },
-                { t: "Using both keys",
-                  d: <> In the API Key field, enter both separated by a comma: <code>gsk_abc123, AIzaSyXxx</code>. Groq is tried first. If it fails (rate limit or error), Gemini is tried automatically. This gives you zero-downtime article generation. </> },
-                { t: "Testing your key",
-                  d: "Click the Test button next to the key field. It makes a live API call and tells you if the key is valid. Always test before running a batch." },
-              ].map((s, i) => (
-                <div key={i} className="doc-step">
-                  <div className="doc-step-num">{i + 1}</div>
-                  <div className="doc-step-text">
-                    <div className="doc-step-title">{s.t}</div>
-                    <div className="doc-step-desc">{s.d}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="doc-section">
-              <h3>🔑 GoAPI Key (Midjourney images)</h3>
-              <div className="alert alert-warn" style={{ marginBottom: 14 }}>GoAPI is only needed for Midjourney images. If you use Pollinations (free), you can skip this entirely.</div>
-              {[
-                { t: "Get your GoAPI key", d: <> Sign up at <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>goapi.ai</a>. Go to <strong>Dashboard → API Keys</strong> and copy your key. Paste it in <strong>Settings → API Keys → GoAPI Key</strong>. </> },
-                { t: "How it works", d: "GoAPI submits your image prompt to Midjourney, waits for the 2×2 grid result, then NicheFlow crops it into 4 individual images, converts them to WebP, and uploads all 4 to WordPress." },
-                { t: "Cost", d: "GoAPI charges per Midjourney generation. Each article uses 1 MJ request (which gives 4 cropped images). Check GoAPI's current pricing on their dashboard." },
-              ].map((s, i) => (
-                <div key={i} className="doc-step">
-                  <div className="doc-step-num">{i + 1}</div>
-                  <div className="doc-step-text">
-                    <div className="doc-step-title">{s.t}</div>
-                    <div className="doc-step-desc">{s.d}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── WORDPRESS ── */}
-        {section === "wordpress" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="doc-section">
-              <h3>🌐 Connecting WordPress</h3>
-              {[
-                { t: "Site URL",
-                  d: <> Enter your full site URL including <code>https://</code>, no trailing slash. Example: <code>https://myblog.com</code>. Works with any WordPress host — Hostinger, WP Engine, Bluehost, self-hosted, etc. </> },
-                { t: "Create an Application Password",
-                  d: <> In WordPress: go to <strong>Users → Profile</strong> → scroll to <strong>Application Passwords</strong> → enter a name like "NicheFlow" → click <strong>Add New Application Password</strong>. Copy the generated password immediately (it won't show again). </> },
-                { t: "Format the credentials",
-                  d: <> In NicheFlow, enter it as: <code>yourusername:xxxx xxxx xxxx xxxx</code>. Replace <code>yourusername</code> with your WordPress admin username (not email). The password is the one WordPress just generated with spaces included. </> },
-                { t: "Test the connection",
-                  d: "Click Test Connection — it makes a live call to your WordPress REST API. If it succeeds, it shows your WordPress display name. If it fails, double-check the username and that the App Password was copied correctly." },
-                { t: "Required WordPress settings",
-                  d: <> Make sure <strong>Permalinks</strong> are not set to Plain (WordPress → Settings → Permalinks → choose any option except Plain). Plain permalinks break the REST API. </> },
-              ].map((s, i) => (
-                <div key={i} className="doc-step">
-                  <div className="doc-step-num">{i + 1}</div>
-                  <div className="doc-step-text">
-                    <div className="doc-step-title">{s.t}</div>
-                    <div className="doc-step-desc">{s.d}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="doc-section">
-              <h3>🌐 Publish Settings</h3>
-              {[
-                { t: "Publish immediately vs Draft",
-                  d: "In Settings → WordPress, set the default status. You can also override per-batch in the Generate page using the 'Save as Draft' toggle. Draft lets you review before going live." },
-                { t: "Delay between articles",
-                  d: "Set a delay (in seconds) between articles in a batch. Useful to avoid overwhelming your server or hitting API rate limits. 10–30 seconds is a safe default for most setups." },
-              ].map((s, i) => (
-                <div key={i} className="doc-step">
-                  <div className="doc-step-num">{i + 1}</div>
-                  <div className="doc-step-text">
-                    <div className="doc-step-title">{s.t}</div>
-                    <div className="doc-step-desc">{s.d}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── PROMPTS & CARDS ── */}
-        {section === "prompts" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="doc-section">
-              <h3>💬 Article Prompt</h3>
-              <div className="alert alert-info" style={{ marginBottom: 14 }}>
-                The article prompt is your main instruction to the AI. Write it as if briefing a writer. Be specific about tone, structure, length, style, and audience.
-              </div>
-              {[
-                { t: "Required placeholder",
-                  d: <> Always include <code>{"{title}"}</code> somewhere in your prompt. It gets replaced with the actual article title before the AI call. Without it, every article will ignore the title. </> },
-                { t: "Required JSON output",
-                  d: <> The AI must return valid JSON. Tell it to return: <code>{"html_content"}</code>, <code>{"seo_title"}</code>, <code>{"excerpt"}</code>, and color hex fields: <code>MAIN</code>, <code>MAIN_DARK</code>, <code>LIGHT_BG</code>, <code>BORDER</code>. These colors are used in the summary card. </> },
-                { t: "Image placeholders",
-                  d: <> Include <code>##IMAGE1##</code>, <code>##IMAGE2##</code>, <code>##IMAGE3##</code> in the html_content where you want images injected. The AI should place them naturally inside the article — e.g. after the intro, mid-article, and near the end. </> },
-                { t: "Example prompt structure",
-                  d: null },
-              ].map((s, i) => (
-                <div key={i} className="doc-step">
-                  <div className="doc-step-num">{i + 1}</div>
-                  <div className="doc-step-text">
-                    <div className="doc-step-title">{s.t}</div>
-                    {s.d && <div className="doc-step-desc">{s.d}</div>}
-                    {i === 3 && (
-                      <pre>{`You are Emma, a warm mama blogger writing for new moms.
-Write a detailed, helpful article about: {title}
-
-Guidelines:
-- 1800–2200 words, conversational tone
-- Include personal anecdotes
-- Use H2/H3 headings
-- Place ##IMAGE1## after the intro
-- Place ##IMAGE2## halfway through
-- Place ##IMAGE3## near the end
-
-Return ONLY valid JSON:
-{
-  "seo_title": "...",
-  "excerpt": "...(1–2 sentences)...",
-  "html_content": "...(full HTML article)...",
-  "MAIN": "#hex",
-  "MAIN_DARK": "#hex",
-  "LIGHT_BG": "#hex",
-  "BORDER": "#hex"
-}`}</pre>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="doc-section">
-              <h3>🃏 Card Prompt</h3>
-              <div className="alert alert-info" style={{ marginBottom: 14 }}>
-                The card is a summary widget appended at the end of each article. It drives saves and shares. Keep it punchy and scannable.
-              </div>
-              {[
-                { t: "What the card outputs",
-                  d: <> The AI must return: <code>card_title</code> (short), <code>summary</code> (2 sentences), <code>key_points</code> (array of bullet strings), <code>quick_facts</code> (array of label/value pairs), <code>cta_text</code> (button label, e.g. "Save this! 📌"). </> },
-                { t: "CTA button behavior",
-                  d: "The CTA button in the card triggers browser share (Web Share API) if available on mobile, or copies the URL on desktop. It's designed to encourage saving and sharing." },
-                { t: "Example card prompt",
-                  d: null },
-              ].map((s, i) => (
-                <div key={i} className="doc-step">
-                  <div className="doc-step-num">{i + 1}</div>
-                  <div className="doc-step-text">
-                    <div className="doc-step-title">{s.t}</div>
-                    {s.d && <div className="doc-step-desc">{s.d}</div>}
-                    {i === 2 && (
-                      <pre>{`For the article "{title}", create a summary card.
-Return ONLY valid JSON:
-{
-  "card_title": "Quick Summary",
-  "summary": "2-sentence overview of what the reader learned.",
-  "key_points": [
-    "Most important takeaway",
-    "Second key point",
-    "Third key point"
-  ],
-  "quick_facts": [
-    {"label": "Prep time", "value": "10 mins"},
-    {"label": "Best for", "value": "Beginners"}
-  ],
-  "cta_text": "Save this! 📌"
-}`}</pre>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── IMAGES ── */}
-        {section === "images" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="doc-section">
-              <h3>🖼️ How Images Work</h3>
-              <div className="alert alert-info" style={{ marginBottom: 14 }}>
-                NicheFlow makes ONE Midjourney request per article. MJ returns a 2×2 grid of 4 images. The grid is cropped into 4 individual images, converted to WebP, and all 4 are uploaded to WordPress.
-              </div>
-              {[
-                { t: "1 MJ request → 4 images",
-                  d: "One MJ prompt generates a 2×2 grid. NicheFlow downloads the grid immediately (before CDN expiry), crops it into 4 pieces using Pillow, and converts each to WebP. This is how the 403 download issue is avoided — the grid is fetched once at the right moment." },
-                { t: "Featured image = image 1",
-                  d: "The first cropped image is set as the WordPress featured image (via media_id). Images 2–4 are injected into the article at ##IMAGE1## ##IMAGE2## ##IMAGE3## positions." },
-                { t: "Aspect ratio from your template",
-                  d: <> The <code>--ar</code> flag in your MJ template controls the crop ratio for ALL 4 images. For example <code>--ar 1:1</code> gives square images, <code>--ar 2:3</code> gives portrait (good for Pinterest). If no <code>--ar</code> is set, it defaults to 1:1. </> },
-                { t: "WebP conversion",
-                  d: "All images are converted to WebP before upload. WebP is smaller and faster-loading than JPEG/PNG — good for Core Web Vitals and SEO." },
-                { t: "Pollinations (free alternative)",
-                  d: "Enable Pollinations in Settings → Images for free AI images with no API key. Images are generated from your prompt template. Quality is lower than Midjourney but completely free with no key required." },
-                { t: "MJ template tips",
-                  d: <> Use <code>{"{title}"}</code> or <code>{"{recipe_name}"}</code> in your template. Keep it short and descriptive. End with style keywords and <code>--ar</code>. Example: <code>Close up {"{title}"}, food photography, natural light, soft bokeh --ar 1:1</code> </> },
-              ].map((s, i) => (
-                <div key={i} className="doc-step">
-                  <div className="doc-step-num">{i + 1}</div>
-                  <div className="doc-step-text">
-                    <div className="doc-step-title">{s.t}</div>
-                    <div className="doc-step-desc">{s.d}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── INTERNAL LINKS ── */}
-        {section === "links" && (
-          <div className="doc-section">
-            <h3>🔗 Internal Links</h3>
-            <div className="alert alert-info" style={{ marginBottom: 14 }}>
-              NicheFlow fetches your existing WordPress posts and automatically injects internal links into new articles — pointing to posts you've already published.
-            </div>
-            {[
-              { t: "How it works",
-                d: "Before publishing, NicheFlow fetches the last 100 published posts from your WordPress site. For each existing post title that is 3+ words long, it searches the new article's body text for that phrase and wraps it in an anchor tag pointing to the post URL." },
-              { t: "Only links on paragraph text",
-                d: "Links are only injected inside <p> paragraph tags — never inside headings (H1–H6), bold FAQ questions (<strong> containing ?), or existing anchor tags. This prevents broken heading links and double-linking." },
-              { t: "Max links per article",
-                d: "Set the maximum number of internal links in Settings → WordPress → Max internal links. Default is 4. Too many internal links can look spammy — 3–5 is a healthy range for SEO." },
-              { t: "Load Posts first",
-                d: "If you see '⚠️ No internal links available — click Load Posts' in the Process Log, it means the backend hasn't fetched your posts yet. This happens automatically on the first run. On subsequent articles in the same batch, posts are already loaded." },
-              { t: "Enable / Disable",
-                d: "Toggle internal links on/off in Settings → WordPress → Auto-inject internal links. Disable it if you want full manual control over linking." },
-            ].map((s, i) => (
-              <div key={i} className="doc-step">
-                <div className="doc-step-num">{i + 1}</div>
-                <div className="doc-step-text">
-                  <div className="doc-step-title">{s.t}</div>
-                  <div className="doc-step-desc">{s.d}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── PINTEREST ── */}
-        {section === "pinterest" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {plan !== "pro" && (
-              <div className="alert alert-warn" style={{ marginBottom: 0 }}>
-                📌 Pinterest is a <strong>Pro feature</strong>. <button className="btn btn-pro btn-sm" onClick={() => onUpgrade("pro")} style={{ marginLeft: 10 }}>Upgrade to Pro ★</button>
-              </div>
-            )}
-            <div className="doc-section">
-              <h3>📌 Pinterest Setup</h3>
-              {[
-                { t: "Create a Pinterest Developer App",
-                  d: <> Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>developers.pinterest.com</a> → <strong>My Apps → Create App</strong>. Fill in a name and description. Once created, go to the app and click <strong>Generate Access Token</strong> with scopes: <code>boards:read</code>, <code>pins:write</code>. </> },
-                { t: "Paste the token",
-                  d: "Copy the access token and paste it in Settings → Pinterest → Pinterest Access Token. Save settings." },
-                { t: "Boards auto-load",
-                  d: "When you open the Pinterest page, your boards load automatically. You can also click Refresh Boards to reload after adding or deleting boards on Pinterest. No manual board ID entry needed." },
-                { t: "Select boards and pin",
-                  d: "Select one or more boards on the Pinterest page, then click Pin. NicheFlow creates a pin for each published article on every selected board." },
-                { t: "Scheduling pins",
-                  d: "Enable the Schedule toggle to choose a future date and time for your pins. The scheduled_at time is passed to the Pinterest API so pins go live exactly when you set." },
-              ].map((s, i) => (
-                <div key={i} className="doc-step">
-                  <div className="doc-step-num">{i + 1}</div>
-                  <div className="doc-step-text">
-                    <div className="doc-step-title">{s.t}</div>
-                    <div className="doc-step-desc">{s.d}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="doc-section">
-              <h3>📌 Pin Image Design</h3>
-              {[
-                { t: "What gets pinned",
-                  d: "Each pin uses one of the article's body images as a background, with the 4-word hook title overlaid as text. The resulting 1000×1500px image is uploaded to WordPress and used as the pin image." },
-                { t: "Hook title (4 words)",
-                  d: <> The Pin Prompt must return a <code>hook_title</code> field with EXACTLY 4 words. This is overlaid on the pin image in large text. Keep it punchy and curiosity-driven. Example: "You'll never go back". </> },
-                { t: "Customizing pin design",
-                  d: <> In Settings → Pinterest → Pin Image Design, enter design settings as <code>key:value</code> pairs: <code>background_color:#1a1a2e</code>, <code>title_color:#fff</code>, <code>title_size:72</code>, <code>canvas_width:1000</code>, <code>canvas_height:1500</code>, <code>overlay_opacity:0.55</code>, <code>logo_text:yoursite.com</code>, <code>gradient:true</code>. All are optional — defaults are used for any omitted setting. </> },
-                { t: "Auto-pin after publish",
-                  d: "Enable Auto-pin in Settings → Pinterest to automatically pin every article immediately after it publishes. You can also set a delay (in minutes) so pins go out after a set time post-publish." },
-              ].map((s, i) => (
-                <div key={i} className="doc-step">
-                  <div className="doc-step-num">{i + 1}</div>
-                  <div className="doc-step-text">
-                    <div className="doc-step-title">{s.t}</div>
-                    <div className="doc-step-desc">{s.d}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── BILLING ── */}
-        {section === "billing" && (
-          <div className="doc-section">
-            <h3>💳 Billing & Plans</h3>
-            <div className="alert alert-info" style={{ marginBottom: 14 }}>
-              New users get a <strong>2-day free trial</strong> — no credit card required. After 2 days, the app blocks until you choose a plan.
-            </div>
-            {[
-              { t: "Free Trial — 2 days",
-                d: "From the moment you create your account, you have 2 full days to use the app. The top bar shows a countdown. After 2 days, you'll see a paywall screen asking you to choose Basic or Pro." },
-              { t: "Basic plan — $30/month",
-                d: "Unlimited articles, custom article and card prompts, 4 images per article (featured + 3 body), WordPress auto-publish, internal link injection, history. Everything you need to run a content business." },
-              { t: "Pro plan — $40/month",
-                d: "Everything in Basic plus Pinterest automation: AI-generated pin images with 4-word hook titles overlaid, board selection, pin scheduling, and auto-pin after publish." },
-              { t: "Subscription countdown",
-                d: "After payment, the top bar shows how many days are left in your current billing period. When it hits 3 days or less, you'll see a warning. When it reaches 0, you'll be prompted to renew." },
-              { t: "Renewing / Cancelling",
-                d: "Payments and renewals are handled by LemonSqueezy. To cancel or manage your subscription, go to your LemonSqueezy customer portal (link sent in your payment confirmation email)." },
-              { t: "Plan not updating after payment?",
-                d: "If your plan doesn't update automatically, click Refresh Plan in the sidebar footer. Plan status is synced via webhook — it usually updates within seconds of payment but can take up to a minute." },
-            ].map((s, i) => (
-              <div key={i} className="doc-step">
-                <div className="doc-step-num">{i + 1}</div>
-                <div className="doc-step-text">
-                  <div className="doc-step-title">{s.t}</div>
-                  <div className="doc-step-desc">{s.d}</div>
-                </div>
-              </div>
-            ))}
-            {plan !== "pro" && (
-              <div style={{ marginTop: 20 }}>
-                <button className="btn btn-pro" style={{ width: "100%" }} onClick={() => onUpgrade("pro")}>
-                  Upgrade to Pro — $40/mo ★
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
+        {section === "start" && (<div className="doc-section"><h3>🚀 Quick Start</h3><p style={{ fontSize: 14, color: "var(--text2)", marginBottom: 20, lineHeight: 1.7 }}>Get your first article published in under 5 minutes.</p>{[{n:"1",t:"Get a free AI key",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> — free key starting with <code>gsk_</code>. Or use Gemini at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a> (starts with <code>AIza</code>). Both are free.</>},{n:"2",t:"Configure API Keys",d:<>Go to <strong>Settings → API Keys</strong>, paste your key, hit <strong>Test</strong>, then <strong>Save Settings</strong>.</>},{n:"3",t:"Connect WordPress",d:<>Go to <strong>Settings → WordPress</strong>. Enter your site URL and an App Password in format <code>username:xxxx xxxx xxxx xxxx</code>.</>},{n:"4",t:"Write your Prompts",d:<>Go to <strong>Settings → Prompts</strong>. Write your Article Prompt (use <code>{"{title}"}</code> as placeholder).</>},{n:"5",t:"Set up Images (optional)",d:<>Go to <strong>Settings → Images</strong>. Paste a Midjourney template or turn on Pollinations for free images.</>},{n:"6",t:"Generate your first article",d:<>Go to <strong>Generate</strong>, paste titles (one per line), and click Generate.</>}].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}</div>)}
+        {section === "api" && (<div style={{display:"flex",flexDirection:"column",gap:16}}><div className="doc-section"><h3>🔑 AI Keys — Groq & Gemini</h3><div className="alert alert-info" style={{marginBottom:16}}>Use Groq, Gemini, or both comma-separated for automatic fallback.</div>{[{t:"Groq (recommended, free)",d:<>Sign up at <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a>. Key starts with <code>gsk_</code>.</>},{t:"Gemini (backup, free)",d:<>Sign up at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a>. Key starts with <code>AIza</code>.</>},{t:"Using both keys",d:<>Enter both comma-separated: <code>gsk_abc123, AIzaSyXxx</code>. Groq is tried first, Gemini used on failure.</>},{t:"Testing your key",d:"Click the Test button. It makes a live API call and confirms if the key is valid."}].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}</div><div className="doc-section"><h3>🔑 GoAPI Key (Midjourney)</h3><div className="alert alert-warn" style={{marginBottom:14}}>Only needed for Midjourney images. Skip if using Pollinations (free).</div>{[{t:"Get your GoAPI key",d:<>Sign up at <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a>. Go to Dashboard → API Keys.</>},{t:"How it works",d:"GoAPI submits ONE prompt to Midjourney → NicheFlow downloads the 2×2 grid → crops 4 WebP images → uploads all 4 to WordPress."},{t:"Cost",d:"GoAPI charges per MJ generation. Each article = 1 request = 4 images. Check their dashboard for pricing."}].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}</div></div>)}
+        {section === "wordpress" && (<div style={{display:"flex",flexDirection:"column",gap:16}}><div className="doc-section"><h3>🌐 Connecting WordPress</h3>{[{t:"Site URL",d:<>Enter your full URL including <code>https://</code>, no trailing slash.</>},{t:"Create an Application Password",d:<>In WordPress: <strong>Users → Profile → Application Passwords → Add New</strong>. Copy the password immediately.</>},{t:"Format the credentials",d:<>Enter as: <code>yourusername:xxxx xxxx xxxx xxxx</code></>},{t:"Test the connection",d:"Click Test Connection — it shows your WordPress display name if successful."},{t:"Required WordPress settings",d:<>Permalinks must not be set to Plain (WordPress → Settings → Permalinks → choose any other option).</>}].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}</div></div>)}
+        {section === "prompts" && (<div style={{display:"flex",flexDirection:"column",gap:16}}><div className="doc-section"><h3>💬 Article Prompt</h3><div className="alert alert-info" style={{marginBottom:14}}>Write your prompt as if briefing a writer. Be specific about tone, structure, length, and audience.</div>{[{t:"Required placeholder",d:<>Always include <code>{"{title}"}</code> in your prompt.</>},{t:"Required JSON output",d:<>The AI must return: <code>html_content</code>, <code>seo_title</code>, <code>excerpt</code>, and color hex fields: <code>MAIN</code>, <code>MAIN_DARK</code>, <code>LIGHT_BG</code>, <code>BORDER</code>.</>},{t:"Image placeholders",d:<>Include <code>##IMAGE1##</code>, <code>##IMAGE2##</code>, <code>##IMAGE3##</code> in html_content where you want images.</>},{t:"Example prompt",d:null}].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div>{s.d&&<div className="doc-step-desc">{s.d}</div>}{i===3&&<pre>{`You are Emma, a warm mama blogger.\nWrite a detailed article about: {title}\nReturn ONLY valid JSON:\n{\n  "seo_title": "...",\n  "excerpt": "...",\n  "html_content": "...",\n  "MAIN": "#hex", "MAIN_DARK": "#hex",\n  "LIGHT_BG": "#hex", "BORDER": "#hex"\n}`}</pre>}</div></div>))}</div><div className="doc-section"><h3>🃏 Card Prompt</h3><div className="alert alert-info" style={{marginBottom:14}}>The card is a summary widget appended at the end of each article.</div>{[{t:"What the card outputs",d:<>Return: <code>card_title</code>, <code>summary</code>, <code>key_points</code> array, <code>quick_facts</code> array, <code>cta_text</code>.</>},{t:"CTA button",d:"Triggers browser share on mobile or copies URL on desktop."},{t:"Example",d:null}].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div>{s.d&&<div className="doc-step-desc">{s.d}</div>}{i===2&&<pre>{`For "{title}", return ONLY valid JSON:\n{\n  "card_title": "Quick Summary",\n  "summary": "2-sentence overview.",\n  "key_points": ["Point 1","Point 2","Point 3"],\n  "quick_facts": [{"label":"Time","value":"10 mins"}],\n  "cta_text": "Save this! 📌"\n}`}</pre>}</div></div>))}</div></div>)}
+        {section === "images" && (<div style={{display:"flex",flexDirection:"column",gap:16}}><div className="doc-section"><h3>🖼️ How Images Work</h3><div className="alert alert-info" style={{marginBottom:14}}>NicheFlow makes ONE Midjourney request per article → gets 2×2 grid → crops 4 WebP images → uploads all to WordPress.</div>{[{t:"1 MJ request → 4 images",d:"One prompt generates a 2×2 grid. NicheFlow downloads it immediately (before CDN expiry), crops into 4 pieces, converts to WebP."},{t:"Featured image = image 1",d:"The first cropped image is set as WP featured image. Images 2–4 go into ##IMAGE1## ##IMAGE2## ##IMAGE3##."},{t:"Aspect ratio from your template",d:<>The <code>--ar</code> flag controls crop ratio. E.g. <code>--ar 1:1</code> = square, <code>--ar 2:3</code> = portrait (Pinterest). Default: 1:1.</>},{t:"WebP conversion",d:"All images converted to WebP — smaller and faster than JPEG/PNG."},{t:"Pollinations (free)",d:"Enable in Settings → Images. Free AI images, no API key needed. Lower quality than Midjourney."},{t:"MJ template tips",d:<>Use <code>{"{title}"}</code> or <code>{"{recipe_name}"}</code>. Example: <code>Close up {"{title}"}, food photography --ar 1:1</code></>}].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}</div></div>)}
+        {section === "links" && (<div className="doc-section"><h3>🔗 Internal Links</h3><div className="alert alert-info" style={{marginBottom:14}}>Fetches your existing WordPress posts and injects relevant links into new articles automatically.</div>{[{t:"How it works",d:"Before publishing, NicheFlow fetches your published posts. For each post title (3+ words) found in the new article's body text, it wraps the phrase in an anchor tag."},{t:"Only paragraph text",d:"Links are only injected inside <p> tags — never in headings, FAQ questions, or existing links."},{t:"Max links per article",d:"Set the max in Settings → WordPress. Default is 4. Recommended: 3–5."},{t:"Enable / Disable",d:"Toggle in Settings → WordPress → Auto-inject internal links."}].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}</div>)}
+        {section === "pinterest" && (<div style={{display:"flex",flexDirection:"column",gap:16}}>{plan!=="pro"&&<div className="alert alert-warn">📌 Pinterest is a <strong>Pro feature</strong>. <button className="btn btn-pro btn-sm" onClick={()=>onUpgrade("pro")} style={{marginLeft:10}}>Upgrade to Pro ★</button></div>}<div className="doc-section"><h3>📌 Pinterest Setup</h3>{[{t:"Create a Pinterest Developer App",d:<>Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>developers.pinterest.com</a> → My Apps → Create App → Generate Access Token with scopes: <code>boards:read</code>, <code>pins:write</code>.</>},{t:"Paste the token",d:"Settings → Pinterest → Pinterest Access Token. Save settings."},{t:"Boards auto-load",d:"Opening the Pinterest page loads your boards automatically. Use Refresh to reload after adding/deleting boards."},{t:"Select boards and pin",d:"Select boards, then click Pin. NicheFlow creates a pin for each published article on every selected board."},{t:"Scheduling",d:"Enable the Schedule toggle to choose a future date and time. The Pinterest API schedules your pins exactly."}].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}</div></div>)}
+        {section === "billing" && (<div className="doc-section"><h3>💳 Billing & Plans</h3><div className="alert alert-info" style={{marginBottom:14}}>New users get a <strong>2-day free trial</strong> — no credit card. After 2 days, choose a plan to continue.</div>{[{t:"Free Trial — 2 days",d:"From account creation, 2 full days of access. Top bar shows countdown. After 2 days, paywall appears."},{t:"Basic — $30/month",d:"Unlimited articles, prompts, 4 images per article (featured + 3 body), WordPress publishing, internal links."},{t:"Pro — $40/month",d:"Everything in Basic plus Pinterest automation: AI pin images, hook titles, board selection, scheduling, auto-pin."},{t:"Subscription countdown",d:"After payment, top bar shows days left. Warning at 3 days. Prompt to renew at 0."},{t:"Payments via Paddle",d:"Paddle handles all payments securely. To cancel or manage your subscription, use Paddle's customer portal (link in your payment email)."},{t:"Plan not updating?",d:"Click Refresh Plan in the sidebar. Plan syncs via webhook — usually instant but can take up to a minute."}].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}{plan!=="pro"&&<div style={{marginTop:20}}><button className="btn btn-pro" style={{width:"100%"}} onClick={()=>onUpgrade("pro")}>Upgrade to Pro — $40/mo ★</button></div>}</div>)}
       </div>
     </div>
   );
@@ -1712,10 +1511,7 @@ function AppShell({ user, onLogout }) {
   const userId = user?.user?.id || user?.id || "";
   const token = user?.access_token || getStoredToken();
   const avatarLetter = email[0]?.toUpperCase() || "U";
-
-  // ── Admin check — your email bypasses everything
   const isAdmin = email === ADMIN_EMAIL;
-  // Admin always gets pro-level access in the UI
   const effectivePlan = isAdmin ? "pro" : plan;
 
   const refreshPlan = useCallback(() => {
@@ -1735,26 +1531,19 @@ function AppShell({ user, onLogout }) {
   }, [userId, token]);
 
   useEffect(() => { refreshPlan(); }, [refreshPlan]);
-
-  useEffect(() => {
-    const interval = setInterval(refreshPlan, 30000);
-    return () => clearInterval(interval);
-  }, [refreshPlan]);
+  useEffect(() => { const i = setInterval(refreshPlan, 30000); return () => clearInterval(i); }, [refreshPlan]);
 
   useEffect(() => {
     if (!token || settingsLoaded) return;
-    fetch(`${API_URL}/settings`, {
-      headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` }
-    }).then(async res => {
+    fetch(`${API_URL}/settings`, { headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` } })
+    .then(async res => {
       if (res.ok) {
         const data = await res.json();
         const dbSettings = data.settings || {};
         if (data.plan) setPlan(data.plan);
         if (data.plan_expires) setPlanExpires(data.plan_expires);
         const merged = { ...config };
-        Object.keys(dbSettings).forEach(k => {
-          if (dbSettings[k] !== null && dbSettings[k] !== undefined && dbSettings[k] !== "") merged[k] = dbSettings[k];
-        });
+        Object.keys(dbSettings).forEach(k => { if (dbSettings[k] !== null && dbSettings[k] !== undefined && dbSettings[k] !== "") merged[k] = dbSettings[k]; });
         setConfig(merged);
         localStorage.setItem("nicheflow_config", JSON.stringify(merged));
       }
@@ -1765,27 +1554,11 @@ function AppShell({ user, onLogout }) {
   function saveConfig(cfg) {
     setConfig(cfg);
     localStorage.setItem("nicheflow_config", JSON.stringify(cfg));
-    fetch(`${API_URL}/settings`, {
-      method:"POST",
-      headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`},
-      body:JSON.stringify(cfg)
-    }).catch(()=>{});
+    fetch(`${API_URL}/settings`, { method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`}, body:JSON.stringify(cfg) }).catch(()=>{});
   }
-
-  function addHistory(item) {
-    const next=[...history, item];
-    setHistory(next);
-    localStorage.setItem("nicheflow_history", JSON.stringify(next));
-  }
-
-  function clearHistory() {
-    setHistory([]);
-    localStorage.removeItem("nicheflow_history");
-  }
-
-  function handleUpgrade(targetPlan="pro") {
-    setCheckoutModal(targetPlan);
-  }
+  function addHistory(item) { const next=[...history,item]; setHistory(next); localStorage.setItem("nicheflow_history",JSON.stringify(next)); }
+  function clearHistory() { setHistory([]); localStorage.removeItem("nicheflow_history"); }
+  function handleUpgrade(targetPlan="pro") { setCheckoutModal(targetPlan); }
 
   const navItems=[
     {id:"dashboard",icon:"◉",label:"Dashboard"},
@@ -1796,17 +1569,8 @@ function AppShell({ user, onLogout }) {
     {id:"docs",icon:"📖",label:"Docs"},
     {id:"settings",icon:"⚙️",label:"Settings"},
   ];
-
-  const pageInfo={
-    dashboard:["Dashboard","Welcome back."],
-    generate:["Generate Articles","Paste titles, let AI handle everything."],
-    preview:["Preview","Test article style before a full batch."],
-    history:["History","All generated and published articles."],
-    pinterest:["Pinterest Bot","Auto-pin with AI-generated hook title images."],
-    docs:["Documentation","Everything you need to use NicheFlow AI."],
-    settings:["Settings","API keys, prompts, and integrations."],
-  };
-  const [pageTitle, pageSub]=pageInfo[page]||["",""];
+  const pageInfo={dashboard:["Dashboard","Welcome back."],generate:["Generate Articles","Paste titles, let AI handle everything."],preview:["Preview","Test article style before a full batch."],history:["History","All generated and published articles."],pinterest:["Pinterest Bot","Auto-pin with AI-generated hook title images."],docs:["Documentation","Everything you need to use NicheFlow AI."],settings:["Settings","API keys, prompts, and integrations."]};
+  const [pageTitle,pageSub]=pageInfo[page]||["",""];
 
   return (
     <div className="app-layout">
@@ -1838,18 +1602,13 @@ function AppShell({ user, onLogout }) {
               </div>
             </div>
           </div>
-          <button className="nav-item" onClick={refreshPlan} style={{marginTop:4,color:"var(--text3)",fontSize:12,padding:"6px 12px"}}>
-            <span>↺</span>Refresh Plan
-          </button>
+          <button className="nav-item" onClick={refreshPlan} style={{marginTop:4,color:"var(--text3)",fontSize:12,padding:"6px 12px"}}><span>↺</span>Refresh Plan</button>
           <button className="nav-item" onClick={onLogout} style={{marginTop:2,color:"var(--text3)"}}><span>→</span>Sign out</button>
         </div>
       </aside>
       <main className="main-content">
         <TopBar createdAt={createdAt} plan={effectivePlan} planExpires={planExpires} onUpgrade={handleUpgrade} isAdmin={isAdmin}/>
-        <div className="page-header">
-          <h1 className="page-title">{pageTitle}</h1>
-          <p className="page-sub">{pageSub}</p>
-        </div>
+        <div className="page-header"><h1 className="page-title">{pageTitle}</h1><p className="page-sub">{pageSub}</p></div>
         <div className="page-body">
           {page==="dashboard"&&<Dashboard history={history} plan={effectivePlan} onUpgrade={handleUpgrade} createdAt={createdAt} planExpires={planExpires} isAdmin={isAdmin}/>}
           {page==="generate"&&<GeneratePage config={config} onHistoryUpdate={addHistory} plan={effectivePlan} createdAt={createdAt} onUpgrade={handleUpgrade} isAdmin={isAdmin}/>}
@@ -1864,12 +1623,19 @@ function AppShell({ user, onLogout }) {
   );
 }
 
-// ─── ROOT ──────────────────────────────────────────────────────────────────
+// ─── ROOT — with path-based routing for legal pages ────────────────────────
 export default function NicheFlowAI() {
   const [view, setView] = useState("landing");
   const [user, setUser] = useState(null);
 
   useEffect(()=>{
+    // Check URL path first for legal pages
+    const path = window.location.pathname;
+    if (path === "/terms") { setView("terms"); return; }
+    if (path === "/privacy") { setView("privacy"); return; }
+    if (path === "/refund") { setView("refund"); return; }
+
+    // Otherwise check if user is logged in
     const stored = localStorage.getItem("nicheflow_user");
     if (stored) {
       try { const u=JSON.parse(stored); setUser(u); setView("app"); } catch {}
@@ -1881,32 +1647,32 @@ export default function NicheFlowAI() {
     setUser(userData);
     setView("app");
   }
-
   function handleLogout() {
     localStorage.removeItem("nicheflow_user");
     setUser(null);
     setView("landing");
   }
-
   function handleCheckoutFromLanding(planType) {
     const url = planType === "pro" ? CHECKOUT_PRO : CHECKOUT_BASIC;
     window.open(url, "_blank");
   }
 
+  // Legal pages — no login required
+  if (view==="terms") return <TermsPage/>;
+  if (view==="privacy") return <PrivacyPage/>;
+  if (view==="refund") return <RefundPage/>;
+
   if (view==="app"&&user) return <AppShell user={user} onLogout={handleLogout}/>;
   if (view==="login"||view==="signup") return (
-    <AuthPage
-      mode={view}
-      onSuccess={handleAuthSuccess}
-      onSwitch={setView}
-      onBack={()=>setView("landing")}
-    />
+    <AuthPage mode={view} onSuccess={handleAuthSuccess} onSwitch={setView} onBack={()=>setView("landing")}/>
   );
   return (
-    <LandingPage
-      onLogin={()=>setView("login")}
-      onSignup={()=>setView("signup")}
-      onCheckout={handleCheckoutFromLanding}
-    />
+    <LandingPage onLogin={()=>setView("login")} onSignup={()=>setView("signup")} onCheckout={handleCheckoutFromLanding}/>
   );
 }
+ENDOFFILE
+echo "Done. Lines: $(wc -l < /home/claude/App.jsx)"
+Sortie
+
+Command argument is 131_315 bytes, exceeding the 100_000-byte per-argument limit. For large content, pipe via stdin or use a file-write API instead of embedding the content inline in the command. Argument preview: 'cat > /home/claude/App.jsx << \'ENDOFFILE\'\nimport { useState, useEffect, useRef, useCallback } from "react";\n\n// ─── Config ────────────────────────────────────────────────────────────────\nconst SUPABA'
+Terminé
