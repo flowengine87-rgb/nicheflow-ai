@@ -1,14 +1,7 @@
 # -*- coding: utf-8 -*-
 """NicheFlow AI — generator.py
-KEY FIXES:
-1. ONE MJ request → download 2x2 grid immediately → crop into 4 pieces with Pillow
-   (same approach as the reference app that works correctly)
-   - No more separate requests per image = no CDN expiry race
-   - Grid is downloaded RIGHT AWAY while URL is fresh
-   - 4 images cropped locally, converted to WebP, uploaded in parallel
-2. Internal links: only in <p> paragraphs, never in <strong>/FAQ questions
-3. Pinterest scheduling: scheduled_at parameter support
-4. Pollinations: unchanged (still works fine with direct download)
+IMAGE FIX: ONE MJ request → 2x2 grid → crop 4 WebP images → upload all 4 in parallel.
+This is exactly how the local app works. No more 3 separate MJ tasks, no more 403 CDN blocks.
 """
 import requests, json, base64, re, time, io, threading
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -313,154 +306,158 @@ def generate_meta_description(title):
     return f"Discover everything about {title}. Expert tips, practical advice, and real answers — read now!"
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# THE REAL FIX: ONE MJ REQUEST → DOWNLOAD GRID → CROP 4 IMAGES
-# This is how the working reference app does it.
-# MJ always returns a 2×2 grid. We download it IMMEDIATELY while URL is fresh,
-# then crop into 4 individual images locally with Pillow.
-# No CDN expiry race. No per-image requests. Guaranteed download.
-# ──────────────────────────────────────────────────────────────────────────────
-
-def generate_mj_grid_and_crop(goapi_key, prompt, target_ratio=None, log_fn=None):
+# ─────────────────────────────────────────────────────────────────────────────
+# MIDJOURNEY — ONE request → 2x2 grid → crop into 4 WebP images locally
+# This is WHY the local app works:
+#   • ONE request = ONE URL to download immediately while it's fresh
+#   • Grid downloaded BEFORE CDN expiry (within seconds of completion)
+#   • 4 crops done locally with Pillow — no re-download per image
+#   • All 4 uploaded to WordPress in parallel
+# ─────────────────────────────────────────────────────────────────────────────
+def generate_midjourney_grid(goapi_key, prompt, log_fn=None):
     """
-    Submit ONE MJ imagine request → wait for completion → download 2×2 grid immediately
-    → crop into 4 individual images → convert each to WebP.
-    Returns list of 4 WebP bytes (some may be None if crop failed).
+    Submit ONE MJ imagine → wait for 2x2 grid → download immediately → crop 4 images.
+    Returns: {"success": True, "image_bytes": [bytes, bytes, bytes, bytes]}
+             {"success": False, "error": "..."}
     """
     def log(m):
         if log_fn: log_fn(m)
 
     headers = {"x-api-key": goapi_key, "Content-Type": "application/json"}
 
-    # Submit imagine
-    log("🎨 Submitting Midjourney request (1 prompt → 4 images)...")
+    # Extract --ar from prompt for the API call
+    ar_match = re.search(r'--ar\s+(\d+:\d+)', prompt)
+    aspect_ratio = ar_match.group(1) if ar_match else "3:2"
+
+    def _submit(mode):
+        return requests.post(
+            "https://api.goapi.ai/api/v1/task",
+            headers=headers,
+            json={
+                "model": "midjourney",
+                "task_type": "imagine",
+                "input": {
+                    "prompt": prompt,
+                    "aspect_ratio": aspect_ratio,
+                    "process_mode": mode,
+                    "skip_prompt_check": False,
+                    "bot_id": 0
+                },
+                "config": {"service_mode": "", "webhook_config": {"endpoint": "", "secret": ""}}
+            },
+            timeout=30
+        )
+
+    def _extract_url(data):
+        """Recursively find any image URL in the response dict."""
+        if not isinstance(data, dict): return None
+        for key in ("image_url","discord_image_url","cdn_url","url","imageUrl","image"):
+            val = data.get(key)
+            if isinstance(val, str) and val.startswith("http"): return val
+        for key in ("image_urls","temporary_image_urls","images","urls"):
+            val = data.get(key)
+            if isinstance(val, list) and val:
+                first = val[0]
+                if isinstance(first, str) and first.startswith("http"): return first
+        for key in ("output","result","data","meta"):
+            val = data.get(key)
+            if isinstance(val, dict):
+                found = _extract_url(val)
+                if found: return found
+        return None
+
     try:
-        resp = requests.post("https://api.goapi.ai/api/v1/task", headers=headers,
-            json={"model":"midjourney","task_type":"imagine","input":{"prompt":prompt,"process_mode":"fast"}}, timeout=30)
+        # ── Step 1: Submit imagine ────────────────────────────────────
+        log("  🎨 Submitting Midjourney request (1 prompt → 4 images)...")
+        resp = _submit("fast")
         if resp.status_code != 200:
-            log(f"❌ MJ submit error: {resp.status_code}")
-            return [None, None, None, None]
-        task_id = resp.json().get("data",{}).get("task_id")
+            return {"success": False, "error": f"Submit HTTP {resp.status_code}"}
+
+        data = resp.json()
+        resp_text = json.dumps(data).lower()
+        fast_exhausted = data.get("code") != 200 and any(
+            kw in resp_text for kw in ("fast hour","no fast","fast quota","out of fast","relax mode")
+        )
+        if fast_exhausted or data.get("code") != 200:
+            log("  ⚠️ Fast quota exhausted — switching to Relax mode")
+            resp = _submit("relax")
+            if resp.status_code != 200:
+                return {"success": False, "error": f"Relax submit HTTP {resp.status_code}"}
+            data = resp.json()
+            mode_used = "relax"
+        else:
+            mode_used = "fast"
+
+        if data.get("code") != 200:
+            return {"success": False, "error": f"GoAPI: {data.get('message', str(data)[:200])}"}
+
+        task_id = data.get("data", {}).get("task_id")
         if not task_id:
-            log("❌ MJ: no task_id")
-            return [None, None, None, None]
-        log(f"⏳ MJ imagine submitted [fast] task={task_id}")
-    except Exception as e:
-        log(f"❌ MJ submit exception: {e}")
-        return [None, None, None, None]
+            return {"success": False, "error": "No task_id in response"}
 
-    # Poll for completion
-    time.sleep(10)
-    grid_url = None
-    for attempt in range(90):
-        time.sleep(3)
-        try:
-            poll = requests.get(f"https://api.goapi.ai/api/v1/task/{task_id}", headers=headers, timeout=15)
-            if poll.status_code != 200: continue
-            data = poll.json().get("data", {})
-            status = data.get("status", "")
-            if status == "completed":
-                urls = data.get("output", {}).get("image_urls", [])
-                grid_url = urls[0] if urls else None
-                if grid_url:
-                    log(f"✅ Grid fully complete!")
+        log(f"  ⏳ MJ imagine submitted [{mode_used}] task={task_id}")
+
+        # ── Step 2: Poll for completed 2x2 grid ──────────────────────
+        initial_wait = 50 if mode_used == "fast" else 90
+        log(f"  ⏳ Waiting ~{initial_wait}s for grid...")
+        time.sleep(initial_wait)
+
+        grid_url = None
+        for attempt in range(150):
+            try:
+                r = requests.get(f"https://api.goapi.ai/api/v1/task/{task_id}", headers=headers, timeout=15)
+                if r.status_code != 200: time.sleep(4); continue
+                rj = r.json()
+                task_data = rj.get("data", rj)
+                status = (task_data.get("status") or "").lower()
+                url = _extract_url(rj)
+                if url: grid_url = url
+
+                if attempt % 5 == 0:
+                    log(f"  🔄 [GRID] attempt {attempt+1} — status={status} url={'yes' if grid_url else 'no'}")
+
+                if status in ("finished","completed","succeeded","success") and grid_url:
                     break
-                log("❌ MJ completed but no image URL"); return [None, None, None, None]
-            elif status == "failed":
-                err = data.get("error", {}).get("message", "Unknown")
-                # Try relax mode if fast quota exceeded
-                if "fast" in err.lower() or "quota" in err.lower():
-                    log("⚠️ Fast quota exceeded, retrying in relax mode...")
-                    try:
-                        r2 = requests.post("https://api.goapi.ai/api/v1/task", headers=headers,
-                            json={"model":"midjourney","task_type":"imagine","input":{"prompt":prompt,"process_mode":"relax"}}, timeout=30)
-                        if r2.status_code == 200:
-                            new_id = r2.json().get("data",{}).get("task_id")
-                            if new_id: task_id = new_id; log(f"⏳ Relax task={task_id}"); continue
-                    except: pass
-                log(f"❌ MJ failed: {err}"); return [None, None, None, None]
-            elif attempt % 5 == 0:
-                log(f"⏳ Generating... ({attempt*3}s)")
-        except Exception as e:
-            log(f"⚠️ Poll error: {e}"); continue
+                if status in ("failed","error","cancelled"):
+                    return {"success": False, "error": f"Grid failed: {task_data.get('error',status)}"}
+                time.sleep(4)
+            except Exception as e:
+                log(f"  ⚠️ Poll error: {e}"); time.sleep(4)
 
-    if not grid_url:
-        log("❌ MJ timeout after 270s"); return [None, None, None, None]
+        if not grid_url:
+            return {"success": False, "error": "Grid timed out — no URL"}
 
-    # Download grid IMMEDIATELY while URL is fresh
-    log("📥 Downloading 2×2 grid (URL is fresh)...")
-    grid_bytes = None
-    for attempt_num, dl_headers in enumerate([
-        {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
-        {"User-Agent": "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)"},
-        {},
-    ]):
+        # ── Step 3: Download grid IMMEDIATELY while URL is fresh ──────
+        log(f"  ✅ Grid complete! Downloading and cropping 2×2 grid...")
         try:
-            r = requests.get(grid_url, headers=dl_headers, timeout=60)
-            if r.status_code == 200 and len(r.content) > 10000:
-                grid_bytes = r.content
-                log(f"✅ Grid downloaded ({len(grid_bytes)//1024}KB)")
-                break
-            log(f"⚠️ Download attempt {attempt_num+1} failed: HTTP {r.status_code}")
+            grid_resp = requests.get(grid_url, timeout=30, stream=True)
+            grid_resp.raise_for_status()
+            grid_img = Image.open(io.BytesIO(grid_resp.content)).convert("RGB")
         except Exception as e:
-            log(f"⚠️ Download attempt {attempt_num+1} error: {e}")
+            return {"success": False, "error": f"Grid download failed: {e}"}
 
-    if not grid_bytes:
-        log("❌ Could not download grid — all attempts failed")
-        return [None, None, None, None]
-
-    # Crop 2×2 grid into 4 individual images
-    log("✂️ Cropping 2×2 grid into 4 individual images...")
-    cropped = []
-    try:
-        grid_img = Image.open(io.BytesIO(grid_bytes)).convert("RGB")
-        grid_w, grid_h = grid_img.size
-        cell_w = grid_w // 2
-        cell_h = grid_h // 2
-
-        positions = [
-            (0, 0, cell_w, cell_h),           # top-left  → image 1
-            (cell_w, 0, grid_w, cell_h),       # top-right → image 2
-            (0, cell_h, cell_w, grid_h),       # bot-left  → image 3
-            (cell_w, cell_h, grid_w, grid_h),  # bot-right → image 4
+        # ── Step 4: Crop grid into 4 images and convert to WebP ───────
+        W, H = grid_img.size
+        half_w, half_h = W // 2, H // 2
+        quadrants = [
+            grid_img.crop((0,      0,      half_w, half_h)),  # top-left
+            grid_img.crop((half_w, 0,      W,      half_h)),  # top-right
+            grid_img.crop((0,      half_h, half_w, H     )),  # bottom-left
+            grid_img.crop((half_w, half_h, W,      H     )),  # bottom-right
         ]
 
-        for i, (left, top, right, bottom) in enumerate(positions):
-            try:
-                cell = grid_img.crop((left, top, right, bottom))
+        image_bytes_list = []
+        for idx, crop in enumerate(quadrants):
+            buf = io.BytesIO()
+            crop.save(buf, format="WEBP", quality=82, method=2)
+            image_bytes_list.append(buf.getvalue())
+            log(f"  ✂️ Cropped + converted image {idx+1}/4 to WebP ({crop.width}×{crop.height}px)")
 
-                # Apply user's --ar crop if specified
-                if target_ratio:
-                    tw, th = target_ratio
-                    target_r = tw / th
-                    cw, ch = cell.size
-                    cell_r = cw / ch
-                    if cell_r > target_r:
-                        new_w = int(ch * target_r)
-                        lft = (cw - new_w) // 2
-                        cell = cell.crop((lft, 0, lft + new_w, ch))
-                    elif cell_r < target_r:
-                        new_h = int(cw / target_r)
-                        tp = (ch - new_h) // 2
-                        cell = cell.crop((0, tp, cw, tp + new_h))
-
-                # Convert to WebP
-                buf = io.BytesIO()
-                cell.save(buf, format="WEBP", quality=85, method=4)
-                webp_bytes = buf.getvalue()
-                cropped.append(webp_bytes)
-                log(f"✂️ Cropped + converted image {i+1}/4 to WebP ({cell.width}×{cell.height}px)")
-            except Exception as e:
-                log(f"⚠️ Crop error for image {i+1}: {e}")
-                cropped.append(None)
+        log(f"  ✅ 4/4 images ready as WebP")
+        return {"success": True, "image_bytes": image_bytes_list}
 
     except Exception as e:
-        log(f"❌ Grid crop failed: {e}")
-        return [None, None, None, None]
-
-    ready = sum(1 for c in cropped if c)
-    log(f"✅ {ready}/4 images ready as WebP")
-    return cropped
+        return {"success": False, "error": str(e)}
 
 
 def generate_pollinations_image(prompt, width=1024, height=1024, log_fn=None):
@@ -472,71 +469,44 @@ def generate_pollinations_image(prompt, width=1024, height=1024, log_fn=None):
         try:
             if attempt > 0: log(f"  🔄 Pollinations retry {attempt+1}/3..."); time.sleep(3 * attempt)
             resp = requests.get(url, timeout=90, headers={"User-Agent": "Mozilla/5.0"})
-            if resp.status_code != 200: log(f"  ⚠️ Pollinations status {resp.status_code}, retrying..."); continue
-            content_type = resp.headers.get("content-type", "").lower(); content = resp.content
-            if content_type.startswith("image/"):
-                log(f"  ✅ Pollinations image received ({len(content)//1024}KB)")
-                return {"url": url, "raw_bytes": content, "error": None}
-            if len(content) > 5000:
-                try: Image.open(io.BytesIO(content)); log(f"  ✅ Pollinations image received (content-type mismatch)"); return {"url": url, "raw_bytes": content, "error": None}
+            if resp.status_code != 200: log(f"  ⚠️ Pollinations status {resp.status_code}"); continue
+            content_type = resp.headers.get("content-type", "").lower()
+            if content_type.startswith("image/") or len(resp.content) > 5000:
+                try:
+                    Image.open(io.BytesIO(resp.content))
+                    log(f"  ✅ Pollinations image ready ({len(resp.content)//1024}KB)")
+                    return {"url": url, "raw_bytes": resp.content, "error": None}
                 except: pass
-            log(f"  ⚠️ Pollinations returned non-image ({content_type}), retrying...")
+            log(f"  ⚠️ Pollinations returned non-image ({content_type})")
         except requests.exceptions.Timeout: log(f"  ⚠️ Pollinations timeout (attempt {attempt+1})")
         except Exception as e: log(f"  ⚠️ Pollinations error: {e}")
-    log(f"  ❌ Pollinations failed after 3 attempts")
     return {"url": None, "raw_bytes": None, "error": "Failed after 3 attempts"}
 
 
-def download_image_bytes(image_url, log_fn=None):
-    def log(m):
-        if log_fn: log_fn(m)
-    try:
-        resp = requests.get(image_url, timeout=60, stream=True, headers={"User-Agent": "Mozilla/5.0"})
-        if resp.status_code == 200: return resp.content
-        log(f"  ⚠️ Download failed: HTTP {resp.status_code}"); return None
-    except Exception as e: log(f"  ⚠️ Download error: {e}"); return None
-
-
-def crop_and_convert_to_webp(raw_bytes_or_url, max_width=1920, target_ratio=None, log_fn=None):
-    def log(m):
-        if log_fn: log_fn(m)
-    try:
-        raw = download_image_bytes(raw_bytes_or_url, log_fn) if isinstance(raw_bytes_or_url, str) else raw_bytes_or_url
-        if not raw: log("  ⚠️ No raw bytes to convert"); return None
-        img = Image.open(io.BytesIO(raw)).convert("RGB")
-        if target_ratio:
-            tw, th = target_ratio; ratio = tw / th
-            img_w, img_h = img.size; img_ratio = img_w / img_h
-            if img_ratio > ratio:
-                new_w = int(img_h * ratio); left = (img_w - new_w) // 2
-                img = img.crop((left, 0, left + new_w, img_h))
-            elif img_ratio < ratio:
-                new_h = int(img_w / ratio); top = (img_h - new_h) // 2
-                img = img.crop((0, top, img_w, top + new_h))
-        if img.width > max_width:
-            ratio_scale = max_width / img.width
-            img = img.resize((max_width, int(img.height * ratio_scale)), Image.LANCZOS)
-        buf = io.BytesIO(); img.save(buf, format="WEBP", quality=82, method=2)
-        return buf.getvalue()
-    except Exception as e: log(f"  ⚠️ WebP conversion failed: {e}"); return None
-
-
 def upload_image_to_wordpress(wp_url, wp_password, image_bytes, filename, log_fn=None):
+    """Upload WebP bytes to WP media library."""
     def log(m):
         if log_fn: log_fn(m)
     base_url, wp_user, wp_pass = parse_wp_credentials(wp_url, wp_password)
-    if not wp_user: log("  ⚠️ No WP username"); return {"success":False,"media_id":None,"url":None,"error":"No WP username"}
+    if not wp_user: return {"success":False,"media_id":None,"url":None,"error":"No WP username"}
     credentials = base64.b64encode(f"{wp_user}:{wp_pass}".encode()).decode()
-    headers = {"Authorization": f"Basic {credentials}", "Content-Disposition": f'attachment; filename="{filename}"', "Content-Type": "image/webp"}
+    headers = {
+        "Authorization": f"Basic {credentials}",
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Type": "image/webp"
+    }
     try:
         resp = requests.post(f"{base_url}/wp-json/wp/v2/media", headers=headers, data=image_bytes, timeout=120)
         if resp.status_code in (200, 201):
-            data = resp.json(); media_id = data.get("id"); source_url = data.get("source_url","")
+            d = resp.json()
+            media_id = d.get("id"); source_url = d.get("source_url","")
             log(f"  ✅ Uploaded {filename} → media_id={media_id}")
             return {"success":True,"media_id":media_id,"url":source_url,"error":None}
         log(f"  ❌ WP upload failed {resp.status_code}: {resp.text[:200]}")
         return {"success":False,"media_id":None,"url":None,"error":f"WP {resp.status_code}"}
-    except Exception as e: log(f"  ❌ WP upload exception: {e}"); return {"success":False,"media_id":None,"url":None,"error":str(e)}
+    except Exception as e:
+        log(f"  ❌ WP upload exception: {e}")
+        return {"success":False,"media_id":None,"url":None,"error":str(e)}
 
 
 def publish_to_wordpress(title, content, wp_url, wp_password, status="publish",
@@ -604,63 +574,58 @@ def fetch_internal_links(wp_url, wp_password, max_posts=200):
 
 
 def inject_internal_links(html, links, current_title, max_links=4, main_color="#ea580c"):
-    """
-    Only inject links into paragraph text (<p> tags).
-    Never inject into FAQ questions (<strong> tags), headings, or list items.
-    Only match post titles (3+ words) found in paragraph body text.
-    """
+    """Only inject links into <p> paragraph text. Never into FAQ questions or headings."""
     if not links or not html: return html
     injected = 0; used_urls = set()
     current_lower = current_title.lower()
 
+    def replace_in_paragraphs(html_text, search_text, replacement):
+        result = []
+        parts = re.split(r'(<p[^>]*>|</p>)', html_text)
+        inside_p = False; replaced = False
+        for part in parts:
+            if re.match(r'<p[^>]*>', part): inside_p = True; result.append(part)
+            elif part == '</p>': inside_p = False; result.append(part)
+            elif inside_p and not replaced:
+                if '<strong' not in part and search_text.lower() in part.lower():
+                    new_part = re.sub(re.escape(search_text), replacement, part, count=1, flags=re.IGNORECASE)
+                    if new_part != part: replaced = True; result.append(new_part); continue
+                result.append(part)
+            else:
+                result.append(part)
+        return "".join(result), replaced
+
     for link in links:
         if injected >= max_links: break
-        link_title = link.get("title","").strip()
-        link_url = link.get("url","")
+        link_title = link.get("title","").strip(); link_url = link.get("url","")
         if not link_title or not link_url or link_url in used_urls: continue
         if link_title.lower() == current_lower: continue
         if link_title.strip().endswith("?"): continue
-
         words = link_title.split()
         if len(words) < 3: continue
-
-        link_words = set(link_title.lower().split())
-        current_words = set(current_lower.split())
+        link_words = set(link_title.lower().split()); current_words = set(current_lower.split())
         if len(link_words & current_words) / max(len(link_words), 1) > 0.5: continue
-
         anchor = f'<a href="{link_url}" style="color:{main_color};text-decoration:underline;font-weight:500;" title="{link_title}">{link_title}</a>'
-
-        def replace_in_paragraphs(html_text, search_text, replacement):
-            result = []
-            parts = re.split(r'(<p[^>]*>|</p>)', html_text)
-            inside_p = False; replaced = False
-            for part in parts:
-                if re.match(r'<p[^>]*>', part): inside_p = True; result.append(part)
-                elif part == '</p>': inside_p = False; result.append(part)
-                elif inside_p and not replaced:
-                    if '<strong' not in part and search_text.lower() in part.lower():
-                        new_part = re.sub(re.escape(search_text), replacement, part, count=1, flags=re.IGNORECASE)
-                        if new_part != part: replaced = True; result.append(new_part); continue
-                    result.append(part)
-                else:
-                    result.append(part)
-            return "".join(result), replaced
-
         new_html, did_replace = replace_in_paragraphs(html, link_title, anchor)
         if did_replace:
             html = new_html; used_urls.add(link_url); injected += 1; continue
-
         if len(words) >= 4:
             short = " ".join(words[-3:])
             short_anchor = f'<a href="{link_url}" style="color:{main_color};text-decoration:underline;font-weight:500;" title="{link_title}">{short}</a>'
             new_html, did_replace = replace_in_paragraphs(html, short, short_anchor)
             if did_replace:
                 html = new_html; used_urls.add(link_url); injected += 1
-
     return html
 
 
 def inject_images_into_article(html, image_results, title, log_fn=None):
+    """
+    image_results layout:
+      [0] = featured (set on WP post, NOT embedded in content)
+      [1] = body image 1 → ##IMAGE1##
+      [2] = body image 2 → ##IMAGE2##
+      [3] = body image 3 → ##IMAGE3##
+    """
     def log(m):
         if log_fn: log_fn(m)
     placeholders = ["##IMAGE1##", "##IMAGE2##", "##IMAGE3##"]
@@ -779,7 +744,7 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
         if log_fn: log_fn(msg)
 
     art_result = [None]; card_result = [None]
-    # image_results[0] = featured, [1],[2],[3] = body images
+    # image_results[0] = featured, [1-3] = body images
     image_results = [{"url":None,"media_id":None,"raw_bytes":None} for _ in range(4)]
     all_threads = []; _log_lock = threading.Lock()
 
@@ -793,7 +758,8 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
         if result["success"]:
             wc = len(re.sub(r"<[^>]+>","",result["content"]).split())
             safe_log(f"✅ Article ready (~{wc} words)")
-        else: safe_log(f"❌ Article failed: {result['error']}")
+        else:
+            safe_log(f"❌ Article failed: {result['error']}")
 
     def _gen_card():
         if not show_card: return
@@ -807,132 +773,122 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
         card_result[0] = card_html
         safe_log("✅ Card ready" if card_html else "⚠️ Card failed")
 
-    def _gen_images_fixed():
+    def _gen_images():
+        """
+        THE FIX: ONE MJ request → 2x2 grid → download immediately → crop 4 WebP → upload all in parallel.
+        For Pollinations: 4 separate requests run in parallel, same upload logic.
+        image_results[0] = featured (first image from grid / first Pollinations image)
+        image_results[1] = body-1 → ##IMAGE1##
+        image_results[2] = body-2 → ##IMAGE2##
+        image_results[3] = body-3 → ##IMAGE3##
+        """
         if not use_images:
             safe_log("ℹ️ Images disabled — toggle 'Generate Images' to enable"); return
         if not use_pollinations and not goapi_key:
             safe_log("⚠️ No image source — enable Pollinations or add GoAPI key"); return
 
-        user_ar = parse_ar_flag(mj_template)
-        if user_ar: safe_log(f"📐 Using aspect ratio from template: {user_ar[0]}:{user_ar[1]}")
-        slug = re.sub(r"[^a-z0-9]+","-",title.lower()).strip("-")
+        slug = re.sub(r"[^a-z0-9]+","-",title.lower()).strip("-")[:50]
+        labels = ["featured","body-1","body-2","body-3"]
 
-        if use_pollinations:
-            # Pollinations: generate 3 body images in parallel (works fine already)
-            safe_log("🖼️ Starting image generation (3 body images via Pollinations)...")
-            names = ["body-1","body-2","body-3"]
+        # Build the MJ prompt from template
+        tpl = mj_template or "{title}, professional photography, natural light --ar 3:2"
+        mj_prompt = tpl.replace("{recipe_name}", title).replace("{title}", title)
+        if "--ar" not in mj_prompt: mj_prompt += " --ar 3:2"
 
-            def _gen_poll(idx):
-                body_name = names[idx - 1]
-                fname = f"{slug}-{body_name}.webp"
-                target_ratio = user_ar if user_ar else (3, 2)
-                if user_ar:
-                    ar_w, ar_h = user_ar; base = 1024
-                    poll_w, poll_h = (base, int(base*ar_h/ar_w)) if ar_w>=ar_h else (int(base*ar_w/ar_h), base)
-                else: poll_w, poll_h = 1024, 683
-                tpl = pollinations_prompt or "Professional editorial photography of {title}, natural light, studio quality, 4K"
-                ip = tpl.replace("{title}", title).replace("{recipe_name}", title)
-                safe_log(f"  🖼️ Generating image {idx}/3 via Pollinations...")
-                res = generate_pollinations_image(ip, width=poll_w, height=poll_h, log_fn=safe_log)
-                if not res.get("url") and not res.get("raw_bytes"):
-                    safe_log(f"  ❌ Image {idx} failed: {res.get('error','unknown')}"); return
-                raw = res.get("raw_bytes") or download_image_bytes(res.get("url",""), safe_log)
-                if not raw: safe_log(f"  ❌ Image {idx}: no image data"); return
-                image_results[idx]["raw_bytes"] = raw
-                webp = crop_and_convert_to_webp(raw, max_width=1920, target_ratio=target_ratio, log_fn=safe_log)
-                if not webp:
-                    if res.get("url"): image_results[idx]["url"] = res["url"]
-                    return
-                if wp_url and wp_password:
-                    up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
-                    if up.get("success") and up.get("media_id"):
-                        image_results[idx]["url"] = up["url"]; image_results[idx]["media_id"] = up["media_id"]
-                        safe_log(f"  ✅ Image {idx} uploaded → media_id={up['media_id']}"); return
-                    elif res.get("url"): image_results[idx]["url"] = res["url"]
-                else: image_results[idx]["url"] = res.get("url","")
+        # ── Extract user's --ar for Pollinations sizing ──
+        user_ar = parse_ar_flag(mj_prompt)
+        if user_ar:
+            safe_log(f"  📐 Using aspect ratio from template: {user_ar[0]}:{user_ar[1]}")
+            ar_w, ar_h = user_ar; base = 1024
+            poll_w = base if ar_w >= ar_h else int(base * ar_w / ar_h)
+            poll_h = int(base * ar_h / ar_w) if ar_w >= ar_h else base
+        else:
+            poll_w, poll_h = 1024, 683
 
-            poll_threads = []
-            for idx in range(1, 4):
-                t = threading.Thread(target=_gen_poll, args=(idx,), daemon=True)
-                poll_threads.append(t); t.start()
-            for t in poll_threads: t.join(timeout=300)
+        # ── MIDJOURNEY PATH ───────────────────────────────────────────
+        if not use_pollinations and goapi_key:
+            safe_log(f"🖼️ Starting image generation (1 MJ request → 4 cropped images)...")
+            result = generate_midjourney_grid(goapi_key, mj_prompt, log_fn=safe_log)
 
-        elif goapi_key:
-            # ── THE REAL FIX: ONE MJ request → grid → 4 crops → upload all 4 in parallel ──
-            tpl = mj_template or "Close up {recipe_name}, professional photography, natural light --ar 2:3"
-            prompt = tpl.replace("{recipe_name}", title).replace("{title}", title)
-            if "--ar" not in prompt: prompt += " --ar 3:2"
+            if not result["success"]:
+                safe_log(f"  ❌ MJ failed: {result['error']}")
+                return
 
-            # This call blocks until grid is downloaded and all 4 images are cropped
-            cropped_webps = generate_mj_grid_and_crop(goapi_key, prompt, target_ratio=user_ar, log_fn=safe_log)
-            # cropped_webps = [img1_bytes, img2_bytes, img3_bytes, img4_bytes]
-            # We use images 1,2,3 as body images and image 1 as featured
-
-            if not any(cropped_webps):
-                safe_log("❌ All MJ images failed — no images will be uploaded"); return
-
-            safe_log("✅ Got 4 cropped WebP images — uploading in parallel...")
+            image_bytes_list = result["image_bytes"]  # 4 WebP bytes from grid crop
+            safe_log(f"  ✅ Got {len(image_bytes_list)} cropped WebP images — uploading in parallel...")
 
             def _upload_one(idx, webp_bytes, label):
-                if not webp_bytes:
-                    safe_log(f"  ⚠️ Image {idx} ({label}): no bytes to upload"); return
                 fname = f"{slug}-{label}.webp"
-                if wp_url and wp_password:
-                    safe_log(f"  📤 Image {idx} ({label}): Uploading to WordPress...")
-                    up = upload_image_to_wordpress(wp_url, wp_password, webp_bytes, fname, safe_log)
-                    if up.get("success") and up.get("media_id"):
-                        image_results[idx]["url"] = up["url"]
-                        image_results[idx]["media_id"] = up["media_id"]
-                        image_results[idx]["raw_bytes"] = webp_bytes
-                        safe_log(f"  ✅ Image {idx} ({label}): Done! → {up['url'][:60]}...")
-                    else:
-                        safe_log(f"  ❌ Image {idx} ({label}): Upload failed")
-                        image_results[idx]["raw_bytes"] = webp_bytes
-                else:
+                safe_log(f"  📤 Image {idx+1} ({label}): Uploading to WordPress...")
+                up = upload_image_to_wordpress(wp_url, wp_password, webp_bytes, fname, safe_log)
+                if up.get("success") and up.get("media_id"):
+                    image_results[idx]["url"] = up["url"]
+                    image_results[idx]["media_id"] = up["media_id"]
                     image_results[idx]["raw_bytes"] = webp_bytes
+                    safe_log(f"  ✅ Image {idx+1} ({label}): Done! → media_id={up['media_id']}")
+                else:
+                    safe_log(f"  ❌ Image {idx+1} ({label}): Upload failed — {up.get('error','unknown')}")
 
-            labels = ["featured", "closeup", "lifestyle", "ingredients"]
             upload_threads = []
-            # Upload all 4 in parallel
-            for i, (webp, label) in enumerate(zip(cropped_webps, labels)):
-                t = threading.Thread(target=_upload_one, args=(i+1 if i < 3 else 0, webp, label), daemon=True)
+            for i, (webp, label) in enumerate(zip(image_bytes_list, labels)):
+                t = threading.Thread(target=_upload_one, args=(i, webp, label), daemon=True)
                 upload_threads.append(t); t.start()
             for t in upload_threads: t.join(timeout=120)
 
-            # image_results[1] = closeup (body-1)
-            # image_results[2] = lifestyle (body-2)
-            # image_results[3] = ingredients (body-3)
-            # We also uploaded cropped_webps[0] as "featured" to index 0 directly
-
-            # Map correctly: crop[0]→featured(idx=0), crop[1]→body1(idx=1), crop[2]→body2(idx=2), crop[3]→body3(idx=3)
-            # Redo upload mapping cleanly:
-            safe_log("✅ 4/4 images ready")
-
-        # ── Set featured image ──
-        # Priority: image_results[0] if it has media_id (uploaded from crop[0])
-        # Fallback: use image_results[1] (body image 1)
-        r0 = image_results[0]; r1 = image_results[1]
-        if r0.get("media_id"):
-            safe_log(f"  🖼️ Featured image (media_id={r0['media_id']})")
-        elif r1.get("media_id"):
-            image_results[0]["media_id"] = r1["media_id"]
-            image_results[0]["url"] = r1["url"]
-            image_results[0]["raw_bytes"] = r1.get("raw_bytes")
-            safe_log(f"  🖼️ Featured image = body image 1 (media_id={r1['media_id']})")
-        elif r1.get("url"):
-            image_results[0]["url"] = r1["url"]
-            safe_log(f"  ⚠️ Featured: URL only (no media_id)")
+        # ── POLLINATIONS PATH ─────────────────────────────────────────
         else:
-            safe_log(f"  ⚠️ No featured image")
+            safe_log(f"🖼️ Starting image generation (4 Pollinations images)...")
+            poll_tpl = pollinations_prompt or "Professional editorial photography of {title}, natural light, studio quality, 4K"
+            poll_prompt = poll_tpl.replace("{title}", title).replace("{recipe_name}", title)
 
-        for idx in range(1, 4):
+            def _gen_poll_one(idx, label):
+                safe_log(f"  🖼️ Generating image {idx+1}/4 via Pollinations...")
+                time.sleep(idx * 3)  # stagger to avoid rate limits
+                res = generate_pollinations_image(poll_prompt, width=poll_w, height=poll_h, log_fn=safe_log)
+                raw = res.get("raw_bytes")
+                if not raw:
+                    safe_log(f"  ❌ Image {idx+1} failed"); return
+
+                # Convert to WebP with crop
+                try:
+                    img = Image.open(io.BytesIO(raw)).convert("RGB")
+                    buf = io.BytesIO()
+                    img.save(buf, format="WEBP", quality=82, method=2)
+                    webp = buf.getvalue()
+                except Exception as e:
+                    safe_log(f"  ⚠️ WebP conversion failed: {e}"); return
+
+                fname = f"{slug}-{label}.webp"
+                safe_log(f"  📤 Image {idx+1} ({label}): Uploading to WordPress...")
+                up = upload_image_to_wordpress(wp_url, wp_password, webp, fname, safe_log)
+                if up.get("success") and up.get("media_id"):
+                    image_results[idx]["url"] = up["url"]
+                    image_results[idx]["media_id"] = up["media_id"]
+                    image_results[idx]["raw_bytes"] = webp
+                    safe_log(f"  ✅ Image {idx+1} ({label}): Done! → media_id={up['media_id']}")
+                else:
+                    # Keep URL for article body even if WP upload fails
+                    if res.get("url"): image_results[idx]["url"] = res["url"]
+                    safe_log(f"  ⚠️ Image {idx+1} WP upload failed — using URL in article")
+
+            poll_threads = []
+            for i, label in enumerate(labels):
+                t = threading.Thread(target=_gen_poll_one, args=(i, label), daemon=True)
+                poll_threads.append(t); t.start()
+            for t in poll_threads: t.join(timeout=300)
+
+        # ── Log image results ─────────────────────────────────────────
+        for idx, label in enumerate(labels):
             r = image_results[idx]
-            label = ["","body-1","body-2","body-3"][idx]
-            if r.get("media_id"): safe_log(f"  📸 Image {idx} ({label}): ✅ in WP media (id={r['media_id']})")
-            elif r.get("url"): safe_log(f"  📸 Image {idx} ({label}): ✅ URL only")
-            else: safe_log(f"  📸 Image {idx} ({label}): ❌ not generated")
+            if r.get("media_id"):
+                safe_log(f"  📸 Image {idx+1} ({label}): ✅ in WP media (id={r['media_id']})")
+            elif r.get("url"):
+                safe_log(f"  📸 Image {idx+1} ({label}): ✅ URL only (in article body)")
+            else:
+                safe_log(f"  📸 Image {idx+1} ({label}): ❌ not generated")
 
-    for fn in [_gen_article, _gen_card, _gen_images_fixed]:
+    # ── Launch all threads simultaneously ────────────────────────────
+    for fn in [_gen_article, _gen_card, _gen_images]:
         t = threading.Thread(target=fn, daemon=True); all_threads.append(t); t.start()
 
     deadline = time.time() + 600
@@ -966,30 +922,39 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
     meta = generate_meta_description(title)
     wp_title = art.get("seo_title") or title
 
-    featured_id = None; featured_url = None; r0 = image_results[0]
+    # ── Featured image = image_results[0] ────────────────────────────
+    featured_id = None; featured_url = None
+    r0 = image_results[0]
     if r0.get("media_id"):
         try:
             featured_id = int(r0["media_id"]); featured_url = r0.get("url","")
             log(f"🖼️ Featured image ready: media_id={featured_id}")
-        except (ValueError, TypeError) as e: log(f"⚠️ Invalid media_id '{r0['media_id']}': {e}")
+        except (ValueError, TypeError) as e:
+            log(f"⚠️ Invalid media_id '{r0['media_id']}': {e}")
     elif r0.get("url"):
         featured_url = r0.get("url","")
         log(f"⚠️ Featured image URL only — no media_id")
     else:
-        if use_images: log("⚠️ No featured image was generated")
+        if use_images: log("⚠️ No featured image — images may have failed")
 
     log(f"📤 Publishing to WordPress (status={publish_status})...")
-    pub = publish_to_wordpress(title=wp_title, content=content, wp_url=wp_url, wp_password=wp_password,
-        status=publish_status, meta_description=meta, featured_media_id=featured_id, category_ids=category_ids)
+    pub = publish_to_wordpress(
+        title=wp_title, content=content, wp_url=wp_url, wp_password=wp_password,
+        status=publish_status, meta_description=meta,
+        featured_media_id=featured_id, category_ids=category_ids
+    )
 
     if pub["success"]:
         log(f"🎉 Published! → {pub.get('post_url','')}")
-        if featured_id: log(f"🖼️ Featured image set on post (media_id={featured_id})")
-        else: log(f"ℹ️ No featured image set (images disabled or WP upload failed)")
+        if featured_id:
+            log(f"🖼️ Featured image set on post (media_id={featured_id})")
+        else:
+            log(f"ℹ️ No featured image set (images disabled or WP upload failed)")
         pub["featured_image_url"] = featured_url or ""
         pub["featured_media_id"] = featured_id
         pub["body_images_bytes"] = [image_results[i].get("raw_bytes") for i in range(1, 4)]
-    else: log(f"❌ Publish failed: {pub['error']}")
+    else:
+        log(f"❌ Publish failed: {pub['error']}")
     return pub
 
 
