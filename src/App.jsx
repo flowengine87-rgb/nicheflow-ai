@@ -1279,56 +1279,419 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
 }
 
 // ─── DOCUMENTATION PAGE ─────────────────────────────────────────────────────
+// ─── DOCUMENTATION PAGE (FIXED — all sections complete) ───────────────────
+// Replace the entire DocsPage function in App.jsx with this.
+
 function DocsPage({ plan, onUpgrade }) {
   const [section, setSection] = useState("start");
   const sections = [
-    {id:"start",label:"Quick Start"},{id:"api",label:"API Keys"},{id:"wordpress",label:"WordPress"},
-    {id:"prompts",label:"Prompts & Cards"},{id:"images",label:"Images & WebP"},
-    {id:"links",label:"Internal Links"},{id:"pinterest",label:"Pinterest (Pro)"},{id:"billing",label:"Billing & Plans"},
+    { id: "start",     label: "🚀 Quick Start" },
+    { id: "api",       label: "🔑 API Keys" },
+    { id: "wordpress", label: "🌐 WordPress" },
+    { id: "prompts",   label: "💬 Prompts & Cards" },
+    { id: "images",    label: "🖼️ Images & WebP" },
+    { id: "links",     label: "🔗 Internal Links" },
+    { id: "pinterest", label: "📌 Pinterest (Pro)" },
+    { id: "billing",   label: "💳 Billing & Plans" },
   ];
+
   return (
-    <div className="fade-up" style={{display:"flex",gap:24}}>
-      <div style={{width:180,flexShrink:0}}>
-        <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:8,position:"sticky",top:20}}>
-          {sections.map(s=>(
-            <button key={s.id} onClick={()=>setSection(s.id)} style={{display:"block",width:"100%",padding:"8px 12px",borderRadius:8,border:"none",background:section===s.id?"var(--accent-dim)":"transparent",color:section===s.id?"var(--accent2)":"var(--text2)",fontSize:13,textAlign:"left",cursor:"pointer",fontFamily:"var(--font)",marginBottom:2}}>
+    <div className="fade-up" style={{ display: "flex", gap: 24 }}>
+      {/* Sidebar nav */}
+      <div style={{ width: 190, flexShrink: 0 }}>
+        <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 8, position: "sticky", top: 20 }}>
+          {sections.map(s => (
+            <button key={s.id} onClick={() => setSection(s.id)}
+              style={{ display: "block", width: "100%", padding: "8px 12px", borderRadius: 8, border: "none",
+                background: section === s.id ? "var(--accent-dim)" : "transparent",
+                color: section === s.id ? "var(--accent2)" : "var(--text2)",
+                fontSize: 13, textAlign: "left", cursor: "pointer", fontFamily: "var(--font)", marginBottom: 2 }}>
               {s.label}
             </button>
           ))}
         </div>
       </div>
-      <div style={{flex:1}}>
-        {section==="start"&&(
+
+      {/* Content */}
+      <div style={{ flex: 1 }}>
+
+        {/* ── QUICK START ── */}
+        {section === "start" && (
           <div className="doc-section">
             <h3>🚀 Quick Start</h3>
+            <p style={{ fontSize: 14, color: "var(--text2)", marginBottom: 20, lineHeight: 1.7 }}>
+              Get your first article published in under 5 minutes.
+            </p>
             {[
-              {n:"1",t:"Get a free AI key",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> — free key starting with <code>gsk_</code>.</>},
-              {n:"2",t:"Configure Settings",d:"Settings → API Keys → paste key → Test → Save."},
-              {n:"3",t:"Connect WordPress",d:<>Settings → WordPress → site URL + App Password. Format: <code>username:xxxx xxxx xxxx xxxx</code>.</>},
-              {n:"4",t:"Write your Prompt",d:<>Settings → Prompts → use <code>{"{title}"}</code> as placeholder.</>},
-              {n:"5",t:"Generate",d:"Generate → paste title → click Generate. Watch logs for image upload status."},
-            ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
+              { n: "1", t: "Get a free AI key",
+                d: <> Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>console.groq.com</a> — free key starting with <code>gsk_</code>. Or use Gemini at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>aistudio.google.com</a> (starts with <code>AIza</code>). Both are free. </> },
+              { n: "2", t: "Configure API Keys",
+                d: <> Go to <strong>Settings → API Keys</strong>, paste your key, hit <strong>Test</strong>, then <strong>Save Settings</strong>. If you have both Groq and Gemini, enter them comma-separated — the app uses Groq first and falls back to Gemini automatically. </> },
+              { n: "3", t: "Connect WordPress",
+                d: <> Go to <strong>Settings → WordPress</strong>. Enter your site URL (e.g. <code>https://yoursite.com</code>) and an App Password in format <code>username:xxxx xxxx xxxx xxxx</code>. Hit <strong>Test Connection</strong> to confirm. </> },
+              { n: "4", t: "Write your Prompts",
+                d: <> Go to <strong>Settings → Prompts</strong>. Write your Article Prompt (use <code>{"{title}"}</code> as placeholder) and your Card Prompt. The AI will follow your exact instructions for tone, style, structure. </> },
+              { n: "5", t: "Set up Images (optional)",
+                d: <> Go to <strong>Settings → Images</strong>. Paste a Midjourney template (needs GoAPI key) or turn on Pollinations for free images. Include <code>--ar 1:1</code> to control crop ratio. </> },
+              { n: "6", t: "Generate your first article",
+                d: <> Go to <strong>Generate</strong>, paste one or more article titles (one per line), and click <strong>Generate</strong>. Watch the Process Log — it shows every step including image upload status. </> },
+            ].map(s => (
+              <div key={s.n} className="doc-step">
+                <div className="doc-step-num">{s.n}</div>
+                <div className="doc-step-text">
+                  <div className="doc-step-title">{s.t}</div>
+                  <div className="doc-step-desc">{s.d}</div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
-        {section==="images"&&(
+
+        {/* ── API KEYS ── */}
+        {section === "api" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div className="doc-section">
+              <h3>🔑 AI Keys — Groq & Gemini</h3>
+              <div className="alert alert-info" style={{ marginBottom: 16 }}>
+                You can use Groq, Gemini, or both. Enter both comma-separated for automatic fallback — if Groq hits a rate limit, Gemini is used instead.
+              </div>
+              {[
+                { t: "Groq (recommended, free)",
+                  d: <> Sign up at <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>console.groq.com</a>. Go to <strong>API Keys → Create API Key</strong>. Key starts with <code>gsk_</code>. Free tier includes generous daily limits. Model used: <code>llama-3.1-8b-instant</code>. </> },
+                { t: "Gemini (backup, free)",
+                  d: <> Sign up at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>aistudio.google.com</a>. Click <strong>Get API Key</strong>. Key starts with <code>AIza</code>. Model used: <code>gemini-2.0-flash</code>. </> },
+                { t: "Using both keys",
+                  d: <> In the API Key field, enter both separated by a comma: <code>gsk_abc123, AIzaSyXxx</code>. Groq is tried first. If it fails (rate limit or error), Gemini is tried automatically. This gives you zero-downtime article generation. </> },
+                { t: "Testing your key",
+                  d: "Click the Test button next to the key field. It makes a live API call and tells you if the key is valid. Always test before running a batch." },
+              ].map((s, i) => (
+                <div key={i} className="doc-step">
+                  <div className="doc-step-num">{i + 1}</div>
+                  <div className="doc-step-text">
+                    <div className="doc-step-title">{s.t}</div>
+                    <div className="doc-step-desc">{s.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="doc-section">
+              <h3>🔑 GoAPI Key (Midjourney images)</h3>
+              <div className="alert alert-warn" style={{ marginBottom: 14 }}>GoAPI is only needed for Midjourney images. If you use Pollinations (free), you can skip this entirely.</div>
+              {[
+                { t: "Get your GoAPI key", d: <> Sign up at <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>goapi.ai</a>. Go to <strong>Dashboard → API Keys</strong> and copy your key. Paste it in <strong>Settings → API Keys → GoAPI Key</strong>. </> },
+                { t: "How it works", d: "GoAPI submits your image prompt to Midjourney, waits for the 2×2 grid result, then NicheFlow crops it into 4 individual images, converts them to WebP, and uploads all 4 to WordPress." },
+                { t: "Cost", d: "GoAPI charges per Midjourney generation. Each article uses 1 MJ request (which gives 4 cropped images). Check GoAPI's current pricing on their dashboard." },
+              ].map((s, i) => (
+                <div key={i} className="doc-step">
+                  <div className="doc-step-num">{i + 1}</div>
+                  <div className="doc-step-text">
+                    <div className="doc-step-title">{s.t}</div>
+                    <div className="doc-step-desc">{s.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── WORDPRESS ── */}
+        {section === "wordpress" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div className="doc-section">
+              <h3>🌐 Connecting WordPress</h3>
+              {[
+                { t: "Site URL",
+                  d: <> Enter your full site URL including <code>https://</code>, no trailing slash. Example: <code>https://myblog.com</code>. Works with any WordPress host — Hostinger, WP Engine, Bluehost, self-hosted, etc. </> },
+                { t: "Create an Application Password",
+                  d: <> In WordPress: go to <strong>Users → Profile</strong> → scroll to <strong>Application Passwords</strong> → enter a name like "NicheFlow" → click <strong>Add New Application Password</strong>. Copy the generated password immediately (it won't show again). </> },
+                { t: "Format the credentials",
+                  d: <> In NicheFlow, enter it as: <code>yourusername:xxxx xxxx xxxx xxxx</code>. Replace <code>yourusername</code> with your WordPress admin username (not email). The password is the one WordPress just generated with spaces included. </> },
+                { t: "Test the connection",
+                  d: "Click Test Connection — it makes a live call to your WordPress REST API. If it succeeds, it shows your WordPress display name. If it fails, double-check the username and that the App Password was copied correctly." },
+                { t: "Required WordPress settings",
+                  d: <> Make sure <strong>Permalinks</strong> are not set to Plain (WordPress → Settings → Permalinks → choose any option except Plain). Plain permalinks break the REST API. </> },
+              ].map((s, i) => (
+                <div key={i} className="doc-step">
+                  <div className="doc-step-num">{i + 1}</div>
+                  <div className="doc-step-text">
+                    <div className="doc-step-title">{s.t}</div>
+                    <div className="doc-step-desc">{s.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="doc-section">
+              <h3>🌐 Publish Settings</h3>
+              {[
+                { t: "Publish immediately vs Draft",
+                  d: "In Settings → WordPress, set the default status. You can also override per-batch in the Generate page using the 'Save as Draft' toggle. Draft lets you review before going live." },
+                { t: "Delay between articles",
+                  d: "Set a delay (in seconds) between articles in a batch. Useful to avoid overwhelming your server or hitting API rate limits. 10–30 seconds is a safe default for most setups." },
+              ].map((s, i) => (
+                <div key={i} className="doc-step">
+                  <div className="doc-step-num">{i + 1}</div>
+                  <div className="doc-step-text">
+                    <div className="doc-step-title">{s.t}</div>
+                    <div className="doc-step-desc">{s.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── PROMPTS & CARDS ── */}
+        {section === "prompts" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div className="doc-section">
+              <h3>💬 Article Prompt</h3>
+              <div className="alert alert-info" style={{ marginBottom: 14 }}>
+                The article prompt is your main instruction to the AI. Write it as if briefing a writer. Be specific about tone, structure, length, style, and audience.
+              </div>
+              {[
+                { t: "Required placeholder",
+                  d: <> Always include <code>{"{title}"}</code> somewhere in your prompt. It gets replaced with the actual article title before the AI call. Without it, every article will ignore the title. </> },
+                { t: "Required JSON output",
+                  d: <> The AI must return valid JSON. Tell it to return: <code>{"html_content"}</code>, <code>{"seo_title"}</code>, <code>{"excerpt"}</code>, and color hex fields: <code>MAIN</code>, <code>MAIN_DARK</code>, <code>LIGHT_BG</code>, <code>BORDER</code>. These colors are used in the summary card. </> },
+                { t: "Image placeholders",
+                  d: <> Include <code>##IMAGE1##</code>, <code>##IMAGE2##</code>, <code>##IMAGE3##</code> in the html_content where you want images injected. The AI should place them naturally inside the article — e.g. after the intro, mid-article, and near the end. </> },
+                { t: "Example prompt structure",
+                  d: null },
+              ].map((s, i) => (
+                <div key={i} className="doc-step">
+                  <div className="doc-step-num">{i + 1}</div>
+                  <div className="doc-step-text">
+                    <div className="doc-step-title">{s.t}</div>
+                    {s.d && <div className="doc-step-desc">{s.d}</div>}
+                    {i === 3 && (
+                      <pre>{`You are Emma, a warm mama blogger writing for new moms.
+Write a detailed, helpful article about: {title}
+
+Guidelines:
+- 1800–2200 words, conversational tone
+- Include personal anecdotes
+- Use H2/H3 headings
+- Place ##IMAGE1## after the intro
+- Place ##IMAGE2## halfway through
+- Place ##IMAGE3## near the end
+
+Return ONLY valid JSON:
+{
+  "seo_title": "...",
+  "excerpt": "...(1–2 sentences)...",
+  "html_content": "...(full HTML article)...",
+  "MAIN": "#hex",
+  "MAIN_DARK": "#hex",
+  "LIGHT_BG": "#hex",
+  "BORDER": "#hex"
+}`}</pre>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="doc-section">
+              <h3>🃏 Card Prompt</h3>
+              <div className="alert alert-info" style={{ marginBottom: 14 }}>
+                The card is a summary widget appended at the end of each article. It drives saves and shares. Keep it punchy and scannable.
+              </div>
+              {[
+                { t: "What the card outputs",
+                  d: <> The AI must return: <code>card_title</code> (short), <code>summary</code> (2 sentences), <code>key_points</code> (array of bullet strings), <code>quick_facts</code> (array of label/value pairs), <code>cta_text</code> (button label, e.g. "Save this! 📌"). </> },
+                { t: "CTA button behavior",
+                  d: "The CTA button in the card triggers browser share (Web Share API) if available on mobile, or copies the URL on desktop. It's designed to encourage saving and sharing." },
+                { t: "Example card prompt",
+                  d: null },
+              ].map((s, i) => (
+                <div key={i} className="doc-step">
+                  <div className="doc-step-num">{i + 1}</div>
+                  <div className="doc-step-text">
+                    <div className="doc-step-title">{s.t}</div>
+                    {s.d && <div className="doc-step-desc">{s.d}</div>}
+                    {i === 2 && (
+                      <pre>{`For the article "{title}", create a summary card.
+Return ONLY valid JSON:
+{
+  "card_title": "Quick Summary",
+  "summary": "2-sentence overview of what the reader learned.",
+  "key_points": [
+    "Most important takeaway",
+    "Second key point",
+    "Third key point"
+  ],
+  "quick_facts": [
+    {"label": "Prep time", "value": "10 mins"},
+    {"label": "Best for", "value": "Beginners"}
+  ],
+  "cta_text": "Save this! 📌"
+}`}</pre>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── IMAGES ── */}
+        {section === "images" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div className="doc-section">
+              <h3>🖼️ How Images Work</h3>
+              <div className="alert alert-info" style={{ marginBottom: 14 }}>
+                NicheFlow makes ONE Midjourney request per article. MJ returns a 2×2 grid of 4 images. The grid is cropped into 4 individual images, converted to WebP, and all 4 are uploaded to WordPress.
+              </div>
+              {[
+                { t: "1 MJ request → 4 images",
+                  d: "One MJ prompt generates a 2×2 grid. NicheFlow downloads the grid immediately (before CDN expiry), crops it into 4 pieces using Pillow, and converts each to WebP. This is how the 403 download issue is avoided — the grid is fetched once at the right moment." },
+                { t: "Featured image = image 1",
+                  d: "The first cropped image is set as the WordPress featured image (via media_id). Images 2–4 are injected into the article at ##IMAGE1## ##IMAGE2## ##IMAGE3## positions." },
+                { t: "Aspect ratio from your template",
+                  d: <> The <code>--ar</code> flag in your MJ template controls the crop ratio for ALL 4 images. For example <code>--ar 1:1</code> gives square images, <code>--ar 2:3</code> gives portrait (good for Pinterest). If no <code>--ar</code> is set, it defaults to 1:1. </> },
+                { t: "WebP conversion",
+                  d: "All images are converted to WebP before upload. WebP is smaller and faster-loading than JPEG/PNG — good for Core Web Vitals and SEO." },
+                { t: "Pollinations (free alternative)",
+                  d: "Enable Pollinations in Settings → Images for free AI images with no API key. Images are generated from your prompt template. Quality is lower than Midjourney but completely free with no key required." },
+                { t: "MJ template tips",
+                  d: <> Use <code>{"{title}"}</code> or <code>{"{recipe_name}"}</code> in your template. Keep it short and descriptive. End with style keywords and <code>--ar</code>. Example: <code>Close up {"{title}"}, food photography, natural light, soft bokeh --ar 1:1</code> </> },
+              ].map((s, i) => (
+                <div key={i} className="doc-step">
+                  <div className="doc-step-num">{i + 1}</div>
+                  <div className="doc-step-text">
+                    <div className="doc-step-title">{s.t}</div>
+                    <div className="doc-step-desc">{s.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── INTERNAL LINKS ── */}
+        {section === "links" && (
           <div className="doc-section">
-            <h3>🖼️ Images & WebP</h3>
+            <h3>🔗 Internal Links</h3>
+            <div className="alert alert-info" style={{ marginBottom: 14 }}>
+              NicheFlow fetches your existing WordPress posts and automatically injects internal links into new articles — pointing to posts you've already published.
+            </div>
             {[
-              {t:"3 body images generated",d:"Images 1-3 are body images (##IMAGE1## ##IMAGE2## ##IMAGE3##). Featured image = body image 1 (reused, guaranteed to have media_id)."},
-              {t:"Aspect ratio from your template",d:"The --ar flag in your MJ template controls crop ratio for ALL images. e.g. --ar 1:1 gives square images."},
-              {t:"Featured image fix",d:"Featured image now always equals body image 1. Previously a 4th separate MJ task was generated for featured which often failed due to CDN expiry. Now body image 1 is reused — so featured is always set."},
-              {t:"WebP upload",d:"All uploaded to WP media library. Featured image set on post via media_id (featured_media field)."},
-            ].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
+              { t: "How it works",
+                d: "Before publishing, NicheFlow fetches the last 100 published posts from your WordPress site. For each existing post title that is 3+ words long, it searches the new article's body text for that phrase and wraps it in an anchor tag pointing to the post URL." },
+              { t: "Only links on paragraph text",
+                d: "Links are only injected inside <p> paragraph tags — never inside headings (H1–H6), bold FAQ questions (<strong> containing ?), or existing anchor tags. This prevents broken heading links and double-linking." },
+              { t: "Max links per article",
+                d: "Set the maximum number of internal links in Settings → WordPress → Max internal links. Default is 4. Too many internal links can look spammy — 3–5 is a healthy range for SEO." },
+              { t: "Load Posts first",
+                d: "If you see '⚠️ No internal links available — click Load Posts' in the Process Log, it means the backend hasn't fetched your posts yet. This happens automatically on the first run. On subsequent articles in the same batch, posts are already loaded." },
+              { t: "Enable / Disable",
+                d: "Toggle internal links on/off in Settings → WordPress → Auto-inject internal links. Disable it if you want full manual control over linking." },
+            ].map((s, i) => (
+              <div key={i} className="doc-step">
+                <div className="doc-step-num">{i + 1}</div>
+                <div className="doc-step-text">
+                  <div className="doc-step-title">{s.t}</div>
+                  <div className="doc-step-desc">{s.d}</div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
-        {section==="billing"&&(
+
+        {/* ── PINTEREST ── */}
+        {section === "pinterest" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {plan !== "pro" && (
+              <div className="alert alert-warn" style={{ marginBottom: 0 }}>
+                📌 Pinterest is a <strong>Pro feature</strong>. <button className="btn btn-pro btn-sm" onClick={() => onUpgrade("pro")} style={{ marginLeft: 10 }}>Upgrade to Pro ★</button>
+              </div>
+            )}
+            <div className="doc-section">
+              <h3>📌 Pinterest Setup</h3>
+              {[
+                { t: "Create a Pinterest Developer App",
+                  d: <> Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{ color: "var(--accent2)" }}>developers.pinterest.com</a> → <strong>My Apps → Create App</strong>. Fill in a name and description. Once created, go to the app and click <strong>Generate Access Token</strong> with scopes: <code>boards:read</code>, <code>pins:write</code>. </> },
+                { t: "Paste the token",
+                  d: "Copy the access token and paste it in Settings → Pinterest → Pinterest Access Token. Save settings." },
+                { t: "Boards auto-load",
+                  d: "When you open the Pinterest page, your boards load automatically. You can also click Refresh Boards to reload after adding or deleting boards on Pinterest. No manual board ID entry needed." },
+                { t: "Select boards and pin",
+                  d: "Select one or more boards on the Pinterest page, then click Pin. NicheFlow creates a pin for each published article on every selected board." },
+                { t: "Scheduling pins",
+                  d: "Enable the Schedule toggle to choose a future date and time for your pins. The scheduled_at time is passed to the Pinterest API so pins go live exactly when you set." },
+              ].map((s, i) => (
+                <div key={i} className="doc-step">
+                  <div className="doc-step-num">{i + 1}</div>
+                  <div className="doc-step-text">
+                    <div className="doc-step-title">{s.t}</div>
+                    <div className="doc-step-desc">{s.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="doc-section">
+              <h3>📌 Pin Image Design</h3>
+              {[
+                { t: "What gets pinned",
+                  d: "Each pin uses one of the article's body images as a background, with the 4-word hook title overlaid as text. The resulting 1000×1500px image is uploaded to WordPress and used as the pin image." },
+                { t: "Hook title (4 words)",
+                  d: <> The Pin Prompt must return a <code>hook_title</code> field with EXACTLY 4 words. This is overlaid on the pin image in large text. Keep it punchy and curiosity-driven. Example: "You'll never go back". </> },
+                { t: "Customizing pin design",
+                  d: <> In Settings → Pinterest → Pin Image Design, enter design settings as <code>key:value</code> pairs: <code>background_color:#1a1a2e</code>, <code>title_color:#fff</code>, <code>title_size:72</code>, <code>canvas_width:1000</code>, <code>canvas_height:1500</code>, <code>overlay_opacity:0.55</code>, <code>logo_text:yoursite.com</code>, <code>gradient:true</code>. All are optional — defaults are used for any omitted setting. </> },
+                { t: "Auto-pin after publish",
+                  d: "Enable Auto-pin in Settings → Pinterest to automatically pin every article immediately after it publishes. You can also set a delay (in minutes) so pins go out after a set time post-publish." },
+              ].map((s, i) => (
+                <div key={i} className="doc-step">
+                  <div className="doc-step-num">{i + 1}</div>
+                  <div className="doc-step-text">
+                    <div className="doc-step-title">{s.t}</div>
+                    <div className="doc-step-desc">{s.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── BILLING ── */}
+        {section === "billing" && (
           <div className="doc-section">
             <h3>💳 Billing & Plans</h3>
-            <div className="alert alert-info" style={{marginBottom:16}}>New users get <strong>2 days free trial</strong>. After 2 days the app blocks until you pay.</div>
-            <div className="alert alert-info" style={{marginBottom:16}}>After payment, a <strong>monthly countdown</strong> shows in the top bar. When it reaches 0, you're notified to renew.</div>
-            {plan!=="pro"&&<button className="btn btn-pro" style={{width:"100%",marginTop:12}} onClick={()=>onUpgrade("pro")}>Upgrade to Pro — $40/mo ★</button>}
+            <div className="alert alert-info" style={{ marginBottom: 14 }}>
+              New users get a <strong>2-day free trial</strong> — no credit card required. After 2 days, the app blocks until you choose a plan.
+            </div>
+            {[
+              { t: "Free Trial — 2 days",
+                d: "From the moment you create your account, you have 2 full days to use the app. The top bar shows a countdown. After 2 days, you'll see a paywall screen asking you to choose Basic or Pro." },
+              { t: "Basic plan — $30/month",
+                d: "Unlimited articles, custom article and card prompts, 4 images per article (featured + 3 body), WordPress auto-publish, internal link injection, history. Everything you need to run a content business." },
+              { t: "Pro plan — $40/month",
+                d: "Everything in Basic plus Pinterest automation: AI-generated pin images with 4-word hook titles overlaid, board selection, pin scheduling, and auto-pin after publish." },
+              { t: "Subscription countdown",
+                d: "After payment, the top bar shows how many days are left in your current billing period. When it hits 3 days or less, you'll see a warning. When it reaches 0, you'll be prompted to renew." },
+              { t: "Renewing / Cancelling",
+                d: "Payments and renewals are handled by LemonSqueezy. To cancel or manage your subscription, go to your LemonSqueezy customer portal (link sent in your payment confirmation email)." },
+              { t: "Plan not updating after payment?",
+                d: "If your plan doesn't update automatically, click Refresh Plan in the sidebar footer. Plan status is synced via webhook — it usually updates within seconds of payment but can take up to a minute." },
+            ].map((s, i) => (
+              <div key={i} className="doc-step">
+                <div className="doc-step-num">{i + 1}</div>
+                <div className="doc-step-text">
+                  <div className="doc-step-title">{s.t}</div>
+                  <div className="doc-step-desc">{s.d}</div>
+                </div>
+              </div>
+            ))}
+            {plan !== "pro" && (
+              <div style={{ marginTop: 20 }}>
+                <button className="btn btn-pro" style={{ width: "100%" }} onClick={() => onUpgrade("pro")}>
+                  Upgrade to Pro — $40/mo ★
+                </button>
+              </div>
+            )}
           </div>
         )}
+
       </div>
     </div>
   );
