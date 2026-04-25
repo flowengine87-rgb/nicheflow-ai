@@ -181,6 +181,8 @@ class SettingsUpdate(BaseModel):
     show_card: Optional[bool] = True
     use_internal_links: Optional[bool] = True
     max_links: Optional[int] = 4
+    full_width_images: Optional[bool] = True
+    clickable_card: Optional[bool] = False
     delay_sec: Optional[int] = 10
     pinterest_token: Optional[str] = ""
     auto_pin: Optional[bool] = False
@@ -394,7 +396,8 @@ def pipeline_direct(body: PipelineRequest, authorization: str = Header(None)):
         pollinations_prompt=(body.pollinations_prompt or "").strip(),
         category_ids=body.category_ids,
         max_links=body.max_links or 4,
-        use_internal_links=body.use_internal_links if body.use_internal_links is not None else True,
+        full_width_images=body.full_width_images if body.full_width_images is not None else True,
+        clickable_card=body.clickable_card or False,
         log_fn=log_fn,
     )
 

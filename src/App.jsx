@@ -891,7 +891,8 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
           mj_template:config.mj_template||"",publish_status:draft?"draft":(config.publish_status||"publish"),
           use_images:useImages,use_pollinations:config.use_pollinations||false,
           pollinations_prompt:config.pollinations_prompt||"",show_card:config.show_card!==false,
-          use_internal_links:config.use_internal_links!==false,max_links:config.max_links||4
+          use_internal_links:config.use_internal_links!==false,max_links:config.max_links||4,
+full_width_images:config.full_width_images!==false,clickable_card:config.clickable_card||false
         };
         const token=getStoredToken();
         const res=await fetch(`${API_URL}/pipeline`,{method:"POST",headers:{"Content-Type":"application/json",...(token?{"Authorization":`Bearer ${token}`}:{})},body:JSON.stringify(payload)});
@@ -1039,7 +1040,8 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
             <div><label className="form-label">Default Publish Status</label><select className="input" value={cfg.publish_status||"publish"} onChange={e=>update("publish_status",e.target.value)}><option value="publish">Publish immediately</option><option value="draft">Save as draft</option></select></div>
             <div className="setting-row"><div className="setting-info"><div className="setting-name">Auto-inject internal links</div><div className="setting-desc">Match full long-tail article titles (3+ word phrases)</div></div><label className="toggle"><input type="checkbox" checked={cfg.use_internal_links!==false} onChange={e=>update("use_internal_links",e.target.checked)}/><span className="toggle-slider"/></label></div>
             {cfg.use_internal_links!==false&&<div><label className="form-label">Max internal links per article</label><input className="input" type="number" value={cfg.max_links||4} min={1} max={10} onChange={e=>update("max_links",+e.target.value)} style={{width:100}}/></div>}
-            <div><label className="form-label">Default delay between articles (seconds)</label><input className="input" type="number" value={cfg.delay_sec||10} min={0} max={120} onChange={e=>update("delay_sec",+e.target.value)} style={{width:100}}/></div>
+            <div className="setting-row"><div className="setting-info"><div className="setting-name">Full width images</div><div className="setting-desc">Images stretch to full width in articles</div></div><label className="toggle"><input type="checkbox" checked={cfg.full_width_images!==false} onChange={e=>update("full_width_images",e.target.checked)}/><span className="toggle-slider"/></label></div>
+<div className="setting-row"><div className="setting-info"><div className="setting-name">Clickable card</div><div className="setting-desc">Wrap summary card in a share link</div></div><label className="toggle"><input type="checkbox" checked={cfg.clickable_card||false} onChange={e=>update("clickable_card",e.target.checked)}/><span className="toggle-slider"/></label></div>
           </div>
         </div>
       )}
