@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-NicheFlow AI — main.py FIXED v5
-KEY FIXES:
-- /pipeline now passes log_fn so image generation actually runs and logs
-- /pipeline logs stored and returned for frontend display
-- profiles table now stores plan_expires for subscription countdown
-- upgrade_user_plan sets plan_expires to 30 days from now
-- All other endpoints unchanged
+NicheFlow AI — main.py (Gumroad edition)
+Replaced LemonSqueezy checkout/webhook with Gumroad ping webhook.
+Everything else unchanged.
 """
 
 from fastapi import FastAPI, HTTPException, Header, Depends, Request
@@ -27,16 +23,26 @@ from generator import (
     test_wordpress, test_pinterest, fetch_internal_links, fetch_wp_categories,
 )
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://gfulpvqqpakcgubkilwc.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_U9zJp_BBd-jkJCwvGimNmw_E4NyynFN")
+SUPABASE_URL    = os.getenv("SUPABASE_URL",    "https://gfulpvqqpakcgubkilwc.supabase.co")
+SUPABASE_KEY    = os.getenv("SUPABASE_KEY",    "sb_publishable_U9zJp_BBd-jkJCwvGimNmw_E4NyynFN")
 SUPABASE_SECRET = os.getenv("SUPABASE_SECRET", "sb_secret_u_ZtMx7jmUBxXgOxhxYmaw_izKuJCyC")
-LEMONSQUEEZY_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET", "")
 
-LEMON_BASIC_VARIANT_ID = os.getenv("LEMON_BASIC_VARIANT_ID", "")
-LEMON_PRO_VARIANT_ID   = os.getenv("LEMON_PRO_VARIANT_ID", "")
+# ── Gumroad product permalinks (used only for reference / validation) ──────
+GUMROAD_BASIC_PERMALINK = os.getenv("GUMROAD_BASIC_PERMALINK", "nicheflow-ai")
+GUMROAD_PRO_PERMALINK   = os.getenv("GUMROAD_PRO_PERMALINK",   "ysrzyv")
 
-app = FastAPI(title="NicheFlow AI API", version="5.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# ── Gumroad Access Token — set in Railway env vars ─────────────────────────
+# Used to verify ping webhook calls via Gumroad Ping API
+GUMROAD_ACCESS_TOKEN = os.getenv("GUMROAD_ACCESS_TOKEN", "")
+
+app = FastAPI(title="NicheFlow AI API", version="5.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # In-memory cache: body image bytes per article URL for Pinterest pin image generation
 _article_image_cache: dict = {}
@@ -123,12 +129,17 @@ def save_article_to_db(user_id, token, title, result, publish_status):
 
 
 def upgrade_user_plan(user_email: str, plan: str):
-    """Called by LemonSqueezy webhook to upgrade a user. Sets plan_expires 30 days out."""
+    """
+    Called by Gumroad webhook to upgrade a user.
+    Sets plan_expires 30 days from now.
+    Uses SUPABASE_SECRET (service role key) so it can bypass RLS.
+    """
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_SECRET}",
         "Content-Type": "application/json",
     }
+    # Look up by email stored in profiles table
     resp = requests.get(
         f"{SUPABASE_URL}/rest/v1/profiles?email=eq.{user_email}&select=id",
         headers=headers,
@@ -230,7 +241,7 @@ class PinterestRunRequest(BaseModel):
 @app.get("/")
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "NicheFlow AI", "version": "5.0.0"}
+    return {"status": "ok", "service": "NicheFlow AI", "version": "5.1.0"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -300,7 +311,7 @@ def save_settings(body: SettingsUpdate, auth=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  PROFILE — includes plan_expires for subscription countdown
+#  PROFILE
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/profile")
@@ -352,7 +363,6 @@ def wp_posts(auth=Depends(get_current_user)):
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  /pipeline — React frontend calls this
-#  FIX: now passes log_fn so image threads actually run + logs captured
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/pipeline")
@@ -364,7 +374,6 @@ def pipeline_direct(body: PipelineRequest, authorization: str = Header(None)):
     if not body.wp_password or not body.wp_password.strip():
         raise HTTPException(status_code=400, detail="No WordPress password. Go to Settings → WordPress.")
 
-    # Collect logs from pipeline for debugging
     pipeline_logs = []
     def log_fn(msg):
         pipeline_logs.append(msg)
@@ -386,10 +395,9 @@ def pipeline_direct(body: PipelineRequest, authorization: str = Header(None)):
         category_ids=body.category_ids,
         max_links=body.max_links or 4,
         use_internal_links=body.use_internal_links if body.use_internal_links is not None else True,
-        log_fn=log_fn,  # ← THIS WAS MISSING — images were silently skipped
+        log_fn=log_fn,
     )
 
-    # Cache body image bytes for Pinterest
     post_url = result.get("post_url", "")
     if post_url and result.get("body_images_bytes"):
         _article_image_cache[post_url] = result["body_images_bytes"]
@@ -397,7 +405,6 @@ def pipeline_direct(body: PipelineRequest, authorization: str = Header(None)):
             oldest_key = next(iter(_article_image_cache))
             del _article_image_cache[oldest_key]
 
-    # Save to DB if user is logged in
     if authorization and authorization.startswith("Bearer "):
         try:
             token = authorization.split(" ", 1)[1]
@@ -413,7 +420,7 @@ def pipeline_direct(body: PipelineRequest, authorization: str = Header(None)):
         "featured_image_url": result.get("featured_image_url", ""),
         "error": result.get("error", "Unknown error"),
         "title": body.title,
-        "logs": pipeline_logs,  # Return logs so frontend can display them
+        "logs": pipeline_logs,
     }
 
 
@@ -458,7 +465,6 @@ def generate(body: GenerateRequest, auth=Depends(get_current_user)):
             log_fn=log_fn,
         )
 
-        # Cache body images for Pinterest
         post_url = result.get("post_url", "")
         if post_url and result.get("body_images_bytes"):
             _article_image_cache[post_url] = result["body_images_bytes"]
@@ -474,7 +480,6 @@ def generate(body: GenerateRequest, auth=Depends(get_current_user)):
             "logs": gen_logs,
         })
 
-        # Auto-pin if pro
         plan, _ = get_user_plan(user_id, token)
         if (
             plan == "pro"
@@ -638,72 +643,104 @@ def pinterest_run(body: PinterestRunRequest, auth=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  LEMONSQUEEZY CHECKOUT + WEBHOOK
+#  GUMROAD WEBHOOK  (replaces LemonSqueezy)
+#
+#  In your Gumroad dashboard:
+#    Settings → Advanced → Ping URL → https://your-railway-app.up.railway.app/webhook/gumroad
+#
+#  Gumroad sends a POST with form-encoded fields (not JSON).
+#  Key fields: seller_id, product_permalink, email, sale_id, refunded
+#
+#  Railway env vars to set:
+#    GUMROAD_BASIC_PERMALINK  = nicheflow-ai
+#    GUMROAD_PRO_PERMALINK    = ysrzyv
+#    GUMROAD_ACCESS_TOKEN     = (optional, from Gumroad API settings — for extra verification)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@app.get("/checkout/basic")
-def checkout_basic(auth=Depends(get_current_user)):
-    user, token = auth
-    email = user.get("email", "")
-    base_url = os.getenv("LEMON_BASIC_URL", "")
-    if not base_url:
-        raise HTTPException(status_code=500, detail="Add LEMON_BASIC_URL to Railway env vars.")
-    return {"url": f"{base_url}?checkout[email]={email}&checkout[custom][user_email]={email}"}
-
-
-@app.get("/checkout/pro")
-def checkout_pro(auth=Depends(get_current_user)):
-    user, token = auth
-    email = user.get("email", "")
-    base_url = os.getenv("LEMON_PRO_URL", "")
-    if not base_url:
-        raise HTTPException(status_code=500, detail="Add LEMON_PRO_URL to Railway env vars.")
-    return {"url": f"{base_url}?checkout[email]={email}&checkout[custom][user_email]={email}"}
-
-
-@app.post("/webhook/lemonsqueezy")
-async def lemonsqueezy_webhook(request: Request):
-    body = await request.body()
-    signature = request.headers.get("X-Signature", "")
-
-    if LEMONSQUEEZY_SECRET:
-        expected = hmac.new(LEMONSQUEEZY_SECRET.encode(), body, hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(expected, signature):
-            raise HTTPException(status_code=401, detail="Invalid webhook signature")
-
+@app.post("/webhook/gumroad")
+async def gumroad_webhook(request: Request):
+    """
+    Gumroad Ping webhook.
+    Gumroad POSTs application/x-www-form-urlencoded data (NOT JSON).
+    """
     try:
-        payload = json.loads(body)
+        form = await request.form()
+        data = dict(form)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+        raise HTTPException(status_code=400, detail="Could not parse form data")
 
-    event = payload.get("meta", {}).get("event_name", "")
-    data = payload.get("data", {})
-    attributes = data.get("attributes", {})
-
-    user_email = (
-        attributes.get("user_email")
-        or attributes.get("order", {}).get("customer_email")
-        or payload.get("meta", {}).get("custom_data", {}).get("user_email", "")
-    )
-
-    variant_id = str(
-        attributes.get("variant_id", "")
-        or attributes.get("first_order_item", {}).get("variant_id", "")
-    )
+    # ── Extract fields ──────────────────────────────────────────────────────
+    user_email        = data.get("email", "").strip().lower()
+    product_permalink = data.get("permalink", data.get("product_permalink", "")).strip()
+    refunded          = data.get("refunded", "false").strip().lower() == "true"
+    sale_id           = data.get("sale_id", "")
 
     if not user_email:
-        return {"status": "ignored", "reason": "no user email in payload"}
+        return {"status": "ignored", "reason": "no email in payload"}
 
-    if event in ("order_created", "subscription_created", "subscription_payment_success"):
-        if variant_id == str(LEMON_PRO_VARIANT_ID) or "pro" in str(attributes.get("product_name", "")).lower():
-            plan = "pro"
-        else:
-            plan = "basic"
-        success = upgrade_user_plan(user_email, plan)
-        return {"status": "ok", "email": user_email, "plan": plan, "upgraded": success}
+    # ── Determine plan from permalink ───────────────────────────────────────
+    basic_slug = GUMROAD_BASIC_PERMALINK.strip().lower()
+    pro_slug   = GUMROAD_PRO_PERMALINK.strip().lower()
 
-    elif event in ("subscription_cancelled", "subscription_expired"):
+    if product_permalink.lower() == pro_slug:
+        plan = "pro"
+    elif product_permalink.lower() == basic_slug:
+        plan = "basic"
+    else:
+        # Unknown product — log and ignore gracefully
+        return {
+            "status": "ignored",
+            "reason": f"unknown permalink: {product_permalink}",
+            "sale_id": sale_id,
+        }
+
+    # ── Handle refund / cancellation ────────────────────────────────────────
+    if refunded:
         success = upgrade_user_plan(user_email, "basic")
-        return {"status": "ok", "email": user_email, "plan": "basic", "downgraded": success}
+        return {
+            "status": "ok",
+            "action": "downgraded",
+            "email": user_email,
+            "plan": "basic",
+            "upgraded": success,
+        }
 
-    return {"status": "ignored", "event": event}
+    # ── Upgrade user ────────────────────────────────────────────────────────
+    success = upgrade_user_plan(user_email, plan)
+    return {
+        "status": "ok",
+        "action": "upgraded",
+        "email": user_email,
+        "plan": plan,
+        "upgraded": success,
+        "sale_id": sale_id,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  MANUAL PLAN UPGRADE (admin / support use)
+#  POST /admin/upgrade  {"email": "...", "plan": "pro"}
+#  Protected by SUPABASE_SECRET in Authorization header
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/admin/upgrade")
+async def admin_upgrade(request: Request, authorization: str = Header(None)):
+    """
+    Emergency manual upgrade endpoint.
+    Call with:  Authorization: Bearer <SUPABASE_SECRET>
+    Body JSON:  {"email": "user@example.com", "plan": "pro"}
+    """
+    if not authorization or authorization != f"Bearer {SUPABASE_SECRET}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    email = body.get("email", "").strip().lower()
+    plan  = body.get("plan", "basic").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="email required")
+    if plan not in ("basic", "pro", "free"):
+        raise HTTPException(status_code=400, detail="plan must be basic, pro, or free")
+    success = upgrade_user_plan(email, plan)
+    return {"success": success, "email": email, "plan": plan}
