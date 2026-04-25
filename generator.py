@@ -515,6 +515,7 @@ def publish_to_wordpress(title, content, wp_url, wp_password, status="publish",
     if not wp_user: return {"success":False,"error":"No WP username"}
     credentials = base64.b64encode(f"{wp_user}:{wp_pass}".encode()).decode()
     headers = {"Authorization":f"Basic {credentials}","Content-Type":"application/json"}
+    content = f'<!-- wp:html -->{content}<!-- /wp:html -->'
     payload = {"title":title,"content":content,"status":status}
     if featured_media_id: payload["featured_media"] = int(featured_media_id)
     if category_ids: payload["categories"] = category_ids
