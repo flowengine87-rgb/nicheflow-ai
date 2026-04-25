@@ -1430,10 +1430,135 @@ function DocsPage({ plan, onUpgrade }) {
             {plan!=="pro"&&<div style={{marginTop:20}}><button className="btn btn-pro" style={{width:"100%"}} onClick={()=>onUpgrade("pro")}>Upgrade to Pro — $40/mo ★</button></div>}
           </div>
         )}
-        {!["start","billing"].includes(section)&&(
+        {section==="api"&&(
+          <div className="doc-section">
+            <h3>🔑 API Keys</h3>
+            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow uses Groq or Gemini to generate articles. Both are free.</p>
+            {[
+              {n:"1",t:"Get a Groq key (recommended)",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> → Sign up free → API Keys → Create key. Starts with <code>gsk_</code>. Free with generous limits.</>},
+              {n:"2",t:"Get a Gemini key (backup)",d:<>Go to <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a> → Get API key. Starts with <code>AIza</code>. Free tier available.</>},
+              {n:"3",t:"Add both for zero downtime",d:<>In Settings → API Keys, paste both keys comma-separated: <code>gsk_yourgroqkey, AIzayourgeminikey</code>. If Groq hits rate limits, Gemini takes over automatically.</>},
+              {n:"4",t:"GoAPI key (Midjourney images only)",d:<>Only needed if you want Midjourney images. Get it at <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a>. Skip this if you use Pollinations (free) in the Images tab.</>},
+              {n:"5",t:"Test your keys",d:<>Always click the <strong>Test</strong> button after pasting a key. It makes a live call and confirms the key works before you run a batch.</>},
+            ].map(s=>(
+              <div key={s.n} className="doc-step">
+                <div className="doc-step-num">{s.n}</div>
+                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
+              </div>
+            ))}
+          </div>
+        )}
+        {section==="wordpress"&&(
+          <div className="doc-section">
+            <h3>🌐 WordPress</h3>
+            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow publishes directly to your WordPress site using the REST API and Application Passwords.</p>
+            {[
+              {n:"1",t:"Site URL",d:<>Enter your full site URL including <code>https://</code>, no trailing slash. Example: <code>https://myblog.com</code>. Works with any WordPress host — Hostinger, WP Engine, Bluehost, self-hosted, etc.</>},
+              {n:"2",t:"Create an Application Password",d:<>In WordPress: go to <strong>Users → Profile</strong> → scroll to <strong>Application Passwords</strong> → enter a name like "NicheFlow" → click <strong>Add New Application Password</strong>. Copy the generated password immediately (it won't show again).</>},
+              {n:"3",t:"Format the credentials",d:<>In NicheFlow, enter it as: <code>yourusername:xxxx xxxx xxxx xxxx</code>. Replace <code>yourusername</code> with your WordPress admin username (not email). The password is the one WordPress just generated with spaces included.</>},
+              {n:"4",t:"Test the connection",d:<>Click <strong>Test Connection</strong> — it makes a live call to your WordPress REST API. If it succeeds, it shows your WordPress display name. If it fails, double-check the username and that the App Password was copied correctly.</>},
+              {n:"5",t:"Required WordPress settings",d:<>Make sure <strong>Permalinks</strong> are not set to Plain (WordPress → Settings → Permalinks → choose any option except Plain). Plain permalinks break the REST API.</>},
+            ].map(s=>(
+              <div key={s.n} className="doc-step">
+                <div className="doc-step-num">{s.n}</div>
+                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
+              </div>
+            ))}
+            <div className="doc-section" style={{marginTop:16,marginBottom:0}}>
+              <h3 style={{fontSize:14}}>📋 Publish Settings</h3>
+              {[
+                {n:"1",t:"Publish immediately vs Draft",d:"Set the default publish status in Settings → WordPress. You can also override this per batch in the Generate page using the 'Save as Draft' toggle."},
+                {n:"2",t:"Internal links",d:<>When enabled, NicheFlow fetches your existing WordPress posts and automatically injects relevant internal links using long-tail phrase matching. Set max links per article (default: 4).</>},
+                {n:"3",t:"Delay between articles",d:"Set a delay in seconds between each article in a batch. Recommended: 10–30 seconds to avoid hitting API rate limits."},
+              ].map(s=>(
+                <div key={s.n} className="doc-step">
+                  <div className="doc-step-num">{s.n}</div>
+                  <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {section==="prompts"&&(
+          <div className="doc-section">
+            <h3>💬 Prompts & Cards</h3>
+            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow uses two separate AI calls — one for the article, one for the summary card. You control both prompts completely.</p>
+            {[
+              {n:"1",t:"Article Prompt basics",d:<>Your prompt must include <code>{"{title}"}</code> as a placeholder — NicheFlow replaces it with the actual article title. The AI must return a JSON object.</>},
+              {n:"2",t:"Required JSON keys for articles",d:<>Your prompt must tell the AI to return: <code>seo_title</code> (SEO-optimized title), <code>excerpt</code> (meta description), <code>html_content</code> (full article HTML), and color hex keys: <code>MAIN</code>, <code>MAIN_DARK</code>, <code>LIGHT_BG</code>, <code>BORDER</code>.</>},
+              {n:"3",t:"Image placeholders in articles",d:<>Put <code>##IMAGE1##</code> <code>##IMAGE2##</code> <code>##IMAGE3##</code> inside your <code>html_content</code> where you want body images injected. NicheFlow replaces these with real uploaded WordPress image tags.</>},
+              {n:"4",t:"Example article prompt",d:<><pre>{"You are Emma, a warm mama blogger.\nWrite a detailed article about: {title}\nReturn only JSON:\n{\"seo_title\":\"\",\"excerpt\":\"\",\"html_content\":\"<h2>...</h2>##IMAGE1##...\",\n\"MAIN\":\"#e91e8c\",\"MAIN_DARK\":\"#c4186e\",\"LIGHT_BG\":\"#fdf0f7\",\"BORDER\":\"#f8c8e8\"}"}</pre></>},
+              {n:"5",t:"Card Prompt",d:<>Separate AI call for the summary card appended at the end of each article. Must return JSON with: <code>card_title</code>, <code>summary</code> (2 sentences), <code>key_points</code> (array), <code>quick_facts</code> (array of label/value objects), <code>cta_text</code>.</>},
+              {n:"6",t:"Token counter",d:"The real-time token counter below each prompt warns you if your prompt is too long. Keep article prompts under 2000 tokens and card prompts under 1500 tokens for best results."},
+            ].map(s=>(
+              <div key={s.n} className="doc-step">
+                <div className="doc-step-num">{s.n}</div>
+                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
+              </div>
+            ))}
+          </div>
+        )}
+        {section==="images"&&(
+          <div className="doc-section">
+            <h3>🖼️ Images & WebP</h3>
+            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow generates 4 images per article: 1 featured image + 3 body images. All are auto-converted to WebP and uploaded to WordPress.</p>
+            {[
+              {n:"1",t:"How images work",d:<>NicheFlow generates all 4 images in parallel, converts them to WebP, uploads them to your WordPress media library, and injects them at <code>##IMAGE1##</code> <code>##IMAGE2##</code> <code>##IMAGE3##</code> in the article. The featured image is set automatically on the post.</>},
+              {n:"2",t:"Option A — Midjourney (GoAPI)",d:<>Requires a GoAPI key from <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a>. In Settings → Images, write a Midjourney template using <code>{"{title}"}</code> or <code>{"{recipe_name}"}</code>. Example: <code>Close up {"{title}"}, food photography, natural light --ar 1:1</code>. The <code>--ar</code> flag controls crop ratio for all images.</>},
+              {n:"3",t:"Option B — Pollinations (free)",d:<>Turn on "Use Pollinations" in Settings → Images. No API key needed — completely free. Write a prompt template like: <code>Professional editorial photography of {"{title}"}, natural light, 4K</code>. Quality is good for most niches.</>},
+              {n:"4",t:"WebP conversion",d:"All images are automatically converted to WebP format before uploading. WebP is smaller and faster than JPEG/PNG — better for SEO and page speed."},
+              {n:"5",t:"Toggle images per batch",d:"In the Generate page, use the 'Generate Images' toggle to enable or disable images for a specific batch. Disabling images makes generation much faster if you just need text."},
+            ].map(s=>(
+              <div key={s.n} className="doc-step">
+                <div className="doc-step-num">{s.n}</div>
+                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
+              </div>
+            ))}
+          </div>
+        )}
+        {section==="links"&&(
+          <div className="doc-section">
+            <h3>🔗 Internal Links</h3>
+            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow automatically injects internal links into every article by matching your existing WordPress posts.</p>
+            {[
+              {n:"1",t:"How it works",d:"Before publishing, NicheFlow fetches up to 200 of your existing WordPress posts. It then scans your new article for phrases that match existing post titles (3+ word long-tail phrases) and wraps them in anchor tags pointing to those posts."},
+              {n:"2",t:"Enable internal links",d:<>Go to <strong>Settings → WordPress</strong> and make sure "Auto-inject internal links" is turned on. Set "Max internal links per article" — default is 4. We recommend 3–6 links per article.</>},
+              {n:"3",t:"Matching logic",d:"NicheFlow matches full long-tail phrases (3+ words) from your article text against your existing post titles. It only links phrases that appear naturally in your content — it never forces links where the text doesn't match."},
+              {n:"4",t:"Why internal links matter",d:"Internal links improve SEO by distributing page authority across your site. They also keep readers on your site longer by connecting related content. NicheFlow automates what would otherwise take hours of manual work per article."},
+              {n:"5",t:"Disable for a specific batch",d:"In Settings → WordPress, toggle off 'Auto-inject internal links' if you want to publish a batch without links. You can re-enable it after."},
+            ].map(s=>(
+              <div key={s.n} className="doc-step">
+                <div className="doc-step-num">{s.n}</div>
+                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
+              </div>
+            ))}
+          </div>
+        )}
+        {section==="pinterest"&&(
+          <div className="doc-section">
+            <h3>📌 Pinterest (Pro)</h3>
+            <div className="alert alert-info" style={{marginBottom:16}}>Pinterest automation is a <strong>Pro plan</strong> feature only.</div>
+            {[
+              {n:"1",t:"Get a Pinterest Access Token",d:<>Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>developers.pinterest.com</a> → My Apps → Create App → fill in your app name and redirect URI → Generate Access Token. Paste it in Settings → Pinterest.</>},
+              {n:"2",t:"Load your boards",d:<>Go to the <strong>Pinterest</strong> page in NicheFlow → click <strong>Refresh Boards</strong>. Your Pinterest boards will appear as clickable cards. Select one or more boards to pin to.</>},
+              {n:"3",t:"Pin image design",d:<>NicheFlow generates a custom pin image: it takes one of your article body images as background, overlays a dark gradient, and adds your AI-generated 4-word hook title in large text. This is separate from the featured image — it's uploaded to WordPress and used only as the pin image.</>},
+              {n:"4",t:"4-word hook title",d:<>The Pinterest prompt must return a <code>hook_title</code> field with EXACTLY 4 words. This gets overlaid on the pin image in large text. Example: "Best Tips For Mamas", "Easy Recipes For Beginners". Short, bold, scroll-stopping.</>},
+              {n:"5",t:"Auto-pin after publish",d:<>In Settings → Pinterest, enable "Auto-pin after publish". Every time an article is published via Generate, NicheFlow will automatically create a pin. Set a delay (minutes) if you want to wait before pinning.</>},
+              {n:"6",t:"Manual pin from Pinterest page",d:<>Go to the <strong>Pinterest</strong> page, select your boards, and click <strong>Pin Articles</strong>. This pins all your published articles at once. You can also schedule pins for a specific date and time.</>},
+              {n:"7",t:"Pin Image Design settings",d:<>In Settings → Pinterest → Pin Image Design, customize the overlay: <code>background_color</code>, <code>overlay_opacity</code>, <code>title_color</code>, <code>title_size</code>, <code>canvas_width</code>, <code>canvas_height</code>, <code>title_position</code> (top/center/bottom), <code>logo_text</code>, <code>gradient</code>.</>},
+            ].map(s=>(
+              <div key={s.n} className="doc-step">
+                <div className="doc-step-num">{s.n}</div>
+                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
+              </div>
+            ))}
+            {plan!=="pro"&&<div style={{marginTop:20}}><button className="btn btn-pro" style={{width:"100%"}} onClick={()=>onUpgrade("pro")}>Upgrade to Pro — $40/mo ★</button></div>}
+          </div>
+        )}
+        {!["start","api","wordpress","prompts","images","links","pinterest","billing"].includes(section)&&(
           <div className="doc-section">
             <h3>{sections.find(s=>s.id===section)?.label}</h3>
-            <p style={{fontSize:14,color:"var(--text2)",lineHeight:1.7}}>This section contains detailed documentation for this feature. Use Quick Start to get going, or check Billing for plan and payment details.</p>
+            <p style={{fontSize:14,color:"var(--text2)",lineHeight:1.7}}>Documentation coming soon.</p>
           </div>
         )}
       </div>
