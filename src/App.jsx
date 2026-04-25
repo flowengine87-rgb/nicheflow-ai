@@ -54,7 +54,7 @@ function getStoredConfig() {
 function estimateTokens(text) { return Math.ceil(text.length / 4); }
 
 function getDaysLeft(createdAt) {
-  if (!createdAt) return TRIAL_DAYS;
+  if (!createdAt) return 0;
   const diff = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
   return Math.max(0, TRIAL_DAYS - Math.floor(diff));
 }
