@@ -211,8 +211,7 @@ class PipelineRequest(BaseModel):
     pollinations_prompt: Optional[str] = ""
     show_card: Optional[bool] = True
     category_ids: Optional[List[int]] = None
-    use_internal_links: Optional[bool] = True
-    max_links: Optional[int] = 4
+
 
 
 class GenerateRequest(BaseModel):

@@ -740,7 +740,7 @@ def run_pinterest_bot(api_key, access_token, articles, board_ids,
 def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password="", publish_status="publish",
     mj_template="", custom_prompt="", card_prompt="", show_card=True, use_images=False,
     use_pollinations=False, pollinations_prompt="", internal_links=None, category_ids=None,
-    max_links=4, use_internal_links=True, log_fn=None):
+    max_links=4, use_internal_links=True, full_width_images=True, clickable_card=False, log_fn=None):
 
     def log(msg):
         if log_fn: log_fn(msg)
