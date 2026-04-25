@@ -634,10 +634,12 @@ def inject_images_into_article(html, image_results, title, log_fn=None):
         img_data = image_results[img_idx] if img_idx < len(image_results) else None
         if img_data and img_data.get("url"):
             img_url = img_data["url"]
+            media_id = image_results[img_idx].get("media_id","")
+            wp_class = f"wp-image-{media_id}" if media_id else ""
             img_tag = (
-                f'<figure style="margin:28px auto;text-align:center;width:100%;max-width:100%;">'
-                f'<img src="{img_url}" alt="{title}" loading="lazy" '
-                f'style="width:100%;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.12);display:block;" />'
+                f'<figure class="wp-block-image size-full" style="margin:28px auto;text-align:center;width:100%;max-width:100%;">'
+                f'<img src="{img_url}" alt="{title}" loading="lazy" class="{wp_class}" '
+                f'style="width:100%;height:auto;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.12);display:block;" />'
                 f'</figure>'
             )
             html = html.replace(ph, img_tag)
