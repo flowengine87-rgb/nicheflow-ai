@@ -203,6 +203,10 @@ class PipelineRequest(BaseModel):
     mj_template: Optional[str] = ""
     publish_status: Optional[str] = "publish"
     use_images: Optional[bool] = False
+    use_internal_links: Optional[bool] = True
+    max_links: Optional[int] = 4
+    full_width_images: Optional[bool] = True
+    clickable_card: Optional[bool] = False
     use_pollinations: Optional[bool] = False
     pollinations_prompt: Optional[str] = ""
     show_card: Optional[bool] = True
