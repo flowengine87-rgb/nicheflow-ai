@@ -1484,60 +1484,6 @@ function DocsPage({ plan, onUpgrade }) {
             <h3>💬 Prompts & Cards</h3>
             <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow uses two separate AI calls — one for the article, one for the summary card. You control both prompts completely.</p>
             {[
-              {n:"1",t:"Article Prompt basics",d:<>Your prompt must include <code>{"{title}"}</code> as a placeholder. The AI must return a valid JSON object — nothing else, no markdown, no explanation.</>},
-              {n:"2",t:"Required JSON keys",d:<>The AI must return: <code>seo_title</code>, <code>excerpt</code>, <code>html_content</code>, and color keys: <code>MAIN</code> <code>MAIN_DARK</code> <code>LIGHT_BG</code> <code>BORDER</code> as hex values.</>},
-              {n:"3",t:"Image placeholders",d:<>Put <code>##IMAGE1##</code> <code>##IMAGE2##</code> <code>##IMAGE3##</code> inside your html_content where you want body images to appear. NicheFlow replaces these with real WordPress image tags.</>},
-              {n:"4",t:"Full article prompt example",d:<><pre>{`You are Emma, a warm mama blogger writing for new moms.
-Write a detailed helpful article about: {title}
-
-Use H2/H3 headings, bullet points, and a friendly tone.
-Place ##IMAGE1## after the intro paragraph.
-Place ##IMAGE2## in the middle of the article.
-Place ##IMAGE3## near the end before the conclusion.
-
-Return ONLY valid JSON with no extra text:
-{
-  "seo_title": "Your SEO optimized title",
-  "excerpt": "Meta description 1-2 sentences max",
-  "html_content": "<h2>Intro</h2><p>...</p>##IMAGE1##<h2>...</h2>##IMAGE2##<h2>...</h2>##IMAGE3##<h2>Conclusion</h2><p>...</p>",
-  "MAIN": "#e91e8c",
-  "MAIN_DARK": "#c4186e",
-  "LIGHT_BG": "#fdf0f7",
-  "BORDER": "#f8c8e8"
-}`}</pre></>},
-              {n:"5",t:"Card Prompt basics",d:<>Separate AI call for the summary card shown at the end of each article. Must return JSON with: <code>card_title</code>, <code>summary</code>, <code>key_points</code> array, <code>quick_facts</code> array of label/value pairs, and <code>cta_text</code>.</>},
-              {n:"6",t:"Full card prompt example",d:<><pre>{`For the article "{title}", create a summary card.
-
-Return ONLY valid JSON:
-{
-  "card_title": "Short catchy card title",
-  "summary": "2 sentence summary of the article.",
-  "key_points": [
-    "First key takeaway",
-    "Second key takeaway",
-    "Third key takeaway",
-    "Fourth key takeaway"
-  ],
-  "quick_facts": [
-    {"label": "Best for", "value": "New moms"},
-    {"label": "Time needed", "value": "15 mins"},
-    {"label": "Difficulty", "value": "Easy"}
-  ],
-  "cta_text": "Save this for later! 📌"
-}`}</pre></>},
-              {n:"7",t:"Token counter",d:"The real-time token counter warns you if your prompt is too long. Keep article prompts under 2000 tokens and card prompts under 1500 tokens for best results."},
-            ].map(s=>(
-              <div key={s.n} className="doc-step">
-                <div className="doc-step-num">{s.n}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
-          </div>
-        )}
-          <div className="doc-section">
-            <h3>💬 Prompts & Cards</h3>
-            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow uses two separate AI calls — one for the article, one for the summary card. You control both prompts completely.</p>
-            {[
               {n:"1",t:"Article Prompt basics",d:<>Your prompt must include <code>{"{title}"}</code> as a placeholder — NicheFlow replaces it with the actual article title. The AI must return a JSON object.</>},
               {n:"2",t:"Required JSON keys for articles",d:<>Your prompt must tell the AI to return: <code>seo_title</code> (SEO-optimized title), <code>excerpt</code> (meta description), <code>html_content</code> (full article HTML), and color hex keys: <code>MAIN</code>, <code>MAIN_DARK</code>, <code>LIGHT_BG</code>, <code>BORDER</code>.</>},
               {n:"3",t:"Image placeholders in articles",d:<>Put <code>##IMAGE1##</code> <code>##IMAGE2##</code> <code>##IMAGE3##</code> inside your <code>html_content</code> where you want body images injected. NicheFlow replaces these with real uploaded WordPress image tags.</>},
@@ -1589,46 +1535,6 @@ Return ONLY valid JSON:
           </div>
         )}
         {section==="pinterest"&&(
-          <div className="doc-section">
-            <h3>📌 Pinterest (Pro)</h3>
-            <div className="alert alert-info" style={{marginBottom:16}}>Pinterest automation is a <strong>Pro plan</strong> feature only.</div>
-            {[
-              {n:"1",t:"Get a Pinterest Access Token",d:<>Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>developers.pinterest.com</a> → My Apps → Create App → Generate Access Token. Paste it in Settings → Pinterest.</>},
-              {n:"2",t:"Load your boards",d:<>Go to the <strong>Pinterest</strong> page → click <strong>Refresh Boards</strong>. Your boards appear as cards. Click to select one or more.</>},
-              {n:"3",t:"Pinterest Pin Prompt example",d:<><pre>{`For the article "{title}" published at {url}:
-
-Return ONLY valid JSON:
-{
-  "pin_title": "Your pin title max 60 chars",
-  "pin_description": "Helpful description max 150 chars. Save this!",
-  "alt_text": "One sentence describing the pin image",
-  "hashtags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
-  "hook_title": "EXACTLY FOUR WORDS"
-}`}</pre></>},
-              {n:"4",t:"The 4-word hook title",d:<>The <code>hook_title</code> must be EXACTLY 4 words. This gets overlaid on the pin image in large bold text. Examples: <code>Best Tips For Mamas</code> · <code>Easy Recipes For Beginners</code> · <code>How To Lose Weight</code>. Short, bold, scroll-stopping.</>},
-              {n:"5",t:"Pin Image Design prompt example",d:<><pre>{`background_color:#1a1a2e
-overlay_opacity:0.6
-title_color:#ffffff
-title_size:80
-subtitle_color:#f0c0ff
-subtitle_size:34
-canvas_width:1000
-canvas_height:1500
-title_position:bottom
-logo_text:yourblog.com
-gradient:true
-gradient_color:#6366f1`}</pre>Each setting is <code>key:value</code> on its own line or space-separated. All are optional.</>},
-              {n:"6",t:"Auto-pin after publish",d:<>In Settings → Pinterest, enable <strong>Auto-pin after publish</strong>. Every article published via Generate will automatically create a pin. Set a delay in minutes if you want to wait before pinning.</>},
-              {n:"7",t:"Manual pin & scheduling",d:<>Go to the <strong>Pinterest</strong> page, select boards, and click <strong>Pin Articles</strong> to pin all published articles now. Enable scheduling to pin at a specific date and time.</>},
-            ].map(s=>(
-              <div key={s.n} className="doc-step">
-                <div className="doc-step-num">{s.n}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
-            {plan!=="pro"&&<div style={{marginTop:20}}><button className="btn btn-pro" style={{width:"100%"}} onClick={()=>onUpgrade("pro")}>Upgrade to Pro — $40/mo ★</button></div>}
-          </div>
-        )}
           <div className="doc-section">
             <h3>📌 Pinterest (Pro)</h3>
             <div className="alert alert-info" style={{marginBottom:16}}>Pinterest automation is a <strong>Pro plan</strong> feature only.</div>
