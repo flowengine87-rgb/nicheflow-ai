@@ -242,7 +242,7 @@ def generate_pin_image_with_pillow(hook_title, image_bytes_list, pin_image_promp
             except: logo_w = len(logo_text)*14
             draw.text(((W-logo_w)//2,padding),logo_text,font=logo_font,fill=(*subtitle_color,180))
         final = canvas.convert("RGB"); buf = io.BytesIO()
-        final.save(buf, format="WEBP", quality=90, method=0)  # FIX: was quality=85, method=4
+        final.save(buf, format="WEBP", quality=85, method=4)
         result_bytes = buf.getvalue()
         log(f"  ✅ Pin image generated ({W}x{H}px, {len(result_bytes)//1024}KB)")
         return result_bytes
@@ -449,7 +449,7 @@ def generate_midjourney_grid(goapi_key, prompt, log_fn=None):
         image_bytes_list = []
         for idx, crop in enumerate(quadrants):
             buf = io.BytesIO()
-            crop.save(buf, format="WEBP", quality=100, method=0)  # FIX: was quality=82, method=2
+            crop.save(buf, format="WEBP", quality=82, method=2)
             image_bytes_list.append(buf.getvalue())
             log(f"  ✂️ Cropped + converted image {idx+1}/4 to WebP ({crop.width}×{crop.height}px)")
 
@@ -851,11 +851,11 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
                 if not raw:
                     safe_log(f"  ❌ Image {idx+1} failed"); return
 
-                # Convert to WebP
+                # Convert to WebP with crop
                 try:
                     img = Image.open(io.BytesIO(raw)).convert("RGB")
                     buf = io.BytesIO()
-                    img.save(buf, format="WEBP", quality=100, method=0)  # FIX: was quality=82, method=2
+                    img.save(buf, format="WEBP", quality=82, method=2)
                     webp = buf.getvalue()
                 except Exception as e:
                     safe_log(f"  ⚠️ WebP conversion failed: {e}"); return
