@@ -32,7 +32,6 @@ GUMROAD_BASIC_PERMALINK = os.getenv("GUMROAD_BASIC_PERMALINK", "nicheflow-ai")
 GUMROAD_PRO_PERMALINK   = os.getenv("GUMROAD_PRO_PERMALINK",   "ysrzyv")
 
 # ── Gumroad Access Token — set in Railway env vars ─────────────────────────
-# Used to verify ping webhook calls via Gumroad Ping API
 GUMROAD_ACCESS_TOKEN = os.getenv("GUMROAD_ACCESS_TOKEN", "")
 
 app = FastAPI(title="NicheFlow AI API", version="5.1.0")
@@ -139,7 +138,6 @@ def upgrade_user_plan(user_email: str, plan: str):
         "Authorization": f"Bearer {SUPABASE_SECRET}",
         "Content-Type": "application/json",
     }
-    # Look up by email stored in profiles table
     resp = requests.get(
         f"{SUPABASE_URL}/rest/v1/profiles?email=eq.{user_email}&select=id",
         headers=headers,
@@ -183,6 +181,7 @@ class SettingsUpdate(BaseModel):
     max_links: Optional[int] = 4
     full_width_images: Optional[bool] = True
     clickable_card: Optional[bool] = False
+    use_external_links: Optional[bool] = False  # ← NEW
     delay_sec: Optional[int] = 10
     pinterest_token: Optional[str] = ""
     auto_pin: Optional[bool] = False
@@ -207,11 +206,11 @@ class PipelineRequest(BaseModel):
     max_links: Optional[int] = 4
     full_width_images: Optional[bool] = True
     clickable_card: Optional[bool] = False
+    use_external_links: Optional[bool] = False  # ← NEW
     use_pollinations: Optional[bool] = False
     pollinations_prompt: Optional[str] = ""
     show_card: Optional[bool] = True
     category_ids: Optional[List[int]] = None
-
 
 
 class GenerateRequest(BaseModel):
@@ -401,6 +400,7 @@ def pipeline_direct(body: PipelineRequest, authorization: str = Header(None)):
         max_links=body.max_links or 4,
         full_width_images=body.full_width_images if body.full_width_images is not None else True,
         clickable_card=body.clickable_card or False,
+        use_external_links=body.use_external_links or False,  # ← NEW
         log_fn=log_fn,
     )
 
@@ -468,6 +468,7 @@ def generate(body: GenerateRequest, auth=Depends(get_current_user)):
             category_ids=body.category_ids,
             max_links=cfg.get("max_links", 4),
             use_internal_links=cfg.get("use_internal_links", True),
+            use_external_links=cfg.get("use_external_links", False),  # ← NEW
             log_fn=log_fn,
         )
 
@@ -649,33 +650,17 @@ def pinterest_run(body: PinterestRunRequest, auth=Depends(get_current_user)):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  GUMROAD WEBHOOK  (replaces LemonSqueezy)
-#
-#  In your Gumroad dashboard:
-#    Settings → Advanced → Ping URL → https://your-railway-app.up.railway.app/webhook/gumroad
-#
-#  Gumroad sends a POST with form-encoded fields (not JSON).
-#  Key fields: seller_id, product_permalink, email, sale_id, refunded
-#
-#  Railway env vars to set:
-#    GUMROAD_BASIC_PERMALINK  = nicheflow-ai
-#    GUMROAD_PRO_PERMALINK    = ysrzyv
-#    GUMROAD_ACCESS_TOKEN     = (optional, from Gumroad API settings — for extra verification)
+#  GUMROAD WEBHOOK
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/webhook/gumroad")
 async def gumroad_webhook(request: Request):
-    """
-    Gumroad Ping webhook.
-    Gumroad POSTs application/x-www-form-urlencoded data (NOT JSON).
-    """
     try:
         form = await request.form()
         data = dict(form)
     except Exception:
         raise HTTPException(status_code=400, detail="Could not parse form data")
 
-    # ── Extract fields ──────────────────────────────────────────────────────
     user_email        = data.get("email", "").strip().lower()
     product_permalink = data.get("permalink", data.get("product_permalink", "")).strip()
     refunded          = data.get("refunded", "false").strip().lower() == "true"
@@ -684,7 +669,6 @@ async def gumroad_webhook(request: Request):
     if not user_email:
         return {"status": "ignored", "reason": "no email in payload"}
 
-    # ── Determine plan from permalink ───────────────────────────────────────
     basic_slug = GUMROAD_BASIC_PERMALINK.strip().lower()
     pro_slug   = GUMROAD_PRO_PERMALINK.strip().lower()
 
@@ -693,14 +677,12 @@ async def gumroad_webhook(request: Request):
     elif product_permalink.lower() == basic_slug:
         plan = "basic"
     else:
-        # Unknown product — log and ignore gracefully
         return {
             "status": "ignored",
             "reason": f"unknown permalink: {product_permalink}",
             "sale_id": sale_id,
         }
 
-    # ── Handle refund / cancellation ────────────────────────────────────────
     if refunded:
         success = upgrade_user_plan(user_email, "basic")
         return {
@@ -711,7 +693,6 @@ async def gumroad_webhook(request: Request):
             "upgraded": success,
         }
 
-    # ── Upgrade user ────────────────────────────────────────────────────────
     success = upgrade_user_plan(user_email, plan)
     return {
         "status": "ok",
@@ -725,17 +706,10 @@ async def gumroad_webhook(request: Request):
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  MANUAL PLAN UPGRADE (admin / support use)
-#  POST /admin/upgrade  {"email": "...", "plan": "pro"}
-#  Protected by SUPABASE_SECRET in Authorization header
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/admin/upgrade")
 async def admin_upgrade(request: Request, authorization: str = Header(None)):
-    """
-    Emergency manual upgrade endpoint.
-    Call with:  Authorization: Bearer <SUPABASE_SECRET>
-    Body JSON:  {"email": "user@example.com", "plan": "pro"}
-    """
     if not authorization or authorization != f"Bearer {SUPABASE_SECRET}":
         raise HTTPException(status_code=401, detail="Unauthorized")
     try:
