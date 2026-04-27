@@ -664,17 +664,12 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
       }),
     })
       .then(async res => {
+        const d = await res.json();
         if (res.ok) {
-          const d = await res.json();
           setCategories(d.categories || []);
-          if (!d.categories || d.categories.length === 0) {
-            addLog("⚠️ No categories returned — check WP credentials in Settings", "warn");
-          }
-        } else {
-          addLog("❌ Categories failed — check WordPress credentials in Settings", "err");
         }
       })
-      .catch(e => addLog(`❌ Categories error: ${e.message}`, "err"))
+      .catch(() => {})
       .finally(() => setLoadingCats(false));
   }
 
