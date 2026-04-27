@@ -851,27 +851,28 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
-  const logRef = useRef(null);
+ const logRef = useRef(null);
 
-  // ── NEW: Categories state ─────────────────────────────────────────────────
+  // ── Categories: auto-load from WordPress when credentials available ───────
   const [categories, setCategories] = useState([]);
-  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [selectedCats, setSelectedCats] = useState([]);
   const [loadingCats, setLoadingCats] = useState(false);
 
-  // ── NEW: Fetch WP categories when credentials exist ───────────────────────
   useEffect(() => {
     if (!config.wp_url || !config.wp_password) return;
     setLoadingCats(true);
-    apiCall("/wp/categories")
-      .then(async res => {
-        if (res.ok) {
-          const data = await res.json();
-          setCategories(data.categories || []);
-        }
-      })
+    const token = getStoredToken();
+    fetch(`${API_URL}/wp/categories`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ wp_url: config.wp_url, wp_password: config.wp_password })
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.categories) setCategories(data.categories); })
       .catch(() => {})
       .finally(() => setLoadingCats(false));
   }, [config.wp_url, config.wp_password]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const expired = isTrialExpired(createdAt) && plan !== "pro" && !isAdmin;
   const addLog = useCallback((msg, type="info") => {
@@ -912,10 +913,8 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
           use_images:useImages,use_pollinations:config.use_pollinations||false,
           pollinations_prompt:config.pollinations_prompt||"",show_card:config.show_card!==false,
           use_internal_links:config.use_internal_links!==false,max_links:config.max_links||4,
-          full_width_images:config.full_width_images!==false,clickable_card:config.clickable_card||false,
-          // ── NEW: pass selected categories and external links flag ──
-          category_ids:selectedCategories.length ? selectedCategories : undefined,
-          use_external_links:config.use_external_links||false,
+full_width_images:config.full_width_images!==false,clickable_card:config.clickable_card||false,
+          ...(selectedCats.length > 0 ? {category_ids: selectedCats} : {})
         };
         const token=getStoredToken();
         const res=await fetch(`${API_URL}/pipeline`,{method:"POST",headers:{"Content-Type":"application/json",...(token?{"Authorization":`Bearer ${token}`}:{})},body:JSON.stringify(payload)});
@@ -958,47 +957,26 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
               <div className="setting-row"><div className="setting-info"><div className="setting-name">Save as Draft</div><div className="setting-desc">Publish as draft instead of live</div></div><label className="toggle"><input type="checkbox" checked={draft} onChange={e=>setDraft(e.target.checked)}/><span className="toggle-slider"/></label></div>
               <div className="setting-row"><div className="setting-info"><div className="setting-name">Generate Images</div><div className="setting-desc">1 featured + 3 body images. All WebP, uploaded to WordPress.</div></div><label className="toggle"><input type="checkbox" checked={useImages} onChange={e=>setUseImages(e.target.checked)}/><span className="toggle-slider"/></label></div>
               <div><div className="setting-name" style={{marginBottom:6}}>Delay between articles</div><div style={{display:"flex",alignItems:"center",gap:10}}><input className="input" type="number" value={delay} min={0} max={120} onChange={e=>setDelay(+e.target.value)} style={{width:80}}/><span style={{fontSize:13,color:"var(--text2)"}}>seconds</span></div></div>
-
-              {/* ── NEW: WordPress Categories selector ── */}
-              {loadingCats && categories.length === 0 && (
-                <div style={{fontSize:12,color:"var(--text3)",display:"flex",alignItems:"center",gap:6}}>
-                  <span className="spinner spinner-accent"/>Loading categories...
-                </div>
-              )}
-              {categories.length > 0 && (
+              {(categories.length > 0 || loadingCats) && (
                 <div>
                   <div className="setting-name" style={{marginBottom:6}}>
-                    WordPress Categories
-                    {loadingCats && <span className="spinner spinner-accent" style={{marginLeft:8,display:"inline-block"}}/>}
+                    Categories
+                    {loadingCats && <span style={{fontSize:11,color:"var(--text3)",marginLeft:8}}>loading...</span>}
                   </div>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:6,maxHeight:120,overflowY:"auto"}}>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
                     {categories.map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setSelectedCategories(prev =>
-                          prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
-                        )}
-                        style={{
-                          padding:"4px 10px",borderRadius:20,fontSize:12,cursor:"pointer",border:"1px solid",
-                          background: selectedCategories.includes(cat.id) ? "var(--accent-dim)" : "var(--bg3)",
-                          borderColor: selectedCategories.includes(cat.id) ? "var(--accent)" : "var(--border)",
-                          color: selectedCategories.includes(cat.id) ? "var(--accent2)" : "var(--text2)",
-                          fontFamily:"var(--font)"
-                        }}
-                        disabled={running}
-                      >
+                      <button key={cat.id} onClick={()=>setSelectedCats(prev=>prev.includes(cat.id)?prev.filter(id=>id!==cat.id):[...prev,cat.id])}
+                        style={{padding:"4px 12px",borderRadius:20,fontSize:12,cursor:"pointer",border:"1px solid",
+                          background:selectedCats.includes(cat.id)?"var(--accent)":"var(--bg3)",
+                          color:selectedCats.includes(cat.id)?"#fff":"var(--text2)",
+                          borderColor:selectedCats.includes(cat.id)?"var(--accent)":"var(--border)"}}>
                         {cat.name}
                       </button>
                     ))}
                   </div>
-                  {selectedCategories.length > 0 && (
-                    <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>
-                      {selectedCategories.length} categor{selectedCategories.length>1?"ies":"y"} selected
-                    </div>
-                  )}
+                  {selectedCats.length > 0 && <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>{selectedCats.length} categor{selectedCats.length!==1?"ies":"y"} selected</div>}
                 </div>
               )}
-
             </div>
           </div>
           <button className="btn btn-primary" style={{width:"100%",padding:"13px",fontSize:15}} onClick={run} disabled={running||!titleList.length||missingKeys}>
@@ -1105,18 +1083,7 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
             <div className="setting-row"><div className="setting-info"><div className="setting-name">Auto-inject internal links</div><div className="setting-desc">Match full long-tail article titles (3+ word phrases)</div></div><label className="toggle"><input type="checkbox" checked={cfg.use_internal_links!==false} onChange={e=>update("use_internal_links",e.target.checked)}/><span className="toggle-slider"/></label></div>
             {cfg.use_internal_links!==false&&<div><label className="form-label">Max internal links per article</label><input className="input" type="number" value={cfg.max_links||4} min={1} max={10} onChange={e=>update("max_links",+e.target.value)} style={{width:100}}/></div>}
             <div className="setting-row"><div className="setting-info"><div className="setting-name">Full width images</div><div className="setting-desc">Images stretch to full width in articles</div></div><label className="toggle"><input type="checkbox" checked={cfg.full_width_images!==false} onChange={e=>update("full_width_images",e.target.checked)}/><span className="toggle-slider"/></label></div>
-            <div className="setting-row"><div className="setting-info"><div className="setting-name">Clickable card</div><div className="setting-desc">Wrap summary card in a share link</div></div><label className="toggle"><input type="checkbox" checked={cfg.clickable_card||false} onChange={e=>update("clickable_card",e.target.checked)}/><span className="toggle-slider"/></label></div>
-            {/* ── NEW: External links toggle ── */}
-            <div className="setting-row">
-              <div className="setting-info">
-                <div className="setting-name">Auto-inject external links</div>
-                <div className="setting-desc">Search for 1–2 real external links related to the article topic and inject them into paragraph text</div>
-              </div>
-              <label className="toggle">
-                <input type="checkbox" checked={cfg.use_external_links||false} onChange={e=>update("use_external_links",e.target.checked)}/>
-                <span className="toggle-slider"/>
-              </label>
-            </div>
+<div className="setting-row"><div className="setting-info"><div className="setting-name">Clickable card</div><div className="setting-desc">Wrap summary card in a share link</div></div><label className="toggle"><input type="checkbox" checked={cfg.clickable_card||false} onChange={e=>update("clickable_card",e.target.checked)}/><span className="toggle-slider"/></label></div>
           </div>
         </div>
       )}
@@ -1496,6 +1463,7 @@ function DocsPage({ plan, onUpgrade }) {
               {t:"Basic plan — $30/month",d:"Unlimited articles, custom article and card prompts, 4 images per article (featured + 3 body), WordPress auto-publish, internal link injection, history."},
               {t:"Pro plan — $40/month",d:"Everything in Basic plus Pinterest automation: AI-generated pin images with 4-word hook titles, board selection, pin scheduling, and auto-pin after publish."},
               {t:"Payments via Gumroad",d:"Payments are handled securely by Gumroad. You'll receive a receipt and can manage or cancel your subscription through your Gumroad account."},
+              
               {t:"Subscription countdown",d:"After payment, the top bar shows days left in your billing period. At 3 days or fewer you'll see a warning to renew."},
             ].map((s,i)=>(
               <div key={i} className="doc-step">
