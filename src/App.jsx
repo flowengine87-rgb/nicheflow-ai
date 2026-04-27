@@ -655,6 +655,7 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
   if (expired) return <TrialExpiredGate onUpgrade={onUpgrade} />;
 
   function loadCategories() {
+    console.log("WP URL:", config.wp_url, "WP PASS:", config.wp_password);
     const wpUrl = config.wp_url || "";
     const wpPass = config.wp_password || "";
     if (!wpUrl || !wpPass) {
@@ -668,11 +669,15 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
     })
       .then(async res => {
         const d = await res.json();
-        setCategories(d.categories || []);
+        if (d.categories && d.categories.length > 0) {
+          setCategories(d.categories);
+        } else {
+          alert("No categories returned. Error: " + (d.error || "Unknown"));
+        }
       })
-      .catch(() => {})
+      .catch(err => alert("Failed: " + err.message))
       .finally(() => setLoadingCats(false));
-  }
+}
 
   function detectLogType(msg) {
     if (msg.includes("✅")||msg.includes("🎉")||msg.includes("Published")) return "ok";
