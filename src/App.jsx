@@ -5,16 +5,11 @@ const SUPABASE_URL = "https://gfulpvqqpakcgubkilwc.supabase.co";
 const SUPABASE_KEY = "sb_publishable_U9zJp_BBd-jkJCwvGimNmw_E4NyynFN";
 const API_URL = "https://web-production-1f143.up.railway.app";
 
-// ── GUMROAD checkout links ──
 const CHECKOUT_BASIC = "https://nicheflowai.gumroad.com/l/nicheflow-ai";
 const CHECKOUT_PRO   = "https://nicheflowai.gumroad.com/l/ysrzyv";
-
-// ── ADMIN: your email — bypasses trial gate, always has full Pro access locally
 const ADMIN_EMAIL = "flowengine87@gmail.com";
-
 const TRIAL_DAYS = 2;
 
-// ─── Auth helpers ──────────────────────────────────────────────────────────
 async function supaSignup(email, password) {
   const res = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
     method: "POST",
@@ -52,30 +47,22 @@ function getStoredConfig() {
   try { return JSON.parse(localStorage.getItem("nicheflow_config") || "{}"); } catch { return {}; }
 }
 function estimateTokens(text) { return Math.ceil(text.length / 4); }
-
 function getDaysLeft(createdAt) {
   if (!createdAt) return 0;
   const diff = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
   return Math.max(0, TRIAL_DAYS - Math.floor(diff));
 }
 function isTrialExpired(createdAt) { return getDaysLeft(createdAt) === 0; }
-
 function getSubDaysLeft(planExpires) {
   if (!planExpires) return null;
   const diff = (new Date(planExpires).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
   return Math.max(0, Math.ceil(diff));
 }
 
-// ─── LOGO SVG ─────────────────────────────────────────────────────────────
 function Logo({ size = 28 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0,display:"block"}}>
-      <defs>
-        <linearGradient id="nfGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#6366f1"/>
-          <stop offset="100%" stopColor="#a855f7"/>
-        </linearGradient>
-      </defs>
+      <defs><linearGradient id="nfGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#6366f1"/><stop offset="100%" stopColor="#a855f7"/></linearGradient></defs>
       <rect width="44" height="44" rx="11" fill="url(#nfGrad)"/>
       <rect x="9" y="17" width="15" height="2.8" rx="1.4" fill="white" opacity="0.95"/>
       <rect x="9" y="22" width="11" height="2.8" rx="1.4" fill="white" opacity="0.7"/>
@@ -88,7 +75,6 @@ function Logo({ size = 28 }) {
   );
 }
 
-// ─── CSS ───────────────────────────────────────────────────────────────────
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
@@ -118,7 +104,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .fade-up-d2{animation:fadeUp .45s .16s ease both;}
 .fade-up-d3{animation:fadeUp .45s .24s ease both;}
 .fade-up-d4{animation:fadeUp .45s .32s ease both;}
-
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 22px;border-radius:var(--radius);font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;border:none;transition:all .2s;text-decoration:none;white-space:nowrap;}
 .btn-primary{background:var(--accent);color:#fff;}.btn-primary:hover{background:#4f46e5;transform:translateY(-1px);box-shadow:0 4px 20px var(--accent-glow);}
 .btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border);}.btn-ghost:hover{border-color:var(--border2);color:var(--text);background:var(--bg3);}
@@ -127,57 +112,47 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .btn-lg{padding:14px 32px;font-size:16px;border-radius:var(--radius-lg);}
 .btn-sm{padding:7px 14px;font-size:13px;}
 .btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important;box-shadow:none!important;}
-
 .input{width:100%;padding:11px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--font);font-size:14px;transition:border-color .2s,box-shadow .2s;outline:none;}
 .input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
 .input::placeholder{color:var(--text3);}
 textarea.input{resize:vertical;min-height:100px;line-height:1.6;}
 select.input{cursor:pointer;}
-
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;}
 .hint{font-size:12px;color:var(--text3);margin-top:5px;display:flex;align-items:flex-start;gap:5px;line-height:1.5;}
 .divider{height:1px;background:var(--border);margin:20px 0;}
-
 .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
 .spinner-accent{border-color:var(--accent-dim);border-top-color:var(--accent);}
 .spinner-lg{width:32px;height:32px;border-width:3px;}
-
 .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500;}
 .badge-pro{background:var(--pro-dim);color:var(--pro);border:1px solid rgba(245,158,11,.2);}
 .badge-basic{background:var(--accent-dim);color:var(--accent2);border:1px solid rgba(99,102,241,.2);}
 .badge-admin{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.25);}
-
 .alert{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-radius:var(--radius);font-size:13px;margin-bottom:12px;line-height:1.5;}
 .alert-warn{background:rgba(245,158,11,.1);color:var(--pro);border:1px solid rgba(245,158,11,.2);}
 .alert-ok{background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,.2);}
 .alert-err{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.2);}
 .alert-info{background:var(--accent-dim);color:var(--accent2);border:1px solid rgba(99,102,241,.2);}
-
 .token-bar{padding:8px 12px;border-radius:var(--radius);font-size:12px;margin-top:6px;}
 .token-ok{background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,.2);}
 .token-warn{background:rgba(245,158,11,.1);color:var(--pro);border:1px solid rgba(245,158,11,.2);}
 .token-over{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.2);animation:pulse 1.5s ease-in-out infinite;}
 .progress{height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-top:6px;}
 .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width .4s ease;}
-
 .toggle{position:relative;width:40px;height:22px;flex-shrink:0;}
 .toggle input{opacity:0;width:0;height:0;}
 .toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--bg4);border-radius:11px;border:1px solid var(--border2);transition:.2s;}
 .toggle-slider::before{content:'';position:absolute;height:16px;width:16px;left:2px;top:2px;background:var(--text3);border-radius:50%;transition:.2s;}
 .toggle input:checked+.toggle-slider{background:var(--accent);border-color:var(--accent);}
 .toggle input:checked+.toggle-slider::before{transform:translateX(18px);background:#fff;}
-
 .tabs{display:flex;gap:4px;background:var(--bg3);padding:4px;border-radius:var(--radius);border:1px solid var(--border);width:fit-content;margin-bottom:20px;flex-wrap:wrap;}
 .tab{padding:8px 16px;border-radius:calc(var(--radius) - 2px);font-size:13px;font-weight:500;cursor:pointer;color:var(--text3);border:none;background:transparent;transition:all .2s;font-family:var(--font);}
 .tab.active{background:var(--bg);color:var(--text);box-shadow:0 1px 8px rgba(0,0,0,.3);}
 .tab:hover:not(.active){color:var(--text2);}
-
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
 .dot-green{background:var(--green);box-shadow:0 0 6px var(--green);}
 .dot-red{background:var(--red);}
 .dot-yellow{background:var(--pro);}
 .dot-pulse{animation:pulse 2s ease-in-out infinite;}
-
 .process-log{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;max-height:280px;overflow-y:auto;font-family:'Courier New',monospace;font-size:12px;line-height:1.9;}
 .log-line{display:flex;align-items:flex-start;gap:8px;animation:slideIn .2s ease;}
 .log-time{color:var(--text3);flex-shrink:0;}
@@ -185,7 +160,6 @@ select.input{cursor:pointer;}
 .log-err{color:var(--red);}
 .log-info{color:var(--accent2);}
 .log-warn{color:var(--pro);}
-
 .settings-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:18px;}
 .settings-header{padding:16px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
 .settings-header h3{font-size:14px;font-weight:600;}
@@ -197,26 +171,21 @@ select.input{cursor:pointer;}
 .form-label{font-size:13px;font-weight:500;color:var(--text2);margin-bottom:6px;display:block;}
 .prompt-editor{position:relative;}
 .prompt-counter{position:absolute;bottom:10px;right:12px;font-size:11px;color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:8px;}
-
 .board-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:14px;}
 .board-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:12px;cursor:pointer;transition:all .2s;text-align:center;}
 .board-item:hover,.board-item.selected{border-color:var(--accent);background:var(--accent-dim);}
-
 .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
 .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;}
 .stat-card-num{font-family:var(--font-display);font-size:26px;font-weight:700;}
 .stat-card-label{font-size:12px;color:var(--text3);margin-top:4px;}
-
 .history-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px;display:flex;align-items:center;gap:14px;margin-bottom:8px;transition:border-color .15s;}
 .history-item:hover{border-color:var(--border2);}
 .history-title{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .history-meta{font-size:12px;color:var(--text3);margin-top:2px;}
-
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease;}
 .modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-xl);padding:32px;max-width:600px;width:100%;max-height:85vh;overflow-y:auto;animation:fadeUp .25s ease;position:relative;}
 .modal-close{position:absolute;top:16px;right:16px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);font-size:14px;font-family:var(--font);}
 .modal-close:hover{color:var(--text);background:var(--bg4);}
-
 .pin-preview{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:16px;}
 .pin-img{width:100%;height:180px;object-fit:cover;display:block;background:var(--bg4);}
 .pin-body{padding:14px;}
@@ -224,7 +193,6 @@ select.input{cursor:pointer;}
 .pin-desc{font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:8px;}
 .pin-tags{display:flex;flex-wrap:wrap;gap:5px;}
 .pin-tag{background:var(--accent-dim);color:var(--accent2);padding:2px 8px;border-radius:10px;font-size:11px;}
-
 .doc-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;margin-bottom:16px;}
 .doc-section h3{font-family:var(--font-display);font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
 .doc-step{display:flex;gap:14px;margin-bottom:14px;align-items:flex-start;}
@@ -234,8 +202,6 @@ select.input{cursor:pointer;}
 .doc-step-desc{font-size:13px;color:var(--text2);line-height:1.6;}
 code{background:var(--bg3);border:1px solid var(--border);padding:1px 6px;border-radius:5px;font-size:12px;font-family:'Courier New',monospace;color:var(--accent2);}
 pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px;font-size:12px;line-height:1.7;overflow-x:auto;color:var(--text2);font-family:'Courier New',monospace;margin:10px 0;}
-
-/* ── Policy pages ─────────────────────────────── */
 .policy-wrap{min-height:100vh;background:var(--bg);padding:40px 24px 80px;}
 .policy-inner{max-width:780px;margin:0 auto;}
 .policy-inner h1{font-family:var(--font-display);font-size:32px;font-weight:800;letter-spacing:-1px;margin-bottom:6px;}
@@ -247,7 +213,6 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .policy-inner a{color:var(--accent2);text-decoration:underline;}
 .policy-inner a:hover{color:var(--text);}
 .policy-back-row{display:flex;align-items:center;gap:12px;margin-bottom:32px;}
-
 .landing{min-height:100vh;background:var(--bg);}
 .nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:14px 48px;background:rgba(8,9,13,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
 .nav-brand{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-size:17px;font-weight:700;background:linear-gradient(135deg,var(--accent2),#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
@@ -266,7 +231,6 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .plan-features{list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:28px;}
 .plan-features li{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text2);}
 .plan-features li::before{content:'✓';width:18px;height:18px;background:var(--green-dim);color:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
-
 .app-layout{display:flex;min-height:100vh;}
 .sidebar{width:236px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:50;}
 .sidebar-logo{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
@@ -288,17 +252,14 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .page-title{font-family:var(--font-display);font-size:22px;font-weight:700;}
 .page-sub{font-size:14px;color:var(--text2);margin-top:4px;margin-bottom:18px;}
 .page-body{padding:24px 32px;}
-
 .auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg);position:relative;}
 .auth-page::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 50% at 30% 20%,rgba(99,102,241,.1) 0%,transparent 60%),radial-gradient(ellipse 50% 40% at 75% 70%,rgba(139,92,246,.07) 0%,transparent 60%);pointer-events:none;}
 .auth-card{width:100%;max-width:400px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-xl);padding:36px;position:relative;z-index:1;}
 .auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
 .auth-brand span{font-family:var(--font-display);font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--accent2),#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
 .mesh-bg::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 50% at 30% 20%,rgba(99,102,241,.1) 0%,transparent 60%),radial-gradient(ellipse 50% 40% at 75% 70%,rgba(139,92,246,.07) 0%,transparent 60%);pointer-events:none;z-index:0;}
-
 .upgrade-banner{background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(245,158,11,.05));border:1px solid rgba(245,158,11,.25);border-radius:var(--radius-lg);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;}
 .upgrade-banner-text{font-size:14px;color:var(--text2);}.upgrade-banner-text strong{color:var(--pro);}
-
 .top-bar{padding:10px 28px;display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:13px;}
 .top-bar-trial-expired{background:rgba(239,68,68,0.18);border-bottom:1px solid rgba(239,68,68,0.3);color:var(--red);}
 .top-bar-trial-warn{background:rgba(245,158,11,0.13);border-bottom:1px solid rgba(245,158,11,0.22);color:var(--pro);}
@@ -307,10 +268,8 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .top-bar-sub-warn{background:rgba(245,158,11,0.13);border-bottom:1px solid rgba(245,158,11,0.22);color:var(--pro);}
 .top-bar-sub-expired{background:rgba(239,68,68,0.18);border-bottom:1px solid rgba(239,68,68,0.3);color:var(--red);}
 .top-bar-admin{background:rgba(239,68,68,0.1);border-bottom:1px solid rgba(239,68,68,0.2);color:#ef4444;}
-
 .footer-link-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-family:var(--font);font-size:13px;padding:0;transition:color .15s;text-decoration:none;}
 .footer-link-btn:hover{color:var(--text2);}
-
 @media(max-width:900px){
   .nav{padding:14px 20px;}
   .features-grid,.pricing-grid,.stat-grid{grid-template-columns:1fr;}
@@ -319,7 +278,6 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 }
 `;
 
-// ─── Token Counter ─────────────────────────────────────────────────────────
 function TokenCounter({ text, limit = 2000 }) {
   const n = estimateTokens(text);
   const pct = n / limit;
@@ -336,14 +294,9 @@ function Hint({ children }) {
   return <p className="hint"><span style={{ flexShrink: 0 }}>ℹ</span><span>{children}</span></p>;
 }
 
-// ─── TOP BAR ──────────────────────────────────────────────────────────────
 function TopBar({ createdAt, plan, planExpires, onUpgrade, isAdmin }) {
   if (isAdmin) {
-    return (
-      <div className="top-bar top-bar-admin">
-        <span>🔧 <strong>Admin mode</strong> — trial and plan restrictions bypassed</span>
-      </div>
-    );
+    return <div className="top-bar top-bar-admin"><span>🔧 <strong>Admin mode</strong> — trial and plan restrictions bypassed</span></div>;
   }
   if (plan === "pro" && planExpires) {
     const daysLeft = getSubDaysLeft(planExpires);
@@ -352,16 +305,8 @@ function TopBar({ createdAt, plan, planExpires, onUpgrade, isAdmin }) {
     const cls = daysLeft <= 3 ? "top-bar-sub-warn" : "top-bar-sub-ok";
     return (
       <div className={`top-bar ${expired ? "top-bar-sub-expired" : cls}`}>
-        <span>
-          {expired
-            ? "⚠️ Your Pro subscription has expired — renew to keep Pinterest access"
-            : daysLeft <= 3
-            ? `⏰ Pro renews in ${daysLeft} day${daysLeft !== 1 ? "s" : ""} — make sure your payment is up to date`
-            : `★ Pro plan active — ${daysLeft} day${daysLeft !== 1 ? "s" : ""} until renewal`}
-        </span>
-        {expired && (
-          <button className="btn btn-pro btn-sm" onClick={() => onUpgrade("pro")} style={{padding:"5px 12px",fontSize:12}}>Renew Pro →</button>
-        )}
+        <span>{expired ? "⚠️ Your Pro subscription has expired — renew to keep Pinterest access" : daysLeft <= 3 ? `⏰ Pro renews in ${daysLeft} day${daysLeft !== 1 ? "s" : ""} — make sure your payment is up to date` : `★ Pro plan active — ${daysLeft} day${daysLeft !== 1 ? "s" : ""} until renewal`}</span>
+        {expired && <button className="btn btn-pro btn-sm" onClick={() => onUpgrade("pro")} style={{padding:"5px 12px",fontSize:12}}>Renew Pro →</button>}
       </div>
     );
   }
@@ -369,11 +314,7 @@ function TopBar({ createdAt, plan, planExpires, onUpgrade, isAdmin }) {
     const daysLeft = getDaysLeft(createdAt);
     const expired = daysLeft === 0;
     const cls = expired ? "top-bar-trial-expired" : daysLeft === 1 ? "top-bar-trial-warn" : "top-bar-trial-ok";
-    const msg = expired
-      ? "⚠️ Your 2-day free trial has expired — upgrade to keep publishing"
-      : daysLeft === 1
-      ? "⏰ Last day of your free trial — upgrade before it expires"
-      : `🎉 ${daysLeft} days left in your free trial`;
+    const msg = expired ? "⚠️ Your 2-day free trial has expired — upgrade to keep publishing" : daysLeft === 1 ? "⏰ Last day of your free trial — upgrade before it expires" : `🎉 ${daysLeft} days left in your free trial`;
     return (
       <div className={`top-bar ${cls}`}>
         <span><strong>{msg}</strong></span>
@@ -387,14 +328,13 @@ function TopBar({ createdAt, plan, planExpires, onUpgrade, isAdmin }) {
   return null;
 }
 
-// ─── TRIAL EXPIRED GATE ────────────────────────────────────────────────────
 function TrialExpiredGate({ onUpgrade }) {
   return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:400,padding:24}}>
       <div style={{textAlign:"center",maxWidth:460}}>
         <div style={{fontSize:52,marginBottom:16}}>⏰</div>
         <div style={{fontFamily:"var(--font-display)",fontSize:24,fontWeight:700,marginBottom:8}}>Your free trial has ended</div>
-        <p style={{color:"var(--text2)",fontSize:15,lineHeight:1.7,marginBottom:28}}>You had 2 days to try NicheFlow AI for free. Choose a plan below to keep publishing articles and automating your content.</p>
+        <p style={{color:"var(--text2)",fontSize:15,lineHeight:1.7,marginBottom:28}}>You had 2 days to try NicheFlow AI for free. Choose a plan below to keep publishing articles.</p>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:12}}>
           <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:20,textAlign:"left"}}>
             <div style={{fontFamily:"var(--font-display)",fontSize:18,fontWeight:700,marginBottom:4}}>Basic</div>
@@ -420,7 +360,6 @@ function TrialExpiredGate({ onUpgrade }) {
   );
 }
 
-// ─── CHECKOUT MODAL (Gumroad) ──────────────────────────────────────────────
 function CheckoutModal({ plan, onClose, userEmail }) {
   const url = plan === "pro" ? CHECKOUT_PRO : CHECKOUT_BASIC;
   const fullUrl = `${url}?wanted=true&email=${encodeURIComponent(userEmail || "")}`;
@@ -430,22 +369,10 @@ function CheckoutModal({ plan, onClose, userEmail }) {
         <button className="modal-close" onClick={onClose}>✕</button>
         <div style={{ textAlign:"center",padding:"8px 0 24px" }}>
           <div style={{ fontSize:48,marginBottom:12 }}>{plan==="pro"?"★":"⚡"}</div>
-          <div style={{ fontFamily:"var(--font-display)",fontSize:22,fontWeight:700,marginBottom:6 }}>
-            {plan==="pro"?"NicheFlow Pro":"NicheFlow Basic"}
-          </div>
-          <div style={{ fontSize:36,fontWeight:800,fontFamily:"var(--font-display)",marginBottom:4,color:plan==="pro"?"var(--pro)":"var(--accent2)" }}>
-            {plan==="pro"?"$40":"$30"}<span style={{ fontSize:16,fontWeight:400,color:"var(--text3)" }}>/month</span>
-          </div>
-          <p style={{ fontSize:13,color:"var(--text2)",marginBottom:24,lineHeight:1.6 }}>
-            {plan==="pro"
-              ?"Everything in Basic plus Pinterest auto-pinning with AI-generated pin images and 4-word hook titles."
-              :"Unlimited articles, custom prompts, images, and WordPress publishing."}
-          </p>
-          <a href={fullUrl} target="_blank" rel="noreferrer"
-            className={`btn ${plan==="pro"?"btn-pro":"btn-primary"} btn-lg`}
-            style={{ width:"100%",marginBottom:12,display:"flex" }}>
-            Continue to Gumroad →
-          </a>
+          <div style={{ fontFamily:"var(--font-display)",fontSize:22,fontWeight:700,marginBottom:6 }}>{plan==="pro"?"NicheFlow Pro":"NicheFlow Basic"}</div>
+          <div style={{ fontSize:36,fontWeight:800,fontFamily:"var(--font-display)",marginBottom:4,color:plan==="pro"?"var(--pro)":"var(--accent2)" }}>{plan==="pro"?"$40":"$30"}<span style={{ fontSize:16,fontWeight:400,color:"var(--text3)" }}>/month</span></div>
+          <p style={{ fontSize:13,color:"var(--text2)",marginBottom:24,lineHeight:1.6 }}>{plan==="pro"?"Everything in Basic plus Pinterest auto-pinning with AI-generated pin images and 4-word hook titles.":"Unlimited articles, custom prompts, images, and WordPress publishing."}</p>
+          <a href={fullUrl} target="_blank" rel="noreferrer" className={`btn ${plan==="pro"?"btn-pro":"btn-primary"} btn-lg`} style={{ width:"100%",marginBottom:12,display:"flex" }}>Continue to Gumroad →</a>
           <p style={{ fontSize:12,color:"var(--text3)" }}>Secure checkout via Gumroad · Cancel anytime</p>
         </div>
       </div>
@@ -453,18 +380,14 @@ function CheckoutModal({ plan, onClose, userEmail }) {
   );
 }
 
-// ─── POLICY PAGES ──────────────────────────────────────────────────────────
-function PolicyShell({ onBack, title, date, children }) {
+function PolicyShell({ onBack, title, children }) {
   return (
     <div className="policy-wrap">
       <style>{css}</style>
       <div className="policy-inner">
         <div className="policy-back-row">
           <button className="btn btn-ghost btn-sm" onClick={onBack} style={{border:"none",color:"var(--text3)",paddingLeft:0}}>← Back</button>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <Logo size={22}/>
-            <span style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:700,background:"linear-gradient(135deg,var(--accent2),#c084fc)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>NicheFlow AI</span>
-          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}><Logo size={22}/><span style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:700,background:"linear-gradient(135deg,var(--accent2),#c084fc)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>NicheFlow AI</span></div>
         </div>
         <h1>{title}</h1>
         <span className="policy-date">Last updated: April 2026</span>
@@ -481,34 +404,16 @@ function PrivacyPolicyPage({ onBack }) {
       <p>We collect information you provide when you create an account or use the service — including your email address, encrypted password, API keys, WordPress credentials, and any custom prompts you configure in Settings.</p>
       <p>We also collect usage data automatically: articles generated, publish history, and interaction logs to help us improve the service. We do not sell this data to any third party.</p>
       <h2>2. How We Use Your Information</h2>
-      <ul>
-        <li>To provide, operate, and maintain NicheFlow AI</li>
-        <li>To authenticate your account and process payments via Gumroad</li>
-        <li>To securely store your settings (API keys, prompts, WordPress credentials)</li>
-        <li>To send transactional emails such as account confirmation and payment receipts from Gumroad</li>
-        <li>To debug issues and improve the service</li>
-      </ul>
+      <ul><li>To provide, operate, and maintain NicheFlow AI</li><li>To authenticate your account and process payments via Gumroad</li><li>To securely store your settings (API keys, prompts, WordPress credentials)</li><li>To send transactional emails such as account confirmation and payment receipts from Gumroad</li><li>To debug issues and improve the service</li></ul>
       <h2>3. Data Storage & Security</h2>
       <p>Your account data is stored in Supabase, a cloud database with encryption at rest. API keys you enter are stored encrypted and never logged in plain text in our server logs. All data in transit is protected with TLS/HTTPS.</p>
       <h2>4. Third-Party Services</h2>
-      <p>NicheFlow AI connects to the following third-party services to deliver its functionality. By using our service, you also agree to their respective terms:</p>
-      <ul>
-        <li><strong>Supabase</strong> — database and authentication</li>
-        <li><strong>Gumroad</strong> — payment processing and subscription management</li>
-        <li><strong>Groq / Google Gemini</strong> — AI article and card generation (your prompts are sent to these APIs)</li>
-        <li><strong>GoAPI / Pollinations</strong> — AI image generation</li>
-        <li><strong>Pinterest API</strong> — pin creation (Pro plan only)</li>
-        <li><strong>WordPress REST API</strong> — article publishing to your own website</li>
-      </ul>
+      <ul><li><strong>Supabase</strong> — database and authentication</li><li><strong>Gumroad</strong> — payment processing and subscription management</li><li><strong>Groq / Google Gemini</strong> — AI article and card generation</li><li><strong>GoAPI / Pollinations</strong> — AI image generation</li><li><strong>Pinterest API</strong> — pin creation (Pro plan only)</li><li><strong>WordPress REST API</strong> — article publishing to your own website</li></ul>
       <h2>5. Cookies & Local Storage</h2>
       <p>We use browser localStorage to store your session token and app configuration so you stay logged in between visits. We do not use third-party tracking cookies or advertising cookies of any kind.</p>
       <h2>6. Your Rights & Data Deletion</h2>
       <p>You may request deletion of your account and all associated data at any time by emailing <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a>. Upon deletion, your settings, history, and credentials will be permanently removed from our database within 30 days.</p>
-      <h2>7. Children's Privacy</h2>
-      <p>NicheFlow AI is not directed at children under 13. We do not knowingly collect personal information from anyone under 13 years of age.</p>
-      <h2>8. Changes to This Policy</h2>
-      <p>We may update this policy from time to time. We will notify users of significant changes by posting the new version on this page with an updated date. Continued use of the service constitutes acceptance.</p>
-      <h2>9. Contact</h2>
+      <h2>7. Contact</h2>
       <p>Questions? Email us at <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a>.</p>
     </PolicyShell>
   );
@@ -519,23 +424,10 @@ function RefundPolicyPage({ onBack }) {
     <PolicyShell onBack={onBack} title="Refund Policy">
       <h2>Our Commitment</h2>
       <p>We want you to be completely satisfied with NicheFlow AI. This policy explains when and how you can request a refund.</p>
-      <h2>Free Trial First</h2>
-      <p>Every new account receives a <strong>2-day free trial</strong> with no credit card required. We strongly encourage you to test every feature during this period — article generation, image automation, WordPress publishing, and Pinterest integration (Pro) — before subscribing.</p>
       <h2>7-Day Money-Back Guarantee</h2>
-      <p>If you subscribe and are not satisfied within the first <strong>7 days</strong> of your paid plan, contact us and we will issue a full refund — no questions asked. This applies to both Basic ($30/mo) and Pro ($40/mo) plans.</p>
-      <h2>After the 7-Day Window</h2>
-      <p>After the first 7 days, refunds are considered on a case-by-case basis. We generally will not issue refunds for:</p>
-      <ul>
-        <li>Unused time remaining in a billing period after the 7-day period</li>
-        <li>Failure to cancel before a renewal date (please cancel at least 24 hours before your renewal)</li>
-        <li>Issues caused by third-party API providers (Groq, Gemini, GoAPI, Pinterest, WordPress) outside our control</li>
-        <li>Accounts that have violated our Terms of Service</li>
-        <li>Requests made after the account has published a significant volume of content</li>
-      </ul>
+      <p>If you subscribe and are not satisfied within the first <strong>7 days</strong> of your paid plan, contact us and we will issue a full refund — no questions asked.</p>
       <h2>How to Request a Refund</h2>
-      <p>Email <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a> with the subject line <strong>"Refund Request"</strong>, including the email address on your account and your Gumroad order number (found in your purchase receipt email). We will process eligible refunds within 5–10 business days through Gumroad.</p>
-      <h2>Cancellations</h2>
-      <p>You can cancel your subscription at any time through your Gumroad account or via the link in your purchase receipt email. Cancellation stops future charges but does not automatically trigger a refund. Your access continues until the end of the current billing period.</p>
+      <p>Email <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a> with the subject line <strong>"Refund Request"</strong>, including the email address on your account and your Gumroad order number.</p>
       <h2>Contact</h2>
       <p>Refund requests: <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a></p>
     </PolicyShell>
@@ -546,30 +438,21 @@ function TermsOfServicePage({ onBack }) {
   return (
     <PolicyShell onBack={onBack} title="Terms of Service">
       <h2>1. Acceptance of Terms</h2>
-      <p>By creating an account or using NicheFlow AI ("the Service"), you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, do not create an account or use the Service.</p>
+      <p>By creating an account or using NicheFlow AI ("the Service"), you agree to be bound by these Terms of Service and our Privacy Policy.</p>
       <h2>2. Description of Service</h2>
-      <p>NicheFlow AI is a SaaS platform that uses AI to generate long-form blog articles, automate image generation, and publish content to WordPress. Pro subscribers also have access to Pinterest automation. The Service connects to third-party APIs on your behalf using credentials you provide.</p>
-      <h2>3. Account Registration</h2>
-      <p>You must provide a valid email address to create an account. You are responsible for maintaining the confidentiality of your password and for all activity under your account. Notify us immediately at <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a> if you suspect unauthorized access.</p>
-      <h2>4. Free Trial</h2>
-      <p>New accounts receive a 2-day free trial beginning at the moment of account creation. After the trial ends, continued access requires an active paid subscription. We reserve the right to modify or discontinue the free trial for new signups at any time.</p>
-      <h2>5. Acceptable Use</h2>
-      <p>You agree not to use the Service to generate spam, misleading content, or content violating any third-party platform's terms; reverse engineer or resell the Service; circumvent API rate limits; publish or generate illegal content; or attempt to gain unauthorized access to the Service.</p>
-      <h2>6. API Keys & Credentials</h2>
-      <p>You are solely responsible for all API keys, WordPress credentials, Pinterest tokens, and other access tokens you provide to NicheFlow AI.</p>
-      <h2>7. Subscription & Billing</h2>
-      <p>Paid subscriptions are processed through <strong>Gumroad</strong>. By subscribing, you authorize Gumroad to charge your payment method on a recurring monthly basis. You may cancel at any time through your Gumroad account.</p>
-      <h2>8. Content Ownership</h2>
+      <p>NicheFlow AI is a SaaS platform that uses AI to generate long-form blog articles, automate image generation, and publish content to WordPress. Pro subscribers also have access to Pinterest automation.</p>
+      <h2>3. Acceptable Use</h2>
+      <p>You agree not to use the Service to generate spam, misleading content, or content violating any third-party platform's terms; reverse engineer or resell the Service; publish or generate illegal content; or attempt to gain unauthorized access to the Service.</p>
+      <h2>4. Subscription & Billing</h2>
+      <p>Paid subscriptions are processed through <strong>Gumroad</strong>. You may cancel at any time through your Gumroad account.</p>
+      <h2>5. Content Ownership</h2>
       <p>You retain full ownership of all content generated through NicheFlow AI and published to your websites.</p>
-      <h2>9. Limitation of Liability</h2>
-      <p>To the maximum extent permitted by law, NicheFlow AI and its operators shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Service.</p>
-      <h2>10. Contact</h2>
-      <p>Questions about these Terms? Email <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a>.</p>
+      <h2>6. Contact</h2>
+      <p>Questions? Email <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a>.</p>
     </PolicyShell>
   );
 }
 
-// ─── LANDING ───────────────────────────────────────────────────────────────
 function LandingPage({ onLogin, onSignup, onCheckout, onPolicy }) {
   const features = [
     { icon: "✦", title: "AI Article Engine", desc: "Two separate AI models — one crafts your article, another builds the summary card. Fully independent." },
@@ -593,7 +476,6 @@ function LandingPage({ onLogin, onSignup, onCheckout, onPolicy }) {
           <button className="btn btn-primary btn-sm" onClick={onSignup}>Try free 2 days</button>
         </div>
       </nav>
-
       <section className="hero">
         <div className="fade-up" style={{ display:"inline-flex",alignItems:"center",gap:8,padding:"5px 14px",background:"var(--accent-dim)",border:"1px solid rgba(99,102,241,.25)",borderRadius:20,fontSize:12,fontWeight:500,color:"var(--accent2)",marginBottom:24 }}>✦ Content automation, reimagined</div>
         <h1 className="fade-up-d1">Publish <span className="grad">10x faster</span><br />across every niche.</h1>
@@ -608,7 +490,6 @@ function LandingPage({ onLogin, onSignup, onCheckout, onPolicy }) {
           ))}
         </div>
       </section>
-
       <section id="features" style={{ padding:"72px 48px",maxWidth:1100,margin:"0 auto" }}>
         <div style={{ fontSize:12,fontWeight:600,color:"var(--accent2)",letterSpacing:2,textTransform:"uppercase",marginBottom:12 }}>What's inside</div>
         <div style={{ fontFamily:"var(--font-display)",fontSize:"clamp(24px,4vw,38px)",fontWeight:700,marginBottom:44,letterSpacing:-1 }}>Everything your content business needs</div>
@@ -622,19 +503,14 @@ function LandingPage({ onLogin, onSignup, onCheckout, onPolicy }) {
           ))}
         </div>
       </section>
-
       <section id="pricing" style={{ padding:"72px 48px",maxWidth:860,margin:"0 auto" }}>
         <div style={{ fontSize:12,fontWeight:600,color:"var(--accent2)",letterSpacing:2,textTransform:"uppercase",marginBottom:12 }}>Pricing</div>
         <div style={{ fontFamily:"var(--font-display)",fontSize:"clamp(24px,4vw,38px)",fontWeight:700,letterSpacing:-1 }}>Simple, honest pricing</div>
         <p style={{ color:"var(--text2)",fontSize:15,marginTop:8 }}>Start free for 2 days. No credit card required. Cancel anytime.</p>
         <div className="pricing-grid">
           {[
-            { name:"Basic", price:"$30", desc:"Everything you need to run a content business on autopilot.",
-              features:["Unlimited article generation","Custom article prompt","Custom card prompt","4 images per article (1 featured + 3 body)","WordPress auto-publish","Featured image auto-set","Internal link injection","History & analytics"],
-              btn:"Get Basic →", cls:"", action: () => onCheckout("basic") },
-            { name:"Pro", price:"$40", desc:"Everything in Basic plus full Pinterest automation with AI-designed pin images.",
-              features:["Everything in Basic","Pinterest auto-pinning","AI-generated pin images","4-word hook title overlay","Board selection & scheduling","Pin delay scheduling","Auto-pin after publish","Custom pin image design"],
-              btn:"Get Pro ★", cls:"featured", action: () => onCheckout("pro") },
+            { name:"Basic", price:"$30", desc:"Everything you need to run a content business on autopilot.", features:["Unlimited article generation","Custom article prompt","Custom card prompt","4 images per article","WordPress auto-publish","Featured image auto-set","Internal link injection","History & analytics"], btn:"Get Basic →", cls:"", action: () => onCheckout("basic") },
+            { name:"Pro", price:"$40", desc:"Everything in Basic plus full Pinterest automation with AI-designed pin images.", features:["Everything in Basic","Pinterest auto-pinning","AI-generated pin images","4-word hook title overlay","Board selection & scheduling","Pin delay scheduling","Auto-pin after publish","Custom pin image design"], btn:"Get Pro ★", cls:"featured", action: () => onCheckout("pro") },
           ].map(p=>(
             <div key={p.name} className={`plan-card ${p.cls}`}>
               <div style={{ fontFamily:"var(--font-display)",fontSize:20,fontWeight:700,marginBottom:6 }}>{p.name}</div>
@@ -649,7 +525,6 @@ function LandingPage({ onLogin, onSignup, onCheckout, onPolicy }) {
           <button className="btn btn-ghost" onClick={onSignup} style={{fontSize:13,color:"var(--text3)"}}>Or try free for 2 days — no credit card needed →</button>
         </div>
       </section>
-
       <footer style={{ borderTop:"1px solid var(--border)",padding:"28px 48px" }}>
         <div style={{ maxWidth:1100,margin:"0 auto",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:16 }}>
           <div className="nav-brand"><Logo size={20}/><span>NicheFlow AI</span></div>
@@ -665,30 +540,19 @@ function LandingPage({ onLogin, onSignup, onCheckout, onPolicy }) {
   );
 }
 
-// ─── AUTH ──────────────────────────────────────────────────────────────────
 function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState("form");
-
   async function submit(e) {
-    e.preventDefault();
-    setError(""); setLoading(true);
+    e.preventDefault(); setError(""); setLoading(true);
     try {
-      if (mode === "login") {
-        const data = await supaLogin(email, password);
-        onSuccess(data);
-      } else {
-        const data = await supaSignup(email, password);
-        if (data.session || data.access_token) { onSuccess(data.session || data); }
-        else { setStep("confirm"); }
-      }
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
+      if (mode === "login") { const data = await supaLogin(email, password); onSuccess(data); }
+      else { const data = await supaSignup(email, password); if (data.session || data.access_token) { onSuccess(data.session || data); } else { setStep("confirm"); } }
+    } catch (err) { setError(err.message); } finally { setLoading(false); }
   }
-
   return (
     <div className="auth-page">
       <style>{css}</style>
@@ -698,36 +562,21 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
         {step === "confirm" ? (
           <div>
             <div className="alert alert-ok" style={{ marginBottom:16 }}>✓ Account created! Check your email to confirm, then log in.</div>
-            <p style={{ fontSize:13,color:"var(--text2)",marginBottom:20,lineHeight:1.6 }}>Once confirmed, come back and sign in with your email and password.</p>
             <button className="btn btn-primary" style={{ width:"100%",marginBottom:10 }} onClick={() => { setStep("form"); onSwitch("login"); }}>Go to Login →</button>
           </div>
         ) : (
           <>
-            <h2 style={{ fontFamily:"var(--font-display)",fontSize:22,fontWeight:700,margin:"6px 0 4px" }}>
-              {mode==="login"?"Welcome back":"Start your free trial"}
-            </h2>
-            <p style={{ fontSize:13,color:"var(--text2)",marginBottom:24 }}>
-              {mode==="login"?"Sign in to your NicheFlow dashboard":"2 days free — no credit card required"}
-            </p>
+            <h2 style={{ fontFamily:"var(--font-display)",fontSize:22,fontWeight:700,margin:"6px 0 4px" }}>{mode==="login"?"Welcome back":"Start your free trial"}</h2>
+            <p style={{ fontSize:13,color:"var(--text2)",marginBottom:24 }}>{mode==="login"?"Sign in to your NicheFlow dashboard":"2 days free — no credit card required"}</p>
             {error && <div className="alert alert-err">{error}</div>}
             <form onSubmit={submit}>
-              <div style={{ marginBottom:14 }}>
-                <label className="form-label">Email</label>
-                <input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email" />
-              </div>
-              <div style={{ marginBottom:6 }}>
-                <label className="form-label">Password</label>
-                <input className="input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="signup"?"At least 8 characters":"Your password"} required minLength={8} autoComplete={mode==="signup"?"new-password":"current-password"} />
-              </div>
-              <button className="btn btn-primary" style={{ width:"100%",marginTop:14 }} disabled={loading}>
-                {loading ? <><span className="spinner"/>Working...</> : mode==="login"?"Sign in →":"Start free trial →"}
-              </button>
+              <div style={{ marginBottom:14 }}><label className="form-label">Email</label><input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email" /></div>
+              <div style={{ marginBottom:6 }}><label className="form-label">Password</label><input className="input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==="signup"?"At least 8 characters":"Your password"} required minLength={8} autoComplete={mode==="signup"?"new-password":"current-password"} /></div>
+              <button className="btn btn-primary" style={{ width:"100%",marginTop:14 }} disabled={loading}>{loading ? <><span className="spinner"/>Working...</> : mode==="login"?"Sign in →":"Start free trial →"}</button>
             </form>
             <p style={{ textAlign:"center",fontSize:13,color:"var(--text2)",marginTop:16 }}>
               {mode==="login"?"No account? ":"Already have one? "}
-              <button style={{ background:"none",border:"none",color:"var(--accent2)",cursor:"pointer",fontFamily:"var(--font)",fontSize:13 }} onClick={()=>onSwitch(mode==="login"?"signup":"login")}>
-                {mode==="login"?"Try free 2 days":"Sign in"}
-              </button>
+              <button style={{ background:"none",border:"none",color:"var(--accent2)",cursor:"pointer",fontFamily:"var(--font)",fontSize:13 }} onClick={()=>onSwitch(mode==="login"?"signup":"login")}>{mode==="login"?"Try free 2 days":"Sign in"}</button>
             </p>
           </>
         )}
@@ -736,19 +585,15 @@ function AuthPage({ mode, onSuccess, onSwitch, onBack }) {
   );
 }
 
-// ─── UPGRADE BANNER ────────────────────────────────────────────────────────
 function UpgradeBanner({ onUpgrade }) {
   return (
     <div className="upgrade-banner">
-      <div className="upgrade-banner-text">
-        <strong>Upgrade to Pro</strong> — Unlock Pinterest automation, AI pin images with hook titles, board scheduling, and more.
-      </div>
+      <div className="upgrade-banner-text"><strong>Upgrade to Pro</strong> — Unlock Pinterest automation, AI pin images with hook titles, board scheduling, and more.</div>
       <button className="btn btn-pro btn-sm" onClick={onUpgrade}>Upgrade — $40/mo ★</button>
     </div>
   );
 }
 
-// ─── DASHBOARD ─────────────────────────────────────────────────────────────
 function Dashboard({ history, plan, onUpgrade, createdAt, planExpires, isAdmin }) {
   const published = history.filter(h=>h.status==="published").length;
   const failed = history.filter(h=>h.status==="failed").length;
@@ -757,17 +602,8 @@ function Dashboard({ history, plan, onUpgrade, createdAt, planExpires, isAdmin }
     <div className="fade-up">
       {plan !== "pro" && !isAdmin && <UpgradeBanner onUpgrade={()=>onUpgrade("pro")} />}
       <div className="stat-grid">
-        {[
-          {num:history.length,label:"Total articles"},
-          {num:published,label:"Published",sub:published>0?`${Math.round(published/Math.max(history.length,1)*100)}% success`:""},
-          {num:failed,label:"Failed"},
-          {num:daysLeft,label:isAdmin?"Admin (∞)":plan==="pro"?"Sub days left":"Trial days left",sub:isAdmin?"Full access":plan==="pro"?"Pro active":"basic trial"},
-        ].map((s,i)=>(
-          <div className="stat-card" key={i}>
-            <div className="stat-card-num">{s.num}</div>
-            <div className="stat-card-label">{s.label}</div>
-            {s.sub&&<div style={{fontSize:12,color:"var(--green)",marginTop:6}}>{s.sub}</div>}
-          </div>
+        {[{num:history.length,label:"Total articles"},{num:published,label:"Published",sub:published>0?`${Math.round(published/Math.max(history.length,1)*100)}% success`:""},{num:failed,label:"Failed"},{num:daysLeft,label:isAdmin?"Admin (∞)":plan==="pro"?"Sub days left":"Trial days left",sub:isAdmin?"Full access":plan==="pro"?"Pro active":"basic trial"}].map((s,i)=>(
+          <div className="stat-card" key={i}><div className="stat-card-num">{s.num}</div><div className="stat-card-label">{s.label}</div>{s.sub&&<div style={{fontSize:12,color:"var(--green)",marginTop:6}}>{s.sub}</div>}</div>
         ))}
       </div>
       <div className="card" style={{ marginBottom:18 }}>
@@ -805,24 +641,8 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [loadingCats, setLoadingCats] = useState(false);
 
-  // ── FIX: Fetch WP categories on mount — backend reads creds from DB via auth token ──
-  // No guard on config.wp_url — the backend handles missing creds (returns [])
-  useEffect(() => {
-    const token = getStoredToken();
-    if (!token) return; // only fetch if user is logged in
-    setLoadingCats(true);
-    apiCall("/wp/categories")
-      .then(async res => {
-        if (res.ok) {
-          const data = await res.json();
-          setCategories(data.categories || []);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoadingCats(false));
-  }, []); // fetch once on mount — backend reads from DB
-
   const expired = isTrialExpired(createdAt) && plan !== "pro" && !isAdmin;
+
   const addLog = useCallback((msg, type="info") => {
     const time = new Date().toLocaleTimeString("en",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
     setLogs(prev=>[...prev.slice(-120),{msg,type,time}]);
@@ -833,6 +653,14 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
   const missingKeys = !config.gemini_key||!config.wp_url||!config.wp_password;
 
   if (expired) return <TrialExpiredGate onUpgrade={onUpgrade} />;
+
+  function loadCategories() {
+    setLoadingCats(true);
+    apiCall("/wp/categories")
+      .then(async res => { if (res.ok) { const d = await res.json(); setCategories(d.categories||[]); } })
+      .catch(()=>{})
+      .finally(()=>setLoadingCats(false));
+  }
 
   function detectLogType(msg) {
     if (msg.includes("✅")||msg.includes("🎉")||msg.includes("Published")) return "ok";
@@ -883,6 +711,7 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
         addLog(`❌ Network: ${err.message}`,"err");
         onHistoryUpdate({title,status:"failed",error:err.message,time:new Date().toLocaleTimeString()});
       }
+      setProgress((i+1)/titleList.length);
       if(i<titleList.length-1&&delay>0){addLog(`⏱ Waiting ${delay}s...`,"info");await new Promise(r=>setTimeout(r,delay*1000));}
     }
     setProgress(1);addLog(`Batch complete.`,"ok");setRunning(false);
@@ -907,45 +736,53 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
               <div className="setting-row"><div className="setting-info"><div className="setting-name">Generate Images</div><div className="setting-desc">1 featured + 3 body images. All WebP, uploaded to WordPress.</div></div><label className="toggle"><input type="checkbox" checked={useImages} onChange={e=>setUseImages(e.target.checked)}/><span className="toggle-slider"/></label></div>
               <div><div className="setting-name" style={{marginBottom:6}}>Delay between articles</div><div style={{display:"flex",alignItems:"center",gap:10}}><input className="input" type="number" value={delay} min={0} max={120} onChange={e=>setDelay(+e.target.value)} style={{width:80}}/><span style={{fontSize:13,color:"var(--text2)"}}>seconds</span></div></div>
 
-              {/* ── WordPress Categories selector ── */}
-              {loadingCats && categories.length === 0 && (
-                <div style={{fontSize:12,color:"var(--text3)",display:"flex",alignItems:"center",gap:6}}>
-                  <span className="spinner spinner-accent"/>Loading categories...
+              {/* ── WordPress Categories ── */}
+              <div>
+                <div className="setting-name" style={{marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+                  📁 <span style={{color:"var(--accent2)"}}>Categories</span>
                 </div>
-              )}
-              {categories.length > 0 && (
-                <div>
-                  <div className="setting-name" style={{marginBottom:6}}>
-                    WordPress Categories
-                    {loadingCats && <span className="spinner spinner-accent" style={{marginLeft:8,display:"inline-block"}}/>}
-                  </div>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:6,maxHeight:120,overflowY:"auto"}}>
-                    {categories.map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setSelectedCategories(prev =>
-                          prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
-                        )}
-                        style={{
-                          padding:"4px 10px",borderRadius:20,fontSize:12,cursor:"pointer",border:"1px solid",
-                          background: selectedCategories.includes(cat.id) ? "var(--accent-dim)" : "var(--bg3)",
-                          borderColor: selectedCategories.includes(cat.id) ? "var(--accent)" : "var(--border)",
-                          color: selectedCategories.includes(cat.id) ? "var(--accent2)" : "var(--text2)",
-                          fontFamily:"var(--font)"
-                        }}
-                        disabled={running}
-                      >
-                        {cat.name}
-                      </button>
-                    ))}
-                  </div>
-                  {selectedCategories.length > 0 && (
-                    <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>
-                      {selectedCategories.length} categor{selectedCategories.length>1?"ies":"y"} selected
-                    </div>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={loadCategories}
+                    disabled={loadingCats||running}
+                    style={{display:"flex",alignItems:"center",gap:6}}
+                  >
+                    {loadingCats ? <span className="spinner spinner-accent"/> : "↺"} Load Categories
+                  </button>
+                  {categories.length > 0 && (
+                    <span style={{fontSize:12,color:"var(--green)"}}>✓ {categories.length}</span>
                   )}
                 </div>
-              )}
+                {categories.length > 0 && (
+                  <>
+                    <div style={{fontSize:12,color:"var(--text3)",marginBottom:8}}>
+                      Select categories to assign to published articles:
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:200,overflowY:"auto"}}>
+                      {categories.map(cat => (
+                        <label key={cat.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:14,color:"var(--text2)",padding:"2px 0"}}>
+                          <input
+                            type="checkbox"
+                            checked={selectedCategories.includes(cat.id)}
+                            onChange={() => setSelectedCategories(prev =>
+                              prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                            )}
+                            disabled={running}
+                            style={{width:16,height:16,accentColor:"var(--accent)",cursor:"pointer"}}
+                          />
+                          {cat.name} ({cat.count ?? 0})
+                        </label>
+                      ))}
+                    </div>
+                    {selectedCategories.length > 0 && (
+                      <div style={{fontSize:11,color:"var(--accent2)",marginTop:6}}>
+                        {selectedCategories.length} categor{selectedCategories.length>1?"ies":"y"} selected
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
 
             </div>
           </div>
@@ -1054,7 +891,6 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
             {cfg.use_internal_links!==false&&<div><label className="form-label">Max internal links per article</label><input className="input" type="number" value={cfg.max_links||4} min={1} max={10} onChange={e=>update("max_links",+e.target.value)} style={{width:100}}/></div>}
             <div className="setting-row"><div className="setting-info"><div className="setting-name">Full width images</div><div className="setting-desc">Images stretch to full width in articles</div></div><label className="toggle"><input type="checkbox" checked={cfg.full_width_images!==false} onChange={e=>update("full_width_images",e.target.checked)}/><span className="toggle-slider"/></label></div>
             <div className="setting-row"><div className="setting-info"><div className="setting-name">Clickable card</div><div className="setting-desc">Wrap summary card in a share link</div></div><label className="toggle"><input type="checkbox" checked={cfg.clickable_card||false} onChange={e=>update("clickable_card",e.target.checked)}/><span className="toggle-slider"/></label></div>
-            {/* ── External links toggle ── */}
             <div className="setting-row">
               <div className="setting-info">
                 <div className="setting-name">Auto-inject external links</div>
@@ -1160,7 +996,6 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
   );
 }
 
-// ─── HISTORY ───────────────────────────────────────────────────────────────
 function HistoryPage({ history, onClear }) {
   const published = history.filter(h=>h.status==="published");
   const failed = history.filter(h=>h.status==="failed");
@@ -1190,7 +1025,6 @@ function HistoryPage({ history, onClear }) {
   );
 }
 
-// ─── PREVIEW ───────────────────────────────────────────────────────────────
 function PreviewPage({ config }) {
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1223,7 +1057,6 @@ function PreviewPage({ config }) {
   );
 }
 
-// ─── PINTEREST PAGE ─────────────────────────────────────────────────────────
 function PinterestPage({ config, history, plan, onUpgrade }) {
   const [boards, setBoards] = useState([]);
   const [selectedBoards, setSelectedBoards] = useState([]);
@@ -1257,10 +1090,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
     setTimeout(()=>{if(logRef.current)logRef.current.scrollTop=logRef.current.scrollHeight;},50);
   },[]);
 
-  useEffect(()=>{
-    if(config.pinterest_token && boards.length === 0){loadBoards();}
-  // eslint-disable-next-line
-  },[config.pinterest_token]);
+  useEffect(()=>{ if(config.pinterest_token && boards.length === 0){loadBoards();} },[config.pinterest_token]);
 
   const publishedArticles = history.filter(h=>h.status==="published"&&h.post_url);
 
@@ -1363,9 +1193,7 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
           </div>
           <button className="btn btn-pro" style={{width:"100%",padding:"13px"}} onClick={runPinterest}
             disabled={running||!publishedArticles.length||!selectedBoards.length||(scheduleEnabled&&!scheduleDate)}>
-            {running?<><span className="spinner"/>Pinning...</>:scheduleEnabled&&scheduleDate
-              ?`📅 Schedule ${publishedArticles.length} Pin${publishedArticles.length!==1?"s":""}`
-              :`📌 Pin ${publishedArticles.length} Article${publishedArticles.length!==1?"s":""}`}
+            {running?<><span className="spinner"/>Pinning...</>:scheduleEnabled&&scheduleDate?`📅 Schedule ${publishedArticles.length} Pin${publishedArticles.length!==1?"s":""}`:` 📌 Pin ${publishedArticles.length} Article${publishedArticles.length!==1?"s":""}`}
           </button>
         </div>
       </div>
@@ -1397,13 +1225,12 @@ function PinterestPage({ config, history, plan, onUpgrade }) {
   );
 }
 
-// ─── DOCUMENTATION PAGE ─────────────────────────────────────────────────────
 function DocsPage({ plan, onUpgrade }) {
   const [section, setSection] = useState("start");
   const sections = [
     {id:"start",label:"🚀 Quick Start"},{id:"api",label:"🔑 API Keys"},
     {id:"wordpress",label:"🌐 WordPress"},{id:"prompts",label:"💬 Prompts & Cards"},
-    {id:"images",label:"🖼️ Images & WebP"},{id:"links",label:"🔗 Internal Links"},
+    {id:"images",label:"🖼️ Images & WebP"},{id:"links",label:"🔗 Links"},
     {id:"pinterest",label:"📌 Pinterest (Pro)"},{id:"billing",label:"💳 Billing & Plans"},
   ];
   return (
@@ -1419,37 +1246,34 @@ function DocsPage({ plan, onUpgrade }) {
         {section==="start"&&(
           <div className="doc-section">
             <h3>🚀 Quick Start</h3>
-            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>Get your first article published in under 5 minutes.</p>
             {[
-              {n:"1",t:"Get a free AI key",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> — free key starting with <code>gsk_</code>. Or Gemini at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a> (starts with <code>AIza</code>). Both are free.</>},
+              {n:"1",t:"Get a free AI key",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> — free key starting with <code>gsk_</code>. Or Gemini at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a> (starts with <code>AIza</code>).</>},
               {n:"2",t:"Configure API Keys",d:<>Go to <strong>Settings → API Keys</strong>, paste your key, hit <strong>Test</strong>, then <strong>Save Settings</strong>.</>},
               {n:"3",t:"Connect WordPress",d:<>Go to <strong>Settings → WordPress</strong>. Enter your site URL and App Password in format <code>username:xxxx xxxx xxxx xxxx</code>.</>},
               {n:"4",t:"Write your Prompts",d:<>Go to <strong>Settings → Prompts</strong>. Use <code>{"{title}"}</code> as placeholder. Return JSON with <code>html_content</code>, <code>seo_title</code>, <code>excerpt</code>, and color hex keys.</>},
-              {n:"5",t:"Set up Images (optional)",d:<>Go to <strong>Settings → Images</strong>. Paste a Midjourney template or turn on Pollinations for free images.</>},
-              {n:"6",t:"Generate your first article",d:<>Go to <strong>Generate</strong>, paste titles (one per line), and click Generate. Watch the Process Log.</>},
-            ].map(s=>(
-              <div key={s.n} className="doc-step">
-                <div className="doc-step-num">{s.n}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
+              {n:"5",t:"Generate your first article",d:<>Go to <strong>Generate</strong>, paste titles (one per line), click Load Categories to select WP categories, and click Generate.</>},
+            ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
+          </div>
+        )}
+        {section==="links"&&(
+          <div className="doc-section">
+            <h3>🔗 Internal & External Links</h3>
+            {[
+              {n:"1",t:"Internal links",d:"NicheFlow fetches up to 200 of your existing WordPress posts and injects full title matches as links into paragraph text. Only full post titles (3+ words) are linked."},
+              {n:"2",t:"External links (Wikipedia)",d:"When 'Auto-inject external links' is enabled in Settings → WordPress, NicheFlow searches Wikipedia for pages related to your article topic and injects 1–2 links. These are authoritative and SEO-safe."},
+              {n:"3",t:"Why links may not appear",d:"Internal links only appear when your existing post titles match phrases in the new article text. If none match, no links are injected — this is correct behavior, not a bug."},
+            ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
           </div>
         )}
         {section==="billing"&&(
           <div className="doc-section">
             <h3>💳 Billing & Plans</h3>
-            <div className="alert alert-info" style={{marginBottom:14}}>New users get a <strong>2-day free trial</strong> — no credit card required. After 2 days, the app blocks until you choose a plan.</div>
             {[
-              {t:"Free Trial — 2 days",d:"From the moment you create your account, you have 2 full days to use the app free. No credit card needed. The top bar shows a countdown."},
-              {t:"Basic plan — $30/month",d:"Unlimited articles, custom article and card prompts, 4 images per article (featured + 3 body), WordPress auto-publish, internal link injection, history."},
+              {t:"Free Trial — 2 days",d:"From the moment you create your account, you have 2 full days to use the app free. No credit card needed."},
+              {t:"Basic plan — $30/month",d:"Unlimited articles, custom prompts, 4 images per article, WordPress auto-publish, internal link injection, history."},
               {t:"Pro plan — $40/month",d:"Everything in Basic plus Pinterest automation: AI-generated pin images with 4-word hook titles, board selection, pin scheduling, and auto-pin after publish."},
-              {t:"Payments via Gumroad",d:"Payments are handled securely by Gumroad. You'll receive a receipt and can manage or cancel your subscription through your Gumroad account."},
-            ].map((s,i)=>(
-              <div key={i} className="doc-step">
-                <div className="doc-step-num">{i+1}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
+              {t:"Payments via Gumroad",d:"Payments are handled securely by Gumroad. You can manage or cancel through your Gumroad account."},
+            ].map((s,i)=>(<div key={i} className="doc-step"><div className="doc-step-num">{i+1}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
             {plan!=="pro"&&<div style={{marginTop:20}}><button className="btn btn-pro" style={{width:"100%"}} onClick={()=>onUpgrade("pro")}>Upgrade to Pro — $40/mo ★</button></div>}
           </div>
         )}
@@ -1459,14 +1283,8 @@ function DocsPage({ plan, onUpgrade }) {
             {[
               {n:"1",t:"Get a Groq key (recommended)",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> → Sign up free → API Keys → Create key. Starts with <code>gsk_</code>.</>},
               {n:"2",t:"Get a Gemini key (backup)",d:<>Go to <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a> → Get API key. Starts with <code>AIza</code>.</>},
-              {n:"3",t:"Add both for zero downtime",d:<>Paste both comma-separated: <code>gsk_yourgroqkey, AIzayourgeminikey</code>.</>},
-              {n:"4",t:"GoAPI key (Midjourney images only)",d:<>Only needed if you want Midjourney images. Get it at <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a>.</>},
-            ].map(s=>(
-              <div key={s.n} className="doc-step">
-                <div className="doc-step-num">{s.n}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
+              {n:"3",t:"Add both for zero downtime",d:<>Paste both comma-separated: <code>gsk_yourgroqkey, AIzayourgeminikey</code>. If Groq hits rate limits, Gemini takes over automatically.</>},
+            ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
           </div>
         )}
         {section==="wordpress"&&(
@@ -1476,13 +1294,8 @@ function DocsPage({ plan, onUpgrade }) {
               {n:"1",t:"Site URL",d:<>Enter your full site URL including <code>https://</code>, no trailing slash.</>},
               {n:"2",t:"Create an Application Password",d:<>In WordPress: go to <strong>Users → Profile</strong> → scroll to <strong>Application Passwords</strong> → enter a name → click <strong>Add New</strong>. Copy the generated password immediately.</>},
               {n:"3",t:"Format the credentials",d:<>Enter it as: <code>yourusername:xxxx xxxx xxxx xxxx</code>.</>},
-              {n:"4",t:"Test the connection",d:<>Click <strong>Test Connection</strong> to verify.</>},
-            ].map(s=>(
-              <div key={s.n} className="doc-step">
-                <div className="doc-step-num">{s.n}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
+              {n:"4",t:"Test the connection",d:<>Click <strong>Test Connection</strong> to verify. Then go to Generate page and click <strong>Load Categories</strong> to load your WP categories.</>},
+            ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
           </div>
         )}
         {section==="prompts"&&(
@@ -1492,12 +1305,7 @@ function DocsPage({ plan, onUpgrade }) {
               {n:"1",t:"Article Prompt basics",d:<>Your prompt must include <code>{"{title}"}</code> as a placeholder. The AI must return a JSON object.</>},
               {n:"2",t:"Required JSON keys",d:<>Return: <code>seo_title</code>, <code>excerpt</code>, <code>html_content</code>, and color hex keys: <code>MAIN</code>, <code>MAIN_DARK</code>, <code>LIGHT_BG</code>, <code>BORDER</code>.</>},
               {n:"3",t:"Image placeholders",d:<>Put <code>##IMAGE1##</code> <code>##IMAGE2##</code> <code>##IMAGE3##</code> inside your <code>html_content</code> where you want body images injected.</>},
-            ].map(s=>(
-              <div key={s.n} className="doc-step">
-                <div className="doc-step-num">{s.n}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
+            ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
           </div>
         )}
         {section==="images"&&(
@@ -1507,27 +1315,7 @@ function DocsPage({ plan, onUpgrade }) {
               {n:"1",t:"How images work",d:<>NicheFlow generates 4 images per article, converts to WebP, uploads to WordPress media library, and injects them at <code>##IMAGE1##</code> <code>##IMAGE2##</code> <code>##IMAGE3##</code>.</>},
               {n:"2",t:"Option A — Midjourney (GoAPI)",d:<>Requires a GoAPI key. Write a Midjourney template using <code>{"{title}"}</code>. Example: <code>Close up {"{title}"}, food photography --ar 1:1</code></>},
               {n:"3",t:"Option B — Pollinations (free)",d:<>Turn on "Use Pollinations" in Settings → Images. No API key needed.</>},
-            ].map(s=>(
-              <div key={s.n} className="doc-step">
-                <div className="doc-step-num">{s.n}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
-          </div>
-        )}
-        {section==="links"&&(
-          <div className="doc-section">
-            <h3>🔗 Internal & External Links</h3>
-            {[
-              {n:"1",t:"Internal links",d:"NicheFlow fetches up to 200 of your existing WordPress posts and injects full title matches as links into paragraph text. Only full post titles (3+ words) are linked — no partial titles."},
-              {n:"2",t:"External links (Wikipedia)",d:"When 'Auto-inject external links' is enabled, NicheFlow searches Wikipedia for pages related to your article topic and injects 1–2 links into paragraph text. Wikipedia links are authoritative and SEO-safe."},
-              {n:"3",t:"Max links setting",d:"Control how many internal links per article in Settings → WordPress. External links are always 1–2 per article."},
-            ].map(s=>(
-              <div key={s.n} className="doc-step">
-                <div className="doc-step-num">{s.n}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
+            ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
           </div>
         )}
         {section==="pinterest"&&(
@@ -1539,12 +1327,7 @@ function DocsPage({ plan, onUpgrade }) {
               {n:"2",t:"Load your boards",d:<>Go to the <strong>Pinterest</strong> page → click <strong>Refresh Boards</strong>.</>},
               {n:"3",t:"4-word hook title",d:<>The Pinterest prompt must return a <code>hook_title</code> field with EXACTLY 4 words overlaid on the pin image.</>},
               {n:"4",t:"Auto-pin after publish",d:<>Enable "Auto-pin after publish" in Settings → Pinterest to automatically create a pin every time an article is published.</>},
-            ].map(s=>(
-              <div key={s.n} className="doc-step">
-                <div className="doc-step-num">{s.n}</div>
-                <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-              </div>
-            ))}
+            ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
             {plan!=="pro"&&<div style={{marginTop:20}}><button className="btn btn-pro" style={{width:"100%"}} onClick={()=>onUpgrade("pro")}>Upgrade to Pro — $40/mo ★</button></div>}
           </div>
         )}
@@ -1553,7 +1336,6 @@ function DocsPage({ plan, onUpgrade }) {
   );
 }
 
-// ─── APP SHELL ─────────────────────────────────────────────────────────────
 function AppShell({ user, onLogout, onPolicy }) {
   const [page, setPage] = useState("dashboard");
   const [config, setConfig] = useState(getStoredConfig);
@@ -1578,11 +1360,7 @@ function AppShell({ user, onLogout, onPolicy }) {
     }).then(async r => {
       if (r.ok) {
         const rows = await r.json();
-        if (rows && rows[0]) {
-          setPlan(rows[0].plan || "basic");
-          setPlanExpires(rows[0].plan_expires || null);
-          setCreatedAt(rows[0].created_at || new Date().toISOString());
-        }
+        if (rows && rows[0]) { setPlan(rows[0].plan || "basic"); setPlanExpires(rows[0].plan_expires || null); setCreatedAt(rows[0].created_at || new Date().toISOString()); }
       }
     }).catch(() => {});
   }, [userId, token]);
@@ -1664,9 +1442,7 @@ function AppShell({ user, onLogout, onPolicy }) {
             <div className="user-avatar">{avatarLetter}</div>
             <div style={{flex:1,minWidth:0}}>
               <div className="user-email">{email}</div>
-              <div className="user-plan" style={{color:isAdmin?"#ef4444":effectivePlan==="pro"?"var(--pro)":"var(--accent2)"}}>
-                {isAdmin?"🔧 Admin":effectivePlan==="pro"?"★ Pro":"Basic"}
-              </div>
+              <div className="user-plan" style={{color:isAdmin?"#ef4444":effectivePlan==="pro"?"var(--pro)":"var(--accent2)"}}>{isAdmin?"🔧 Admin":effectivePlan==="pro"?"★ Pro":"Basic"}</div>
             </div>
           </div>
           <button className="nav-item" onClick={refreshPlan} style={{marginTop:4,color:"var(--text3)",fontSize:12,padding:"6px 12px"}}><span>↺</span>Refresh Plan</button>
@@ -1698,7 +1474,6 @@ function AppShell({ user, onLogout, onPolicy }) {
   );
 }
 
-// ─── ROOT ──────────────────────────────────────────────────────────────────
 export default function NicheFlowAI() {
   const [view, setView] = useState("landing");
   const [user, setUser] = useState(null);
@@ -1709,14 +1484,8 @@ export default function NicheFlowAI() {
     if (stored) { try { const u=JSON.parse(stored); setUser(u); setView("app"); } catch {} }
   },[]);
 
-  function handleAuthSuccess(userData) {
-    localStorage.setItem("nicheflow_user", JSON.stringify(userData));
-    setUser(userData); setView("app");
-  }
-  function handleLogout() {
-    localStorage.removeItem("nicheflow_user");
-    setUser(null); setView("landing");
-  }
+  function handleAuthSuccess(userData) { localStorage.setItem("nicheflow_user", JSON.stringify(userData)); setUser(userData); setView("app"); }
+  function handleLogout() { localStorage.removeItem("nicheflow_user"); setUser(null); setView("landing"); }
   function handleCheckoutFromLanding(planType) {
     const url = planType === "pro" ? CHECKOUT_PRO : CHECKOUT_BASIC;
     const email = user?.user?.email || user?.email || "";
@@ -1730,15 +1499,6 @@ export default function NicheFlowAI() {
   if (policyPage === "terms")   return <TermsOfServicePage onBack={handleBackFromPolicy} />;
 
   if (view==="app"&&user) return <AppShell user={user} onLogout={handleLogout} onPolicy={handlePolicy}/>;
-  if (view==="login"||view==="signup") return (
-    <AuthPage mode={view} onSuccess={handleAuthSuccess} onSwitch={setView} onBack={()=>setView("landing")}/>
-  );
-  return (
-    <LandingPage
-      onLogin={()=>setView("login")}
-      onSignup={()=>setView("signup")}
-      onCheckout={handleCheckoutFromLanding}
-      onPolicy={handlePolicy}
-    />
-  );
+  if (view==="login"||view==="signup") return <AuthPage mode={view} onSuccess={handleAuthSuccess} onSwitch={setView} onBack={()=>setView("landing")}/>;
+  return <LandingPage onLogin={()=>setView("login")} onSignup={()=>setView("signup")} onCheckout={handleCheckoutFromLanding} onPolicy={handlePolicy}/>;
 }
