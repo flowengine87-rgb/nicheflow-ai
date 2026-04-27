@@ -480,7 +480,6 @@ function PrivacyPolicyPage({ onBack }) {
       <h2>1. Information We Collect</h2>
       <p>We collect information you provide when you create an account or use the service — including your email address, encrypted password, API keys, WordPress credentials, and any custom prompts you configure in Settings.</p>
       <p>We also collect usage data automatically: articles generated, publish history, and interaction logs to help us improve the service. We do not sell this data to any third party.</p>
-
       <h2>2. How We Use Your Information</h2>
       <ul>
         <li>To provide, operate, and maintain NicheFlow AI</li>
@@ -489,10 +488,8 @@ function PrivacyPolicyPage({ onBack }) {
         <li>To send transactional emails such as account confirmation and payment receipts from Gumroad</li>
         <li>To debug issues and improve the service</li>
       </ul>
-
       <h2>3. Data Storage & Security</h2>
       <p>Your account data is stored in Supabase, a cloud database with encryption at rest. API keys you enter are stored encrypted and never logged in plain text in our server logs. All data in transit is protected with TLS/HTTPS.</p>
-
       <h2>4. Third-Party Services</h2>
       <p>NicheFlow AI connects to the following third-party services to deliver its functionality. By using our service, you also agree to their respective terms:</p>
       <ul>
@@ -503,19 +500,14 @@ function PrivacyPolicyPage({ onBack }) {
         <li><strong>Pinterest API</strong> — pin creation (Pro plan only)</li>
         <li><strong>WordPress REST API</strong> — article publishing to your own website</li>
       </ul>
-
       <h2>5. Cookies & Local Storage</h2>
       <p>We use browser localStorage to store your session token and app configuration so you stay logged in between visits. We do not use third-party tracking cookies or advertising cookies of any kind.</p>
-
       <h2>6. Your Rights & Data Deletion</h2>
       <p>You may request deletion of your account and all associated data at any time by emailing <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a>. Upon deletion, your settings, history, and credentials will be permanently removed from our database within 30 days.</p>
-
       <h2>7. Children's Privacy</h2>
       <p>NicheFlow AI is not directed at children under 13. We do not knowingly collect personal information from anyone under 13 years of age.</p>
-
       <h2>8. Changes to This Policy</h2>
       <p>We may update this policy from time to time. We will notify users of significant changes by posting the new version on this page with an updated date. Continued use of the service constitutes acceptance.</p>
-
       <h2>9. Contact</h2>
       <p>Questions? Email us at <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a>.</p>
     </PolicyShell>
@@ -527,13 +519,10 @@ function RefundPolicyPage({ onBack }) {
     <PolicyShell onBack={onBack} title="Refund Policy">
       <h2>Our Commitment</h2>
       <p>We want you to be completely satisfied with NicheFlow AI. This policy explains when and how you can request a refund.</p>
-
       <h2>Free Trial First</h2>
       <p>Every new account receives a <strong>2-day free trial</strong> with no credit card required. We strongly encourage you to test every feature during this period — article generation, image automation, WordPress publishing, and Pinterest integration (Pro) — before subscribing.</p>
-
       <h2>7-Day Money-Back Guarantee</h2>
       <p>If you subscribe and are not satisfied within the first <strong>7 days</strong> of your paid plan, contact us and we will issue a full refund — no questions asked. This applies to both Basic ($30/mo) and Pro ($40/mo) plans.</p>
-
       <h2>After the 7-Day Window</h2>
       <p>After the first 7 days, refunds are considered on a case-by-case basis. We generally will not issue refunds for:</p>
       <ul>
@@ -543,16 +532,10 @@ function RefundPolicyPage({ onBack }) {
         <li>Accounts that have violated our Terms of Service</li>
         <li>Requests made after the account has published a significant volume of content</li>
       </ul>
-
       <h2>How to Request a Refund</h2>
       <p>Email <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a> with the subject line <strong>"Refund Request"</strong>, including the email address on your account and your Gumroad order number (found in your purchase receipt email). We will process eligible refunds within 5–10 business days through Gumroad.</p>
-
       <h2>Cancellations</h2>
       <p>You can cancel your subscription at any time through your Gumroad account or via the link in your purchase receipt email. Cancellation stops future charges but does not automatically trigger a refund. Your access continues until the end of the current billing period.</p>
-
-      <h2>Exceptional Circumstances</h2>
-      <p>In exceptional cases — such as a critical service outage lasting more than 48 continuous hours preventing use of core features — we may offer pro-rated credits or refunds at our discretion. Contact us to discuss your situation.</p>
-
       <h2>Contact</h2>
       <p>Refund requests: <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a></p>
     </PolicyShell>
@@ -564,59 +547,23 @@ function TermsOfServicePage({ onBack }) {
     <PolicyShell onBack={onBack} title="Terms of Service">
       <h2>1. Acceptance of Terms</h2>
       <p>By creating an account or using NicheFlow AI ("the Service"), you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, do not create an account or use the Service.</p>
-
       <h2>2. Description of Service</h2>
       <p>NicheFlow AI is a SaaS platform that uses AI to generate long-form blog articles, automate image generation, and publish content to WordPress. Pro subscribers also have access to Pinterest automation. The Service connects to third-party APIs on your behalf using credentials you provide.</p>
-
       <h2>3. Account Registration</h2>
       <p>You must provide a valid email address to create an account. You are responsible for maintaining the confidentiality of your password and for all activity under your account. Notify us immediately at <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a> if you suspect unauthorized access.</p>
-
       <h2>4. Free Trial</h2>
       <p>New accounts receive a 2-day free trial beginning at the moment of account creation. After the trial ends, continued access requires an active paid subscription. We reserve the right to modify or discontinue the free trial for new signups at any time.</p>
-
       <h2>5. Acceptable Use</h2>
-      <p>You agree not to use the Service to:</p>
-      <ul>
-        <li>Generate spam, misleading content, or content violating any third-party platform's terms (WordPress, Pinterest, your web host)</li>
-        <li>Reverse engineer, copy, resell, or sublicense the Service or its underlying technology</li>
-        <li>Circumvent API rate limits or abuse shared infrastructure in ways that degrade service for other users</li>
-        <li>Publish or generate illegal content, hate speech, or content infringing intellectual property rights</li>
-        <li>Use the Service in any way that violates applicable local, national, or international laws</li>
-        <li>Attempt to gain unauthorized access to any part of the Service, its servers, or connected databases</li>
-      </ul>
-      <p>We reserve the right to suspend or terminate accounts violating these terms without notice and without refund.</p>
-
+      <p>You agree not to use the Service to generate spam, misleading content, or content violating any third-party platform's terms; reverse engineer or resell the Service; circumvent API rate limits; publish or generate illegal content; or attempt to gain unauthorized access to the Service.</p>
       <h2>6. API Keys & Credentials</h2>
-      <p>You are solely responsible for all API keys, WordPress credentials, Pinterest tokens, and other access tokens you provide to NicheFlow AI. We store them securely but take no responsibility for charges incurred through your third-party API accounts (Groq, GoAPI, Pinterest, etc.) as a result of using this Service.</p>
-
+      <p>You are solely responsible for all API keys, WordPress credentials, Pinterest tokens, and other access tokens you provide to NicheFlow AI.</p>
       <h2>7. Subscription & Billing</h2>
-      <p>Paid subscriptions are processed through <strong>Gumroad</strong>. By subscribing, you authorize Gumroad to charge your payment method on a recurring monthly basis. You may cancel at any time through your Gumroad account. Refunds are governed by our Refund Policy. We reserve the right to change pricing with 30 days' notice to existing subscribers.</p>
-
+      <p>Paid subscriptions are processed through <strong>Gumroad</strong>. By subscribing, you authorize Gumroad to charge your payment method on a recurring monthly basis. You may cancel at any time through your Gumroad account.</p>
       <h2>8. Content Ownership</h2>
-      <p>You retain full ownership of all content generated through NicheFlow AI and published to your websites. We claim no intellectual property rights over your content. You are solely responsible for ensuring generated content — including AI-produced text and images — complies with applicable laws and does not infringe third-party rights.</p>
-
-      <h2>9. AI-Generated Content Disclaimer</h2>
-      <p>AI-generated content may contain inaccuracies, errors, or outdated information. You are solely responsible for reviewing all generated content before publishing. We make no warranty that AI-generated content is accurate, original, or free from errors.</p>
-
-      <h2>10. Service Availability</h2>
-      <p>We strive for high availability but do not guarantee uninterrupted service. We are not liable for downtime caused by third-party providers (AI model APIs, image generation APIs, Pinterest, WordPress). Planned maintenance will be communicated in advance where possible.</p>
-
-      <h2>11. Limitation of Liability</h2>
-      <p>To the maximum extent permitted by law, NicheFlow AI and its operators shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Service — including loss of data, revenue, or business. Our total aggregate liability shall not exceed the amount you paid us in the 30 days prior to the claim.</p>
-
-      <h2>12. Disclaimer of Warranties</h2>
-      <p>The Service is provided "as is" and "as available" without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose, or non-infringement. Your use of the Service is at your sole risk.</p>
-
-      <h2>13. Termination</h2>
-      <p>We may suspend or terminate your account at any time for violation of these Terms, with or without prior notice. You may terminate your account at any time by cancelling your subscription and requesting data deletion by email.</p>
-
-      <h2>14. Changes to Terms</h2>
-      <p>We reserve the right to modify these Terms at any time. We will notify users of material changes via email or in-app notice at least 14 days before they take effect. Continued use constitutes acceptance.</p>
-
-      <h2>15. Governing Law</h2>
-      <p>These Terms shall be governed by applicable law. Any disputes shall be subject to the exclusive jurisdiction of the courts in the jurisdiction where NicheFlow AI is operated.</p>
-
-      <h2>16. Contact</h2>
+      <p>You retain full ownership of all content generated through NicheFlow AI and published to your websites.</p>
+      <h2>9. Limitation of Liability</h2>
+      <p>To the maximum extent permitted by law, NicheFlow AI and its operators shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Service.</p>
+      <h2>10. Contact</h2>
       <p>Questions about these Terms? Email <a href="mailto:support@nicheflowai.com">support@nicheflowai.com</a>.</p>
     </PolicyShell>
   );
@@ -851,28 +798,29 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
- const logRef = useRef(null);
+  const logRef = useRef(null);
 
-  // ── Categories: auto-load from WordPress when credentials available ───────
+  // ── Categories state ──────────────────────────────────────────────────────
   const [categories, setCategories] = useState([]);
-  const [selectedCats, setSelectedCats] = useState([]);
+  const [selectedCategories, setSelectedCategories] = useState([]);
   const [loadingCats, setLoadingCats] = useState(false);
 
+  // ── FIX: Fetch WP categories on mount — backend reads creds from DB via auth token ──
+  // No guard on config.wp_url — the backend handles missing creds (returns [])
   useEffect(() => {
-    if (!config.wp_url || !config.wp_password) return;
-    setLoadingCats(true);
     const token = getStoredToken();
-    fetch(`${API_URL}/wp/categories`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ wp_url: config.wp_url, wp_password: config.wp_password })
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.categories) setCategories(data.categories); })
+    if (!token) return; // only fetch if user is logged in
+    setLoadingCats(true);
+    apiCall("/wp/categories")
+      .then(async res => {
+        if (res.ok) {
+          const data = await res.json();
+          setCategories(data.categories || []);
+        }
+      })
       .catch(() => {})
       .finally(() => setLoadingCats(false));
-  }, [config.wp_url, config.wp_password]);
-  // ─────────────────────────────────────────────────────────────────────────
+  }, []); // fetch once on mount — backend reads from DB
 
   const expired = isTrialExpired(createdAt) && plan !== "pro" && !isAdmin;
   const addLog = useCallback((msg, type="info") => {
@@ -913,8 +861,9 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
           use_images:useImages,use_pollinations:config.use_pollinations||false,
           pollinations_prompt:config.pollinations_prompt||"",show_card:config.show_card!==false,
           use_internal_links:config.use_internal_links!==false,max_links:config.max_links||4,
-full_width_images:config.full_width_images!==false,clickable_card:config.clickable_card||false,
-          ...(selectedCats.length > 0 ? {category_ids: selectedCats} : {})
+          full_width_images:config.full_width_images!==false,clickable_card:config.clickable_card||false,
+          category_ids:selectedCategories.length ? selectedCategories : undefined,
+          use_external_links:config.use_external_links||false,
         };
         const token=getStoredToken();
         const res=await fetch(`${API_URL}/pipeline`,{method:"POST",headers:{"Content-Type":"application/json",...(token?{"Authorization":`Bearer ${token}`}:{})},body:JSON.stringify(payload)});
@@ -957,26 +906,47 @@ full_width_images:config.full_width_images!==false,clickable_card:config.clickab
               <div className="setting-row"><div className="setting-info"><div className="setting-name">Save as Draft</div><div className="setting-desc">Publish as draft instead of live</div></div><label className="toggle"><input type="checkbox" checked={draft} onChange={e=>setDraft(e.target.checked)}/><span className="toggle-slider"/></label></div>
               <div className="setting-row"><div className="setting-info"><div className="setting-name">Generate Images</div><div className="setting-desc">1 featured + 3 body images. All WebP, uploaded to WordPress.</div></div><label className="toggle"><input type="checkbox" checked={useImages} onChange={e=>setUseImages(e.target.checked)}/><span className="toggle-slider"/></label></div>
               <div><div className="setting-name" style={{marginBottom:6}}>Delay between articles</div><div style={{display:"flex",alignItems:"center",gap:10}}><input className="input" type="number" value={delay} min={0} max={120} onChange={e=>setDelay(+e.target.value)} style={{width:80}}/><span style={{fontSize:13,color:"var(--text2)"}}>seconds</span></div></div>
-              {(categories.length > 0 || loadingCats) && (
+
+              {/* ── WordPress Categories selector ── */}
+              {loadingCats && categories.length === 0 && (
+                <div style={{fontSize:12,color:"var(--text3)",display:"flex",alignItems:"center",gap:6}}>
+                  <span className="spinner spinner-accent"/>Loading categories...
+                </div>
+              )}
+              {categories.length > 0 && (
                 <div>
                   <div className="setting-name" style={{marginBottom:6}}>
-                    Categories
-                    {loadingCats && <span style={{fontSize:11,color:"var(--text3)",marginLeft:8}}>loading...</span>}
+                    WordPress Categories
+                    {loadingCats && <span className="spinner spinner-accent" style={{marginLeft:8,display:"inline-block"}}/>}
                   </div>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,maxHeight:120,overflowY:"auto"}}>
                     {categories.map(cat => (
-                      <button key={cat.id} onClick={()=>setSelectedCats(prev=>prev.includes(cat.id)?prev.filter(id=>id!==cat.id):[...prev,cat.id])}
-                        style={{padding:"4px 12px",borderRadius:20,fontSize:12,cursor:"pointer",border:"1px solid",
-                          background:selectedCats.includes(cat.id)?"var(--accent)":"var(--bg3)",
-                          color:selectedCats.includes(cat.id)?"#fff":"var(--text2)",
-                          borderColor:selectedCats.includes(cat.id)?"var(--accent)":"var(--border)"}}>
+                      <button
+                        key={cat.id}
+                        onClick={() => setSelectedCategories(prev =>
+                          prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                        )}
+                        style={{
+                          padding:"4px 10px",borderRadius:20,fontSize:12,cursor:"pointer",border:"1px solid",
+                          background: selectedCategories.includes(cat.id) ? "var(--accent-dim)" : "var(--bg3)",
+                          borderColor: selectedCategories.includes(cat.id) ? "var(--accent)" : "var(--border)",
+                          color: selectedCategories.includes(cat.id) ? "var(--accent2)" : "var(--text2)",
+                          fontFamily:"var(--font)"
+                        }}
+                        disabled={running}
+                      >
                         {cat.name}
                       </button>
                     ))}
                   </div>
-                  {selectedCats.length > 0 && <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>{selectedCats.length} categor{selectedCats.length!==1?"ies":"y"} selected</div>}
+                  {selectedCategories.length > 0 && (
+                    <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>
+                      {selectedCategories.length} categor{selectedCategories.length>1?"ies":"y"} selected
+                    </div>
+                  )}
                 </div>
               )}
+
             </div>
           </div>
           <button className="btn btn-primary" style={{width:"100%",padding:"13px",fontSize:15}} onClick={run} disabled={running||!titleList.length||missingKeys}>
@@ -1083,7 +1053,18 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
             <div className="setting-row"><div className="setting-info"><div className="setting-name">Auto-inject internal links</div><div className="setting-desc">Match full long-tail article titles (3+ word phrases)</div></div><label className="toggle"><input type="checkbox" checked={cfg.use_internal_links!==false} onChange={e=>update("use_internal_links",e.target.checked)}/><span className="toggle-slider"/></label></div>
             {cfg.use_internal_links!==false&&<div><label className="form-label">Max internal links per article</label><input className="input" type="number" value={cfg.max_links||4} min={1} max={10} onChange={e=>update("max_links",+e.target.value)} style={{width:100}}/></div>}
             <div className="setting-row"><div className="setting-info"><div className="setting-name">Full width images</div><div className="setting-desc">Images stretch to full width in articles</div></div><label className="toggle"><input type="checkbox" checked={cfg.full_width_images!==false} onChange={e=>update("full_width_images",e.target.checked)}/><span className="toggle-slider"/></label></div>
-<div className="setting-row"><div className="setting-info"><div className="setting-name">Clickable card</div><div className="setting-desc">Wrap summary card in a share link</div></div><label className="toggle"><input type="checkbox" checked={cfg.clickable_card||false} onChange={e=>update("clickable_card",e.target.checked)}/><span className="toggle-slider"/></label></div>
+            <div className="setting-row"><div className="setting-info"><div className="setting-name">Clickable card</div><div className="setting-desc">Wrap summary card in a share link</div></div><label className="toggle"><input type="checkbox" checked={cfg.clickable_card||false} onChange={e=>update("clickable_card",e.target.checked)}/><span className="toggle-slider"/></label></div>
+            {/* ── External links toggle ── */}
+            <div className="setting-row">
+              <div className="setting-info">
+                <div className="setting-name">Auto-inject external links</div>
+                <div className="setting-desc">Find 1–2 Wikipedia links related to the article topic and inject them into paragraph text</div>
+              </div>
+              <label className="toggle">
+                <input type="checkbox" checked={cfg.use_external_links||false} onChange={e=>update("use_external_links",e.target.checked)}/>
+                <span className="toggle-slider"/>
+              </label>
+            </div>
           </div>
         </div>
       )}
@@ -1463,8 +1444,6 @@ function DocsPage({ plan, onUpgrade }) {
               {t:"Basic plan — $30/month",d:"Unlimited articles, custom article and card prompts, 4 images per article (featured + 3 body), WordPress auto-publish, internal link injection, history."},
               {t:"Pro plan — $40/month",d:"Everything in Basic plus Pinterest automation: AI-generated pin images with 4-word hook titles, board selection, pin scheduling, and auto-pin after publish."},
               {t:"Payments via Gumroad",d:"Payments are handled securely by Gumroad. You'll receive a receipt and can manage or cancel your subscription through your Gumroad account."},
-              
-              {t:"Subscription countdown",d:"After payment, the top bar shows days left in your billing period. At 3 days or fewer you'll see a warning to renew."},
             ].map((s,i)=>(
               <div key={i} className="doc-step">
                 <div className="doc-step-num">{i+1}</div>
@@ -1477,13 +1456,11 @@ function DocsPage({ plan, onUpgrade }) {
         {section==="api"&&(
           <div className="doc-section">
             <h3>🔑 API Keys</h3>
-            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow uses Groq or Gemini to generate articles. Both are free.</p>
             {[
-              {n:"1",t:"Get a Groq key (recommended)",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> → Sign up free → API Keys → Create key. Starts with <code>gsk_</code>. Free with generous limits.</>},
-              {n:"2",t:"Get a Gemini key (backup)",d:<>Go to <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a> → Get API key. Starts with <code>AIza</code>. Free tier available.</>},
-              {n:"3",t:"Add both for zero downtime",d:<>In Settings → API Keys, paste both keys comma-separated: <code>gsk_yourgroqkey, AIzayourgeminikey</code>. If Groq hits rate limits, Gemini takes over automatically.</>},
-              {n:"4",t:"GoAPI key (Midjourney images only)",d:<>Only needed if you want Midjourney images. Get it at <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a>. Skip this if you use Pollinations (free) in the Images tab.</>},
-              {n:"5",t:"Test your keys",d:<>Always click the <strong>Test</strong> button after pasting a key. It makes a live call and confirms the key works before you run a batch.</>},
+              {n:"1",t:"Get a Groq key (recommended)",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> → Sign up free → API Keys → Create key. Starts with <code>gsk_</code>.</>},
+              {n:"2",t:"Get a Gemini key (backup)",d:<>Go to <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a> → Get API key. Starts with <code>AIza</code>.</>},
+              {n:"3",t:"Add both for zero downtime",d:<>Paste both comma-separated: <code>gsk_yourgroqkey, AIzayourgeminikey</code>.</>},
+              {n:"4",t:"GoAPI key (Midjourney images only)",d:<>Only needed if you want Midjourney images. Get it at <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a>.</>},
             ].map(s=>(
               <div key={s.n} className="doc-step">
                 <div className="doc-step-num">{s.n}</div>
@@ -1495,45 +1472,26 @@ function DocsPage({ plan, onUpgrade }) {
         {section==="wordpress"&&(
           <div className="doc-section">
             <h3>🌐 WordPress</h3>
-            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow publishes directly to your WordPress site using the REST API and Application Passwords.</p>
             {[
-              {n:"1",t:"Site URL",d:<>Enter your full site URL including <code>https://</code>, no trailing slash. Example: <code>https://myblog.com</code>. Works with any WordPress host — Hostinger, WP Engine, Bluehost, self-hosted, etc.</>},
-              {n:"2",t:"Create an Application Password",d:<>In WordPress: go to <strong>Users → Profile</strong> → scroll to <strong>Application Passwords</strong> → enter a name like "NicheFlow" → click <strong>Add New Application Password</strong>. Copy the generated password immediately (it won't show again).</>},
-              {n:"3",t:"Format the credentials",d:<>In NicheFlow, enter it as: <code>yourusername:xxxx xxxx xxxx xxxx</code>. Replace <code>yourusername</code> with your WordPress admin username (not email). The password is the one WordPress just generated with spaces included.</>},
-              {n:"4",t:"Test the connection",d:<>Click <strong>Test Connection</strong> — it makes a live call to your WordPress REST API. If it succeeds, it shows your WordPress display name. If it fails, double-check the username and that the App Password was copied correctly.</>},
-              {n:"5",t:"Required WordPress settings",d:<>Make sure <strong>Permalinks</strong> are not set to Plain (WordPress → Settings → Permalinks → choose any option except Plain). Plain permalinks break the REST API.</>},
+              {n:"1",t:"Site URL",d:<>Enter your full site URL including <code>https://</code>, no trailing slash.</>},
+              {n:"2",t:"Create an Application Password",d:<>In WordPress: go to <strong>Users → Profile</strong> → scroll to <strong>Application Passwords</strong> → enter a name → click <strong>Add New</strong>. Copy the generated password immediately.</>},
+              {n:"3",t:"Format the credentials",d:<>Enter it as: <code>yourusername:xxxx xxxx xxxx xxxx</code>.</>},
+              {n:"4",t:"Test the connection",d:<>Click <strong>Test Connection</strong> to verify.</>},
             ].map(s=>(
               <div key={s.n} className="doc-step">
                 <div className="doc-step-num">{s.n}</div>
                 <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
               </div>
             ))}
-            <div className="doc-section" style={{marginTop:16,marginBottom:0}}>
-              <h3 style={{fontSize:14}}>📋 Publish Settings</h3>
-              {[
-                {n:"1",t:"Publish immediately vs Draft",d:"Set the default publish status in Settings → WordPress. You can also override this per batch in the Generate page using the 'Save as Draft' toggle."},
-                {n:"2",t:"Internal links",d:<>When enabled, NicheFlow fetches your existing WordPress posts and automatically injects relevant internal links using long-tail phrase matching. Set max links per article (default: 4).</>},
-                {n:"3",t:"Delay between articles",d:"Set a delay in seconds between each article in a batch. Recommended: 10–30 seconds to avoid hitting API rate limits."},
-              ].map(s=>(
-                <div key={s.n} className="doc-step">
-                  <div className="doc-step-num">{s.n}</div>
-                  <div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
         {section==="prompts"&&(
           <div className="doc-section">
             <h3>💬 Prompts & Cards</h3>
-            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow uses two separate AI calls — one for the article, one for the summary card. You control both prompts completely.</p>
             {[
-              {n:"1",t:"Article Prompt basics",d:<>Your prompt must include <code>{"{title}"}</code> as a placeholder — NicheFlow replaces it with the actual article title. The AI must return a JSON object.</>},
-              {n:"2",t:"Required JSON keys for articles",d:<>Your prompt must tell the AI to return: <code>seo_title</code> (SEO-optimized title), <code>excerpt</code> (meta description), <code>html_content</code> (full article HTML), and color hex keys: <code>MAIN</code>, <code>MAIN_DARK</code>, <code>LIGHT_BG</code>, <code>BORDER</code>.</>},
-              {n:"3",t:"Image placeholders in articles",d:<>Put <code>##IMAGE1##</code> <code>##IMAGE2##</code> <code>##IMAGE3##</code> inside your <code>html_content</code> where you want body images injected. NicheFlow replaces these with real uploaded WordPress image tags.</>},
-              {n:"4",t:"Example article prompt",d:<><pre>{"You are Emma, a warm mama blogger.\nWrite a detailed article about: {title}\nReturn only JSON:\n{\"seo_title\":\"\",\"excerpt\":\"\",\"html_content\":\"<h2>...</h2>##IMAGE1##...\",\n\"MAIN\":\"#e91e8c\",\"MAIN_DARK\":\"#c4186e\",\"LIGHT_BG\":\"#fdf0f7\",\"BORDER\":\"#f8c8e8\"}"}</pre></>},
-              {n:"5",t:"Card Prompt",d:<>Separate AI call for the summary card appended at the end of each article. Must return JSON with: <code>card_title</code>, <code>summary</code> (2 sentences), <code>key_points</code> (array), <code>quick_facts</code> (array of label/value objects), <code>cta_text</code>.</>},
-              {n:"6",t:"Token counter",d:"The real-time token counter below each prompt warns you if your prompt is too long. Keep article prompts under 2000 tokens and card prompts under 1500 tokens for best results."},
+              {n:"1",t:"Article Prompt basics",d:<>Your prompt must include <code>{"{title}"}</code> as a placeholder. The AI must return a JSON object.</>},
+              {n:"2",t:"Required JSON keys",d:<>Return: <code>seo_title</code>, <code>excerpt</code>, <code>html_content</code>, and color hex keys: <code>MAIN</code>, <code>MAIN_DARK</code>, <code>LIGHT_BG</code>, <code>BORDER</code>.</>},
+              {n:"3",t:"Image placeholders",d:<>Put <code>##IMAGE1##</code> <code>##IMAGE2##</code> <code>##IMAGE3##</code> inside your <code>html_content</code> where you want body images injected.</>},
             ].map(s=>(
               <div key={s.n} className="doc-step">
                 <div className="doc-step-num">{s.n}</div>
@@ -1545,13 +1503,10 @@ function DocsPage({ plan, onUpgrade }) {
         {section==="images"&&(
           <div className="doc-section">
             <h3>🖼️ Images & WebP</h3>
-            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow generates 4 images per article: 1 featured image + 3 body images. All are auto-converted to WebP and uploaded to WordPress.</p>
             {[
-              {n:"1",t:"How images work",d:<>NicheFlow generates all 4 images in parallel, converts them to WebP, uploads them to your WordPress media library, and injects them at <code>##IMAGE1##</code> <code>##IMAGE2##</code> <code>##IMAGE3##</code> in the article. The featured image is set automatically on the post.</>},
-              {n:"2",t:"Option A — Midjourney (GoAPI)",d:<>Requires a GoAPI key from <a href="https://goapi.ai" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>goapi.ai</a>. In Settings → Images, write a Midjourney template using <code>{"{title}"}</code> or <code>{"{recipe_name}"}</code>. Example: <code>Close up {"{title}"}, food photography, natural light --ar 1:1</code>. The <code>--ar</code> flag controls crop ratio for all images.</>},
-              {n:"3",t:"Option B — Pollinations (free)",d:<>Turn on "Use Pollinations" in Settings → Images. No API key needed — completely free. Write a prompt template like: <code>Professional editorial photography of {"{title}"}, natural light, 4K</code>. Quality is good for most niches.</>},
-              {n:"4",t:"WebP conversion",d:"All images are automatically converted to WebP format before uploading. WebP is smaller and faster than JPEG/PNG — better for SEO and page speed."},
-              {n:"5",t:"Toggle images per batch",d:"In the Generate page, use the 'Generate Images' toggle to enable or disable images for a specific batch. Disabling images makes generation much faster if you just need text."},
+              {n:"1",t:"How images work",d:<>NicheFlow generates 4 images per article, converts to WebP, uploads to WordPress media library, and injects them at <code>##IMAGE1##</code> <code>##IMAGE2##</code> <code>##IMAGE3##</code>.</>},
+              {n:"2",t:"Option A — Midjourney (GoAPI)",d:<>Requires a GoAPI key. Write a Midjourney template using <code>{"{title}"}</code>. Example: <code>Close up {"{title}"}, food photography --ar 1:1</code></>},
+              {n:"3",t:"Option B — Pollinations (free)",d:<>Turn on "Use Pollinations" in Settings → Images. No API key needed.</>},
             ].map(s=>(
               <div key={s.n} className="doc-step">
                 <div className="doc-step-num">{s.n}</div>
@@ -1562,14 +1517,11 @@ function DocsPage({ plan, onUpgrade }) {
         )}
         {section==="links"&&(
           <div className="doc-section">
-            <h3>🔗 Internal Links</h3>
-            <p style={{fontSize:14,color:"var(--text2)",marginBottom:20,lineHeight:1.7}}>NicheFlow automatically injects internal links into every article by matching your existing WordPress posts.</p>
+            <h3>🔗 Internal & External Links</h3>
             {[
-              {n:"1",t:"How it works",d:"Before publishing, NicheFlow fetches up to 200 of your existing WordPress posts. It then scans your new article for phrases that match existing post titles (3+ word long-tail phrases) and wraps them in anchor tags pointing to those posts."},
-              {n:"2",t:"Enable internal links",d:<>Go to <strong>Settings → WordPress</strong> and make sure "Auto-inject internal links" is turned on. Set "Max internal links per article" — default is 4. We recommend 3–6 links per article.</>},
-              {n:"3",t:"Matching logic",d:"NicheFlow matches full long-tail phrases (3+ words) from your article text against your existing post titles. It only links phrases that appear naturally in your content — it never forces links where the text doesn't match."},
-              {n:"4",t:"Why internal links matter",d:"Internal links improve SEO by distributing page authority across your site. They also keep readers on your site longer by connecting related content. NicheFlow automates what would otherwise take hours of manual work per article."},
-              {n:"5",t:"Disable for a specific batch",d:"In Settings → WordPress, toggle off 'Auto-inject internal links' if you want to publish a batch without links. You can re-enable it after."},
+              {n:"1",t:"Internal links",d:"NicheFlow fetches up to 200 of your existing WordPress posts and injects full title matches as links into paragraph text. Only full post titles (3+ words) are linked — no partial titles."},
+              {n:"2",t:"External links (Wikipedia)",d:"When 'Auto-inject external links' is enabled, NicheFlow searches Wikipedia for pages related to your article topic and injects 1–2 links into paragraph text. Wikipedia links are authoritative and SEO-safe."},
+              {n:"3",t:"Max links setting",d:"Control how many internal links per article in Settings → WordPress. External links are always 1–2 per article."},
             ].map(s=>(
               <div key={s.n} className="doc-step">
                 <div className="doc-step-num">{s.n}</div>
@@ -1583,13 +1535,10 @@ function DocsPage({ plan, onUpgrade }) {
             <h3>📌 Pinterest (Pro)</h3>
             <div className="alert alert-info" style={{marginBottom:16}}>Pinterest automation is a <strong>Pro plan</strong> feature only.</div>
             {[
-              {n:"1",t:"Get a Pinterest Access Token",d:<>Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>developers.pinterest.com</a> → My Apps → Create App → fill in your app name and redirect URI → Generate Access Token. Paste it in Settings → Pinterest.</>},
-              {n:"2",t:"Load your boards",d:<>Go to the <strong>Pinterest</strong> page in NicheFlow → click <strong>Refresh Boards</strong>. Your Pinterest boards will appear as clickable cards. Select one or more boards to pin to.</>},
-              {n:"3",t:"Pin image design",d:<>NicheFlow generates a custom pin image: it takes one of your article body images as background, overlays a dark gradient, and adds your AI-generated 4-word hook title in large text. This is separate from the featured image — it's uploaded to WordPress and used only as the pin image.</>},
-              {n:"4",t:"4-word hook title",d:<>The Pinterest prompt must return a <code>hook_title</code> field with EXACTLY 4 words. This gets overlaid on the pin image in large text. Example: "Best Tips For Mamas", "Easy Recipes For Beginners". Short, bold, scroll-stopping.</>},
-              {n:"5",t:"Auto-pin after publish",d:<>In Settings → Pinterest, enable "Auto-pin after publish". Every time an article is published via Generate, NicheFlow will automatically create a pin. Set a delay (minutes) if you want to wait before pinning.</>},
-              {n:"6",t:"Manual pin from Pinterest page",d:<>Go to the <strong>Pinterest</strong> page, select your boards, and click <strong>Pin Articles</strong>. This pins all your published articles at once. You can also schedule pins for a specific date and time.</>},
-              {n:"7",t:"Pin Image Design settings",d:<>In Settings → Pinterest → Pin Image Design, customize the overlay: <code>background_color</code>, <code>overlay_opacity</code>, <code>title_color</code>, <code>title_size</code>, <code>canvas_width</code>, <code>canvas_height</code>, <code>title_position</code> (top/center/bottom), <code>logo_text</code>, <code>gradient</code>.</>},
+              {n:"1",t:"Get a Pinterest Access Token",d:<>Go to <a href="https://developers.pinterest.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>developers.pinterest.com</a> → My Apps → Create App → Generate Access Token.</>},
+              {n:"2",t:"Load your boards",d:<>Go to the <strong>Pinterest</strong> page → click <strong>Refresh Boards</strong>.</>},
+              {n:"3",t:"4-word hook title",d:<>The Pinterest prompt must return a <code>hook_title</code> field with EXACTLY 4 words overlaid on the pin image.</>},
+              {n:"4",t:"Auto-pin after publish",d:<>Enable "Auto-pin after publish" in Settings → Pinterest to automatically create a pin every time an article is published.</>},
             ].map(s=>(
               <div key={s.n} className="doc-step">
                 <div className="doc-step-num">{s.n}</div>
@@ -1597,12 +1546,6 @@ function DocsPage({ plan, onUpgrade }) {
               </div>
             ))}
             {plan!=="pro"&&<div style={{marginTop:20}}><button className="btn btn-pro" style={{width:"100%"}} onClick={()=>onUpgrade("pro")}>Upgrade to Pro — $40/mo ★</button></div>}
-          </div>
-        )}
-        {!["start","api","wordpress","prompts","images","links","pinterest","billing"].includes(section)&&(
-          <div className="doc-section">
-            <h3>{sections.find(s=>s.id===section)?.label}</h3>
-            <p style={{fontSize:14,color:"var(--text2)",lineHeight:1.7}}>Documentation coming soon.</p>
           </div>
         )}
       </div>
@@ -1759,7 +1702,7 @@ function AppShell({ user, onLogout, onPolicy }) {
 export default function NicheFlowAI() {
   const [view, setView] = useState("landing");
   const [user, setUser] = useState(null);
-  const [policyPage, setPolicyPage] = useState(null); // "privacy" | "refund" | "terms"
+  const [policyPage, setPolicyPage] = useState(null);
 
   useEffect(()=>{
     const stored = localStorage.getItem("nicheflow_user");
@@ -1782,7 +1725,6 @@ export default function NicheFlowAI() {
   function handlePolicy(page) { setPolicyPage(page); }
   function handleBackFromPolicy() { setPolicyPage(null); }
 
-  // ── Policy pages — accessible from anywhere ──
   if (policyPage === "privacy") return <PrivacyPolicyPage onBack={handleBackFromPolicy} />;
   if (policyPage === "refund")  return <RefundPolicyPage  onBack={handleBackFromPolicy} />;
   if (policyPage === "terms")   return <TermsOfServicePage onBack={handleBackFromPolicy} />;
