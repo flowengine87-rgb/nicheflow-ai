@@ -351,11 +351,32 @@ def test_connection(body: TestRequest, auth=Depends(get_current_user)):
 #  WORDPRESS
 # ─────────────────────────────────────────────────────────────────────────────
 
+class WPCredsRequest(BaseModel):
+    wp_url: Optional[str] = ""
+    wp_password: Optional[str] = ""
+
 @app.get("/wp/categories")
-def wp_categories(auth=Depends(get_current_user)):
+@app.post("/wp/categories")
+async def wp_categories(request: Request, auth=Depends(get_current_user)):
     user, token = auth
-    cfg = get_user_settings(user["id"], token)
-    return {"categories": fetch_wp_categories(cfg.get("wp_url", ""), cfg.get("wp_password", ""))}
+    # Try to read credentials from POST body first
+    wp_url = ""
+    wp_password = ""
+    try:
+        body = await request.json()
+        wp_url = body.get("wp_url", "")
+        wp_password = body.get("wp_password", "")
+    except Exception:
+        pass
+    # Fall back to DB settings if not provided
+    if not wp_url or not wp_password:
+        cfg = get_user_settings(user["id"], token)
+        wp_url = cfg.get("wp_url", "")
+        wp_password = cfg.get("wp_password", "")
+    if not wp_url or not wp_password:
+        return {"categories": [], "error": "No WordPress credentials configured. Go to Settings → WordPress."}
+    cats = fetch_wp_categories(wp_url, wp_password)
+    return {"categories": cats}
 
 
 @app.get("/wp/posts")
