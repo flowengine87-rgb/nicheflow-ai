@@ -655,19 +655,20 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
   if (expired) return <TrialExpiredGate onUpgrade={onUpgrade} />;
 
   function loadCategories() {
+    const wpUrl = config.wp_url || "";
+    const wpPass = config.wp_password || "";
+    if (!wpUrl || !wpPass) {
+      alert("Please go to Settings → WordPress and save your URL and password first.");
+      return;
+    }
     setLoadingCats(true);
     apiCall("/wp/categories", {
       method: "POST",
-      body: JSON.stringify({
-        wp_url: config.wp_url || "",
-        wp_password: config.wp_password || "",
-      }),
+      body: JSON.stringify({ wp_url: wpUrl, wp_password: wpPass }),
     })
       .then(async res => {
         const d = await res.json();
-        if (res.ok) {
-          setCategories(d.categories || []);
-        }
+        setCategories(d.categories || []);
       })
       .catch(() => {})
       .finally(() => setLoadingCats(false));
