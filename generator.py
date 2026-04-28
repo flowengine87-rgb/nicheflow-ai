@@ -272,9 +272,40 @@ def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg
         raw = ai_call(api_key, prompt, prefer_fast=True)
         data = parse_json_response(raw)
 
-        # Custom prompt: if it returned html, use it directly
+        # Custom prompt: if it returned html, fill placeholders and return
         if card_prompt.strip() and data.get("html"):
-            return data["html"]
+            html = data["html"]
+            html = html.replace("##MAIN##",         data.get("MAIN", "#ea580c"))
+            html = html.replace("##MAIN_DARK##",    data.get("MAIN_DARK", "#b03a06"))
+            html = html.replace("##LIGHT_BG##",     data.get("LIGHT_BG", "#fff7ed"))
+            html = html.replace("##BORDER##",       data.get("BORDER", "#fdba74"))
+            html = html.replace("##CARD_TITLE##",   data.get("card_title", title))
+            html = html.replace("##CARD_IMAGE##",   "")
+            html = html.replace("##PREP##",         data.get("prep", "—"))
+            html = html.replace("##COOK##",         data.get("cook", "—"))
+            html = html.replace("##TOTAL##",        data.get("total", "—"))
+            html = html.replace("##SERVES##",       data.get("serves", "—"))
+            html = html.replace("##CALORIES##",     data.get("calories", "—"))
+            html = html.replace("##PROTEIN##",      data.get("protein", "—"))
+            html = html.replace("##CARBS##",        data.get("carbs", "—"))
+            html = html.replace("##FAT##",          data.get("fat", "—"))
+            # Build ingredient rows
+            ing_rows = "".join(
+                f'<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:10px;margin-bottom:2px;">'
+                f'<span style="min-width:22px;height:22px;border:2px solid {data.get("BORDER","#fdba74")};border-radius:6px;background:#fff;display:inline-flex;"></span>'
+                f'<span style="font-size:15px;color:#333;">{i}</span></div>'
+                for i in data.get("ingredients", [])
+            )
+            # Build instruction rows
+            step_rows = "".join(
+                f'<li style="margin-bottom:8px;"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-radius:12px;border:1.5px solid {data.get("BORDER","#fdba74")};background:{data.get("LIGHT_BG","#fff7ed")};">'
+                f'<span style="min-width:30px;height:30px;background:{data.get("MAIN","#ea580c")};color:#fff;border-radius:50%;font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;">{n+1}</span>'
+                f'<span style="font-size:15px;color:#333;line-height:1.6;">{s}</span></div></li>'
+                for n, s in enumerate(data.get("instructions", []))
+            )
+            html = html.replace("##INGREDIENTS_ROWS##", ing_rows)
+            html = html.replace("##INSTRUCTIONS_ROWS##", step_rows)
+            return html
 
         card_title = data.get("card_title", title)
         summary = data.get("summary",""); key_points = data.get("key_points",[])
