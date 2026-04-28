@@ -597,11 +597,13 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
     }
 
     def get_search_phrases(title):
-        # Only use the full title as the phrase — safest for SEO
-        clean = re.sub(r"[^a-z0-9 ]", "", title.lower()).strip()
-        if clean:
-            return [clean]
-        return []
+        words = title.lower().split()
+        clean = [re.sub(r"[^a-z0-9]", "", w) for w in words]
+        meaningful = [w for w in clean if w and w not in STOP_WORDS and len(w) > 4]
+        phrases = []
+        for i in range(len(meaningful) - 2):
+            phrases.append(f"{meaningful[i]} {meaningful[i+1]} {meaningful[i+2]}")
+        return phrases
 
     # Split HTML into paragraph-level chunks and process each
     # Uses a simple tag-aware replacer: finds <p...>content</p> blocks,
@@ -711,7 +713,7 @@ def inject_external_links(html, topic, max_links=2, main_color="#ea580c", log_fn
         params = {
             "action": "query",
             "list": "search",
-            "srsearch": " ".join(topic.replace("Best","").replace("Top","").replace("Tips","").replace("How to","").replace("Ways to","").split())[:80],
+            "srsearch": " ".join([w for w in topic.split() if len(w) > 4 and w.lower() not in {"best","tips","ways","how","what","that","this","with","from","your","about","more","swapping","cutting","shocked"}])[:80],
             "srlimit": max_links + 3,
             "format": "json",
             "utf8": 1,
