@@ -271,6 +271,11 @@ def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg
         prompt = (card_prompt.strip() if card_prompt.strip() else DEFAULT_CARD_PROMPT).replace("{title}", title)
         raw = ai_call(api_key, prompt, prefer_fast=True)
         data = parse_json_response(raw)
+
+        # Custom prompt: if it returned html, use it directly
+        if card_prompt.strip() and data.get("html"):
+            return data["html"]
+
         card_title = data.get("card_title", title)
         summary = data.get("summary",""); key_points = data.get("key_points",[])
         quick_facts = data.get("quick_facts",[]); cta_text = data.get("cta_text","Save this! 📌")
