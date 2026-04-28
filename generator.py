@@ -583,32 +583,53 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
     if not links or not html:
         return html
 
-    injected = 0
-    used_urls = set()
     current_lower = current_title.lower()
+    current_words = set(re.sub(r"[^a-z0-9 ]", "", current_lower).split())
 
     STOP_WORDS = {
-        "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
-        "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
-        "how", "what", "why", "when", "where", "who", "which", "that", "this",
-        "i", "my", "your", "our", "their", "its", "it", "can", "will", "do",
-        "does", "did", "not", "no", "vs", "best", "top", "tips", "ways",
-        "get", "make", "use", "using", "great", "good", "new",
+        "a","an","the","and","or","but","in","on","at","to","for","of","with",
+        "by","from","is","are","was","were","be","been","how","what","why",
+        "when","where","who","which","that","this","i","my","your","our",
+        "their","its","it","can","will","do","does","did","not","no","vs",
+        "best","top","tips","ways","get","make","use","using","great","good",
+        "new","easy","quick","recipe","dinner","meal","food","delicious",
     }
 
-    def get_search_phrases(title):
-        words = title.lower().split()
-        clean = [re.sub(r"[^a-z0-9]", "", w) for w in words]
-        meaningful = [w for w in clean if w and w not in STOP_WORDS and len(w) > 2]
-        phrases = []
-        # Try 3-word phrases first
-        for i in range(len(meaningful) - 2):
-            phrases.append(f"{meaningful[i]} {meaningful[i+1]} {meaningful[i+2]}")
-        # Fall back to 2-word phrases
-        if not phrases:
-            for i in range(len(meaningful) - 1):
-                phrases.append(f"{meaningful[i]} {meaningful[i+1]}")
-        return phrases
+    scored = []
+    for link in links:
+        title = link.get("title","").strip()
+        url = link.get("url","")
+        if not title or not url or title.lower() == current_lower:
+            continue
+        words = set(re.sub(r"[^a-z0-9 ]","",title.lower()).split()) - STOP_WORDS
+        current_meaningful = current_words - STOP_WORDS
+        overlap = len(words & current_meaningful)
+        if overlap > 0:
+            scored.append((overlap, title, url))
+
+    scored.sort(key=lambda x: -x[0])
+    top_links = scored[:max_links]
+
+    if not top_links:
+        return html
+
+    items_html = "".join(
+        f'<li style="margin-bottom:8px;"><a href="{url}" '
+        f'style="color:{main_color};text-decoration:underline;font-weight:500;">'
+        f'{title}</a></li>'
+        for _, title, url in top_links
+    )
+
+    related_section = (
+        f'<div style="background:#f9f9f9;border-left:4px solid {main_color};'
+        f'border-radius:0 12px 12px 0;padding:20px 24px;margin:32px 0;">'
+        f'<div style="font-weight:700;font-size:15px;color:{main_color};margin-bottom:12px;">'
+        f'🔗 You Might Also Like</div>'
+        f'<ul style="margin:0;padding-left:20px;line-height:2.2;">{items_html}</ul>'
+        f'</div>'
+    )
+
+    return html + "\n" + related_section
 
     # Split HTML into paragraph-level chunks and process each
     # Uses a simple tag-aware replacer: finds <p...>content</p> blocks,
