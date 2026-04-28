@@ -604,8 +604,7 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
         # 2-word pairs first (more specific)
         for i in range(len(meaningful) - 1):
             phrases.append(f"{meaningful[i]} {meaningful[i+1]}")
-        # single keywords as fallback
-        phrases.extend(meaningful)
+        
         return phrases
 
     # Split HTML into paragraph-level chunks and process each
@@ -672,7 +671,7 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
             continue
         if link_title.strip().endswith("?"):
             continue
-        if len(link_title.split()) < 2:
+        if len(link_title.split()) < 4:
             continue
         link_words = set(link_title.lower().split())
         current_words = set(current_lower.split())
