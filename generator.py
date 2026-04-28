@@ -599,10 +599,15 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
     def get_search_phrases(title):
         words = title.lower().split()
         clean = [re.sub(r"[^a-z0-9]", "", w) for w in words]
-        meaningful = [w for w in clean if w and w not in STOP_WORDS and len(w) > 4]
+        meaningful = [w for w in clean if w and w not in STOP_WORDS and len(w) > 3]
         phrases = []
+        # Try 3-word phrases first
         for i in range(len(meaningful) - 2):
             phrases.append(f"{meaningful[i]} {meaningful[i+1]} {meaningful[i+2]}")
+        # Fall back to 2-word phrases if no 3-word ones
+        if not phrases:
+            for i in range(len(meaningful) - 1):
+                phrases.append(f"{meaningful[i]} {meaningful[i+1]}")
         return phrases
 
     # Split HTML into paragraph-level chunks and process each
