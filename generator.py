@@ -716,7 +716,7 @@ def inject_external_links(html, topic, max_links=2, main_color="#ea580c", log_fn
         params = {
             "action": "query",
             "list": "search",
-            "srsearch": topic[:100],
+            "srsearch": " ".join(topic.replace("Best","").replace("Top","").replace("Tips","").replace("How to","").replace("Ways to","").split())[:80],
             "srlimit": max_links + 3,
             "format": "json",
             "utf8": 1,
