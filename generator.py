@@ -275,36 +275,57 @@ def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg
         # Custom prompt: if it returned html, fill placeholders and return
         if card_prompt.strip() and data.get("html"):
             html = data["html"]
-            html = html.replace("##MAIN##",         data.get("MAIN", "#ea580c"))
-            html = html.replace("##MAIN_DARK##",    data.get("MAIN_DARK", "#b03a06"))
-            html = html.replace("##LIGHT_BG##",     data.get("LIGHT_BG", "#fff7ed"))
-            html = html.replace("##BORDER##",       data.get("BORDER", "#fdba74"))
-            html = html.replace("##CARD_TITLE##",   data.get("card_title", title))
-            html = html.replace("##CARD_IMAGE##",   "")
-            html = html.replace("##PREP##",         data.get("prep", "—"))
-            html = html.replace("##COOK##",         data.get("cook", "—"))
-            html = html.replace("##TOTAL##",        data.get("total", "—"))
-            html = html.replace("##SERVES##",       data.get("serves", "—"))
-            html = html.replace("##CALORIES##",     data.get("calories", "—"))
-            html = html.replace("##PROTEIN##",      data.get("protein", "—"))
-            html = html.replace("##CARBS##",        data.get("carbs", "—"))
-            html = html.replace("##FAT##",          data.get("fat", "—"))
-            # Build ingredient rows
+            M  = data.get("MAIN",     main_color)
+            MD = data.get("MAIN_DARK", "#b03a06")
+            LB = data.get("LIGHT_BG", light_bg)
+            BO = data.get("BORDER",   border_color)
+
+            html = html.replace("##MAIN##",      M)
+            html = html.replace("##MAIN_DARK##", MD)
+            html = html.replace("##LIGHT_BG##",  LB)
+            html = html.replace("##BORDER##",    BO)
+            html = html.replace("##CARD_TITLE##", data.get("card_title", title))
+            html = html.replace("##CARD_IMAGE##", "")
+            html = html.replace("##TITLE##",      data.get("card_title", title))
+
+            # Universal stat placeholders — recipes, fitness, finance, travel, beauty etc
+            html = html.replace("##PREP##",      data.get("prep",      data.get("duration",   data.get("time",     "—"))))
+            html = html.replace("##COOK##",      data.get("cook",      data.get("difficulty", data.get("level",    "—"))))
+            html = html.replace("##TOTAL##",     data.get("total",     data.get("total_time", data.get("length",   "—"))))
+            html = html.replace("##SERVES##",    data.get("serves",    data.get("audience",   data.get("for",      "—"))))
+            html = html.replace("##CALORIES##",  data.get("calories",  data.get("stat1",      data.get("cost",     "—"))))
+            html = html.replace("##PROTEIN##",   data.get("protein",   data.get("stat2",      data.get("savings",  "—"))))
+            html = html.replace("##CARBS##",     data.get("carbs",     data.get("stat3",      data.get("returns",  "—"))))
+            html = html.replace("##FAT##",       data.get("fat",       data.get("stat4",      data.get("risk",     "—"))))
+
+            # Replace any remaining ##KEY## with its value from data
+            for key, val in data.items():
+                if isinstance(val, str):
+                    html = html.replace(f"##{key.upper()}##", val)
+
+            # Universal list placeholders — works for any niche
+            items = data.get("ingredients", data.get("items",     data.get("tips",      data.get("points",    data.get("checklist", [])))))
+            steps = data.get("instructions", data.get("steps",    data.get("actions",   data.get("checklist", data.get("tasks",      [])))))
+
             ing_rows = "".join(
                 f'<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:10px;margin-bottom:2px;">'
-                f'<span style="min-width:22px;height:22px;border:2px solid {data.get("BORDER","#fdba74")};border-radius:6px;background:#fff;display:inline-flex;"></span>'
+                f'<span style="min-width:22px;height:22px;border:2px solid {BO};border-radius:6px;background:#fff;display:inline-flex;"></span>'
                 f'<span style="font-size:15px;color:#333;">{i}</span></div>'
-                for i in data.get("ingredients", [])
+                for i in items
             )
-            # Build instruction rows
             step_rows = "".join(
-                f'<li style="margin-bottom:8px;"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-radius:12px;border:1.5px solid {data.get("BORDER","#fdba74")};background:{data.get("LIGHT_BG","#fff7ed")};">'
-                f'<span style="min-width:30px;height:30px;background:{data.get("MAIN","#ea580c")};color:#fff;border-radius:50%;font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;">{n+1}</span>'
+                f'<li style="margin-bottom:8px;"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-radius:12px;border:1.5px solid {BO};background:{LB};">'
+                f'<span style="min-width:30px;height:30px;background:{M};color:#fff;border-radius:50%;font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;">{n+1}</span>'
                 f'<span style="font-size:15px;color:#333;line-height:1.6;">{s}</span></div></li>'
-                for n, s in enumerate(data.get("instructions", []))
+                for n, s in enumerate(steps)
             )
+
             html = html.replace("##INGREDIENTS_ROWS##", ing_rows)
             html = html.replace("##INSTRUCTIONS_ROWS##", step_rows)
+            html = html.replace("##ITEMS_ROWS##",        ing_rows)
+            html = html.replace("##STEPS_ROWS##",        step_rows)
+            html = html.replace("##TIPS_ROWS##",         ing_rows)
+            html = html.replace("##CHECKLIST_ROWS##",    step_rows)
             return html
 
         card_title = data.get("card_title", title)
