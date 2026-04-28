@@ -270,6 +270,18 @@ pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radi
 .top-bar-admin{background:rgba(239,68,68,0.1);border-bottom:1px solid rgba(239,68,68,0.2);color:#ef4444;}
 .footer-link-btn{background:none;border:none;color:var(--text3);cursor:pointer;font-family:var(--font);font-size:13px;padding:0;transition:color .15s;text-decoration:none;}
 .footer-link-btn:hover{color:var(--text2);}
+/* ── Category checkbox styles ── */
+.cat-list{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px;background:var(--bg);}
+.cat-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .15s;}
+.cat-item:hover{background:var(--bg3);}
+.cat-item input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;}
+.cat-item-name{font-size:13px;color:var(--text2);flex:1;}
+.cat-item-count{font-size:11px;color:var(--text3);}
+.cat-item.checked .cat-item-name{color:var(--accent2);}
+/* ── Links status pill ── */
+.links-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;}
+.links-pill-on{background:var(--green-dim);color:var(--green);border:1px solid rgba(16,185,129,.2);}
+.links-pill-off{background:var(--bg4);color:var(--text3);border:1px solid var(--border);}
 @media(max-width:900px){
   .nav{padding:14px 20px;}
   .features-grid,.pricing-grid,.stat-grid{grid-template-columns:1fr;}
@@ -628,7 +640,7 @@ function Dashboard({ history, plan, onUpgrade, createdAt, planExpires, isAdmin }
 // ─── GENERATE ──────────────────────────────────────────────────────────────
 function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isAdmin }) {
   const [titles, setTitles] = useState("");
-  const [delay, setDelay] = useState(config.delay_sec||10);
+  const [delay, setDelay] = useState(config.delay_sec || 10);
   const [draft, setDraft] = useState(false);
   const [useImages, setUseImages] = useState(true);
   const [running, setRunning] = useState(false);
@@ -636,165 +648,324 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
   const [progress, setProgress] = useState(0);
   const logRef = useRef(null);
 
-  // ── Categories state ──────────────────────────────────────────────────────
+  // ── Categories ────────────────────────────────────────────────────────────
   const [categories, setCategories] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [loadingCats, setLoadingCats] = useState(false);
+  const [catError, setCatError] = useState("");
+  const [catSuccess, setCatSuccess] = useState(false);
 
   const expired = isTrialExpired(createdAt) && plan !== "pro" && !isAdmin;
 
-  const addLog = useCallback((msg, type="info") => {
-    const time = new Date().toLocaleTimeString("en",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
-    setLogs(prev=>[...prev.slice(-120),{msg,type,time}]);
-    setTimeout(()=>{ if(logRef.current) logRef.current.scrollTop=logRef.current.scrollHeight; },50);
-  },[]);
+  const addLog = useCallback((msg, type = "info") => {
+    const time = new Date().toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    setLogs(prev => [...prev.slice(-120), { msg, type, time }]);
+    setTimeout(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, 50);
+  }, []);
 
-  const titleList = titles.split("\n").map(t=>t.trim()).filter(Boolean);
-  const missingKeys = !config.gemini_key||!config.wp_url||!config.wp_password;
+  const titleList = titles.split("\n").map(t => t.trim()).filter(Boolean);
+
+  // Read wp_url and wp_password directly from config prop (always fresh)
+  const wpUrl = (config.wp_url || "").trim();
+  const wpPassword = (config.wp_password || "").trim();
+  const missingWP = !wpUrl || !wpPassword;
+  const missingKeys = !config.gemini_key || missingWP;
 
   if (expired) return <TrialExpiredGate onUpgrade={onUpgrade} />;
 
-  function loadCategories() {
-    console.log("WP URL:", config.wp_url, "WP PASS:", config.wp_password);
-    const wpUrl = config.wp_url || "";
-    const wpPass = config.wp_password || "";
-    if (!wpUrl || !wpPass) {
-      alert("Please go to Settings → WordPress and save your URL and password first.");
+  // ── FIX 1: loadCategories reads directly from config prop, no stale closure ──
+  async function loadCategories() {
+    const url = (config.wp_url || "").trim();
+    const pass = (config.wp_password || "").trim();
+
+    if (!url || !pass) {
+      setCatError("No WordPress URL or password found. Go to Settings → WordPress and save first.");
       return;
     }
+
     setLoadingCats(true);
-    apiCall("/wp/categories", {
-      method: "POST",
-      body: JSON.stringify({ wp_url: wpUrl, wp_password: wpPass }),
-    })
-      .then(async res => {
-        const d = await res.json();
-        if (d.categories && d.categories.length > 0) {
-          setCategories(d.categories);
-        } else {
-          alert("No categories returned. Error: " + (d.error || "Unknown"));
-        }
-      })
-      .catch(err => alert("Failed: " + err.message))
-      .finally(() => setLoadingCats(false));
-}
+    setCatError("");
+    setCatSuccess(false);
+    setCategories([]);
+
+    try {
+      const res = await apiCall("/wp/categories", {
+        method: "POST",
+        body: JSON.stringify({ wp_url: url, wp_password: pass }),
+      });
+
+      let data;
+      try { data = await res.json(); } catch { data = { error: `Server ${res.status}` }; }
+
+      if (res.ok && data.categories && data.categories.length > 0) {
+        setCategories(data.categories);
+        setCatSuccess(true);
+      } else {
+        setCatError(data.error || data.detail || `No categories returned (status ${res.status})`);
+      }
+    } catch (err) {
+      setCatError("Network error: " + err.message);
+    } finally {
+      setLoadingCats(false);
+    }
+  }
+
+  function toggleCategory(id) {
+    setSelectedCategories(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  }
 
   function detectLogType(msg) {
-    if (msg.includes("✅")||msg.includes("🎉")||msg.includes("Published")) return "ok";
-    if (msg.includes("❌")||msg.includes("Failed")||msg.includes("failed")) return "err";
+    if (msg.includes("✅") || msg.includes("🎉") || msg.includes("Published")) return "ok";
+    if (msg.includes("❌") || msg.includes("Failed") || msg.includes("failed")) return "err";
     if (msg.includes("⚠️")) return "warn";
     return "info";
   }
 
   async function run() {
-    if(!config.gemini_key){addLog("❌ No AI key. Go to Settings → API Keys.","err");return;}
-    if(!config.wp_url){addLog("❌ No WordPress URL. Go to Settings → WordPress.","err");return;}
-    if(!config.wp_password){addLog("❌ No WordPress password. Go to Settings → WordPress.","err");return;}
-    if(!titleList.length){addLog("Enter at least one article title.","warn");return;}
-    setRunning(true);setLogs([]);setProgress(0);
-    addLog(`Starting batch: ${titleList.length} article(s)`,"ok");
-    for(let i=0;i<titleList.length;i++){
-      const title=titleList[i];
-      setProgress(i/titleList.length);
-      addLog(`[${i+1}/${titleList.length}] ${title}`,"info");
-      try{
-        const payload={
-          title,gemini_key:config.gemini_key||"",goapi_key:config.goapi_key||"",
-          wp_url:config.wp_url||"",wp_password:config.wp_password||"",
-          custom_prompt:config.custom_prompt||"",card_prompt:config.card_prompt||"",
-          mj_template:config.mj_template||"",publish_status:draft?"draft":(config.publish_status||"publish"),
-          use_images:useImages,use_pollinations:config.use_pollinations||false,
-          pollinations_prompt:config.pollinations_prompt||"",show_card:config.show_card!==false,
-          use_internal_links:config.use_internal_links!==false,max_links:config.max_links||4,
-          full_width_images:config.full_width_images!==false,clickable_card:config.clickable_card||false,
-          category_ids:selectedCategories.length ? selectedCategories : undefined,
-          use_external_links:config.use_external_links||false,
+    if (!config.gemini_key) { addLog("❌ No AI key. Go to Settings → API Keys.", "err"); return; }
+    if (!wpUrl) { addLog("❌ No WordPress URL. Go to Settings → WordPress.", "err"); return; }
+    if (!wpPassword) { addLog("❌ No WordPress password. Go to Settings → WordPress.", "err"); return; }
+    if (!titleList.length) { addLog("Enter at least one article title.", "warn"); return; }
+
+    setRunning(true); setLogs([]); setProgress(0);
+    addLog(`Starting batch: ${titleList.length} article(s)`, "ok");
+
+    // ── FIX 2: internal/external links read directly from config prop ──
+    const useInternalLinks = config.use_internal_links !== false;
+    const useExternalLinks = config.use_external_links === true;
+    const maxLinks = config.max_links || 4;
+
+    if (useInternalLinks) addLog(`🔗 Internal links: ON (max ${maxLinks})`, "info");
+    if (useExternalLinks) addLog(`🌐 External links (Wikipedia): ON`, "info");
+    if (selectedCategories.length > 0) addLog(`📁 Categories: ${selectedCategories.join(", ")}`, "info");
+
+    for (let i = 0; i < titleList.length; i++) {
+      const title = titleList[i];
+      setProgress(i / titleList.length);
+      addLog(`[${i + 1}/${titleList.length}] ${title}`, "info");
+      try {
+        // ── FIX 3: All config values read fresh from prop, not stale closures ──
+        const payload = {
+          title,
+          gemini_key:          config.gemini_key || "",
+          goapi_key:           config.goapi_key || "",
+          wp_url:              config.wp_url || "",
+          wp_password:         config.wp_password || "",
+          custom_prompt:       config.custom_prompt || "",
+          card_prompt:         config.card_prompt || "",
+          mj_template:         config.mj_template || "",
+          publish_status:      draft ? "draft" : (config.publish_status || "publish"),
+          use_images:          useImages,
+          use_pollinations:    config.use_pollinations || false,
+          pollinations_prompt: config.pollinations_prompt || "",
+          show_card:           config.show_card !== false,
+          // ── FIXED: these now correctly read the live config values ──
+          use_internal_links:  useInternalLinks,
+          max_links:           maxLinks,
+          use_external_links:  useExternalLinks,
+          full_width_images:   config.full_width_images !== false,
+          clickable_card:      config.clickable_card || false,
+          // ── FIXED: category_ids always sent (empty array if none selected) ──
+          category_ids:        selectedCategories.length > 0 ? selectedCategories : [],
         };
-        const token=getStoredToken();
-        const res=await fetch(`${API_URL}/pipeline`,{method:"POST",headers:{"Content-Type":"application/json",...(token?{"Authorization":`Bearer ${token}`}:{})},body:JSON.stringify(payload)});
+
+        const token = getStoredToken();
+        const res = await fetch(`${API_URL}/pipeline`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(payload),
+        });
+
         let data;
-        try{data=await res.json();}catch{data={success:false,error:`Server ${res.status}`};}
-        if(data.logs&&Array.isArray(data.logs)){for(const logMsg of data.logs){addLog(logMsg,detectLogType(logMsg));}}
-        if(data.success){
-          addLog(`✅ Published → ${data.post_url}`,"ok");
-          if(data.featured_image_url) addLog(`🖼️ Featured image set`,"ok");
-          onHistoryUpdate({title,status:"published",post_url:data.post_url,time:new Date().toLocaleTimeString()});
-        } else {
-          const errMsg=data.detail||data.error||"Unknown error";
-          addLog(`❌ Failed: ${errMsg}`,"err");
-          onHistoryUpdate({title,status:"failed",error:errMsg,time:new Date().toLocaleTimeString()});
+        try { data = await res.json(); } catch { data = { success: false, error: `Server ${res.status}` }; }
+
+        if (data.logs && Array.isArray(data.logs)) {
+          for (const logMsg of data.logs) { addLog(logMsg, detectLogType(logMsg)); }
         }
-      }catch(err){
-        addLog(`❌ Network: ${err.message}`,"err");
-        onHistoryUpdate({title,status:"failed",error:err.message,time:new Date().toLocaleTimeString()});
+
+        if (data.success) {
+          addLog(`✅ Published → ${data.post_url}`, "ok");
+          if (data.featured_image_url) addLog(`🖼️ Featured image set`, "ok");
+          if (data.internal_links_added > 0) addLog(`🔗 ${data.internal_links_added} internal link(s) injected`, "ok");
+          if (data.external_links_added > 0) addLog(`🌐 ${data.external_links_added} external link(s) injected`, "ok");
+          onHistoryUpdate({ title, status: "published", post_url: data.post_url, time: new Date().toLocaleTimeString() });
+        } else {
+          const errMsg = data.detail || data.error || "Unknown error";
+          addLog(`❌ Failed: ${errMsg}`, "err");
+          onHistoryUpdate({ title, status: "failed", error: errMsg, time: new Date().toLocaleTimeString() });
+        }
+      } catch (err) {
+        addLog(`❌ Network: ${err.message}`, "err");
+        onHistoryUpdate({ title, status: "failed", error: err.message, time: new Date().toLocaleTimeString() });
       }
-      setProgress((i+1)/titleList.length);
-      if(i<titleList.length-1&&delay>0){addLog(`⏱ Waiting ${delay}s...`,"info");await new Promise(r=>setTimeout(r,delay*1000));}
+      setProgress((i + 1) / titleList.length);
+      if (i < titleList.length - 1 && delay > 0) {
+        addLog(`⏱ Waiting ${delay}s...`, "info");
+        await new Promise(r => setTimeout(r, delay * 1000));
+      }
     }
-    setProgress(1);addLog(`Batch complete.`,"ok");setRunning(false);
+    setProgress(1);
+    addLog(`Batch complete.`, "ok");
+    setRunning(false);
   }
 
-  const logCls={ok:"log-ok",err:"log-err",info:"log-info",warn:"log-warn"};
+  const logCls = { ok: "log-ok", err: "log-err", info: "log-info", warn: "log-warn" };
+
+  // ── Link status pills ────────────────────────────────────────────────────
+  const internalOn = config.use_internal_links !== false;
+  const externalOn = config.use_external_links === true;
+
   return (
     <div className="fade-up">
-      {missingKeys&&<div className="alert alert-warn" style={{marginBottom:18}}>⚠️ Missing config — go to <strong>Settings</strong> first.</div>}
-      <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr",gap:18,marginBottom:18}}>
-        <div className="card">
-          <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:6}}>Article Titles</div>
-          <Hint>One title per line. Each becomes a full published article.</Hint>
-          <textarea className="input" style={{minHeight:200,marginTop:10,fontFamily:"monospace",fontSize:13}} value={titles} onChange={e=>setTitles(e.target.value)} placeholder={"10 Best Postpartum Recovery Tips\nBoursin Cheese Pasta with Broccoli\nBest Baby Monitors 2025"} disabled={running}/>
-          <div style={{marginTop:6,fontSize:12,color:"var(--text3)"}}>{titleList.length} title{titleList.length!==1?"s":""} entered</div>
+      {missingKeys && (
+        <div className="alert alert-warn" style={{ marginBottom: 18 }}>
+          ⚠️ Missing config —{!config.gemini_key ? " AI key" : ""}{missingWP ? " WordPress credentials" : ""} — go to <strong>Settings</strong> first.
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          <div className="card">
-            <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,marginBottom:14}}>Options</div>
-            <div style={{display:"flex",flexDirection:"column",gap:14}}>
-              <div className="setting-row"><div className="setting-info"><div className="setting-name">Save as Draft</div><div className="setting-desc">Publish as draft instead of live</div></div><label className="toggle"><input type="checkbox" checked={draft} onChange={e=>setDraft(e.target.checked)}/><span className="toggle-slider"/></label></div>
-              <div className="setting-row"><div className="setting-info"><div className="setting-name">Generate Images</div><div className="setting-desc">1 featured + 3 body images. All WebP, uploaded to WordPress.</div></div><label className="toggle"><input type="checkbox" checked={useImages} onChange={e=>setUseImages(e.target.checked)}/><span className="toggle-slider"/></label></div>
-              <div><div className="setting-name" style={{marginBottom:6}}>Delay between articles</div><div style={{display:"flex",alignItems:"center",gap:10}}><input className="input" type="number" value={delay} min={0} max={120} onChange={e=>setDelay(+e.target.value)} style={{width:80}}/><span style={{fontSize:13,color:"var(--text2)"}}>seconds</span></div></div>
+      )}
 
-              {/* ── WordPress Categories ── */}
-              <div>
-                <div className="setting-name" style={{marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
-                  📁 <span style={{color:"var(--accent2)"}}>Categories</span>
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 18, marginBottom: 18 }}>
+        {/* Left column: titles */}
+        <div className="card">
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 600, marginBottom: 6 }}>Article Titles</div>
+          <Hint>One title per line. Each becomes a full published article.</Hint>
+          <textarea
+            className="input"
+            style={{ minHeight: 200, marginTop: 10, fontFamily: "monospace", fontSize: 13 }}
+            value={titles}
+            onChange={e => setTitles(e.target.value)}
+            placeholder={"10 Best Postpartum Recovery Tips\nBoursin Cheese Pasta with Broccoli\nBest Baby Monitors 2025"}
+            disabled={running}
+          />
+          <div style={{ marginTop: 6, fontSize: 12, color: "var(--text3)" }}>
+            {titleList.length} title{titleList.length !== 1 ? "s" : ""} entered
+          </div>
+
+          {/* ── Link status indicators ── */}
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text3)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.8px" }}>Link Settings (from Settings → WordPress)</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <span className={`links-pill ${internalOn ? "links-pill-on" : "links-pill-off"}`}>
+                🔗 Internal links: {internalOn ? `ON · max ${config.max_links || 4}` : "OFF"}
+              </span>
+              <span className={`links-pill ${externalOn ? "links-pill-on" : "links-pill-off"}`}>
+                🌐 External links: {externalOn ? "ON" : "OFF"}
+              </span>
+            </div>
+            {!internalOn && !externalOn && (
+              <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 6 }}>
+                Enable links in <strong style={{ color: "var(--accent2)" }}>Settings → WordPress</strong> to inject internal or Wikipedia links.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Right column: options */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="card">
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 600, marginBottom: 14 }}>Options</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+              <div className="setting-row">
+                <div className="setting-info">
+                  <div className="setting-name">Save as Draft</div>
+                  <div className="setting-desc">Publish as draft instead of live</div>
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                <label className="toggle">
+                  <input type="checkbox" checked={draft} onChange={e => setDraft(e.target.checked)} />
+                  <span className="toggle-slider" />
+                </label>
+              </div>
+
+              <div className="setting-row">
+                <div className="setting-info">
+                  <div className="setting-name">Generate Images</div>
+                  <div className="setting-desc">1 featured + 3 body images. All WebP, uploaded to WordPress.</div>
+                </div>
+                <label className="toggle">
+                  <input type="checkbox" checked={useImages} onChange={e => setUseImages(e.target.checked)} />
+                  <span className="toggle-slider" />
+                </label>
+              </div>
+
+              <div>
+                <div className="setting-name" style={{ marginBottom: 6 }}>Delay between articles</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <input className="input" type="number" value={delay} min={0} max={120} onChange={e => setDelay(+e.target.value)} style={{ width: 80 }} />
+                  <span style={{ fontSize: 13, color: "var(--text2)" }}>seconds</span>
+                </div>
+              </div>
+
+              {/* ── FIX: Categories section with proper error/success feedback ── */}
+              <div style={{ paddingTop: 6, borderTop: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div>
+                    <div className="setting-name" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      📁 WordPress Categories
+                    </div>
+                    <div className="setting-desc">Assign categories to published articles</div>
+                  </div>
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={loadCategories}
-                    disabled={loadingCats||running}
-                    style={{display:"flex",alignItems:"center",gap:6}}
+                    disabled={loadingCats || running || missingWP}
+                    title={missingWP ? "Configure WordPress in Settings first" : ""}
+                    style={{ flexShrink: 0 }}
                   >
-                    {loadingCats ? <span className="spinner spinner-accent"/> : "↺"} Load Categories
+                    {loadingCats
+                      ? <><span className="spinner spinner-accent" />Loading...</>
+                      : categories.length > 0 ? "↺ Reload" : "Load Categories"
+                    }
                   </button>
-                  {categories.length > 0 && (
-                    <span style={{fontSize:12,color:"var(--green)"}}>✓ {categories.length}</span>
-                  )}
                 </div>
+
+                {missingWP && (
+                  <div style={{ fontSize: 12, color: "var(--text3)", padding: "6px 0" }}>
+                    ⚠️ Save your WordPress URL & password in <strong style={{ color: "var(--accent2)" }}>Settings → WordPress</strong> first.
+                  </div>
+                )}
+
+                {catError && (
+                  <div className="alert alert-err" style={{ marginBottom: 8, fontSize: 12 }}>
+                    {catError}
+                  </div>
+                )}
+
+                {catSuccess && categories.length > 0 && (
+                  <div style={{ fontSize: 12, color: "var(--green)", marginBottom: 8 }}>
+                    ✓ {categories.length} categor{categories.length !== 1 ? "ies" : "y"} loaded
+                  </div>
+                )}
+
                 {categories.length > 0 && (
                   <>
-                    <div style={{fontSize:12,color:"var(--text3)",marginBottom:8}}>
-                      Select categories to assign to published articles:
-                    </div>
-                    <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:200,overflowY:"auto"}}>
-                      {categories.map(cat => (
-                        <label key={cat.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:14,color:"var(--text2)",padding:"2px 0"}}>
-                          <input
-                            type="checkbox"
-                            checked={selectedCategories.includes(cat.id)}
-                            onChange={() => setSelectedCategories(prev =>
-                              prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                    <div className="cat-list">
+                      {categories.map(cat => {
+                        const checked = selectedCategories.includes(cat.id);
+                        return (
+                          <label key={cat.id} className={`cat-item ${checked ? "checked" : ""}`}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleCategory(cat.id)}
+                              disabled={running}
+                            />
+                            <span className="cat-item-name">{cat.name}</span>
+                            {cat.count !== undefined && (
+                              <span className="cat-item-count">({cat.count})</span>
                             )}
-                            disabled={running}
-                            style={{width:16,height:16,accentColor:"var(--accent)",cursor:"pointer"}}
-                          />
-                          {cat.name} ({cat.count ?? 0})
-                        </label>
-                      ))}
+                          </label>
+                        );
+                      })}
                     </div>
                     {selectedCategories.length > 0 && (
-                      <div style={{fontSize:11,color:"var(--accent2)",marginTop:6}}>
-                        {selectedCategories.length} categor{selectedCategories.length>1?"ies":"y"} selected
+                      <div style={{ fontSize: 11, color: "var(--accent2)", marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", display: "inline-block" }} />
+                        {selectedCategories.length} categor{selectedCategories.length > 1 ? "ies" : "y"} selected
                       </div>
                     )}
                   </>
@@ -803,20 +974,47 @@ function GeneratePage({ config, onHistoryUpdate, plan, createdAt, onUpgrade, isA
 
             </div>
           </div>
-          <button className="btn btn-primary" style={{width:"100%",padding:"13px",fontSize:15}} onClick={run} disabled={running||!titleList.length||missingKeys}>
-            {running?<><span className="spinner"/>Running...</>:`▶ Generate ${titleList.length||""} Article${titleList.length!==1?"s":""}`}
+
+          <button
+            className="btn btn-primary"
+            style={{ width: "100%", padding: "13px", fontSize: 15 }}
+            onClick={run}
+            disabled={running || !titleList.length || missingKeys}
+          >
+            {running
+              ? <><span className="spinner" />Running...</>
+              : `▶ Generate ${titleList.length || ""} Article${titleList.length !== 1 ? "s" : ""}`
+            }
           </button>
-          {running&&<div><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--text3)",marginBottom:6}}><span>Progress</span><span>{Math.round(progress*100)}%</span></div><div className="progress"><div className="progress-fill" style={{width:`${progress*100}%`}}/></div></div>}
+
+          {running && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text3)", marginBottom: 6 }}>
+                <span>Progress</span><span>{Math.round(progress * 100)}%</span>
+              </div>
+              <div className="progress"><div className="progress-fill" style={{ width: `${progress * 100}%` }} /></div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Process Log */}
       <div className="card">
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-          <div style={{fontFamily:"var(--font-display)",fontSize:14,fontWeight:600,display:"flex",alignItems:"center",gap:8}}><span className={`dot ${running?"dot-green dot-pulse":"dot-yellow"}`}/>Process Log</div>
-          <button className="btn btn-ghost btn-sm" onClick={()=>setLogs([])}>Clear</button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+            <span className={`dot ${running ? "dot-green dot-pulse" : "dot-yellow"}`} />Process Log
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => setLogs([])}>Clear</button>
         </div>
         <div className="process-log" ref={logRef}>
-          {logs.length===0?<div style={{color:"var(--text3)",fontFamily:"var(--font)"}}>Logs appear here when you run a batch...</div>
-            :logs.map((l,i)=><div key={i} className="log-line"><span className="log-time">[{l.time}]</span><span className={logCls[l.type]||""}>{l.msg}</span></div>)
+          {logs.length === 0
+            ? <div style={{ color: "var(--text3)", fontFamily: "var(--font)" }}>Logs appear here when you run a batch...</div>
+            : logs.map((l, i) => (
+              <div key={i} className="log-line">
+                <span className="log-time">[{l.time}]</span>
+                <span className={logCls[l.type] || ""}>{l.msg}</span>
+              </div>
+            ))
           }
         </div>
       </div>
@@ -904,20 +1102,52 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
             </div>
             <div className="divider"/>
             <div><label className="form-label">Default Publish Status</label><select className="input" value={cfg.publish_status||"publish"} onChange={e=>update("publish_status",e.target.value)}><option value="publish">Publish immediately</option><option value="draft">Save as draft</option></select></div>
-            <div className="setting-row"><div className="setting-info"><div className="setting-name">Auto-inject internal links</div><div className="setting-desc">Match full long-tail article titles (3+ word phrases)</div></div><label className="toggle"><input type="checkbox" checked={cfg.use_internal_links!==false} onChange={e=>update("use_internal_links",e.target.checked)}/><span className="toggle-slider"/></label></div>
-            {cfg.use_internal_links!==false&&<div><label className="form-label">Max internal links per article</label><input className="input" type="number" value={cfg.max_links||4} min={1} max={10} onChange={e=>update("max_links",+e.target.value)} style={{width:100}}/></div>}
-            <div className="setting-row"><div className="setting-info"><div className="setting-name">Full width images</div><div className="setting-desc">Images stretch to full width in articles</div></div><label className="toggle"><input type="checkbox" checked={cfg.full_width_images!==false} onChange={e=>update("full_width_images",e.target.checked)}/><span className="toggle-slider"/></label></div>
-            <div className="setting-row"><div className="setting-info"><div className="setting-name">Clickable card</div><div className="setting-desc">Wrap summary card in a share link</div></div><label className="toggle"><input type="checkbox" checked={cfg.clickable_card||false} onChange={e=>update("clickable_card",e.target.checked)}/><span className="toggle-slider"/></label></div>
+
+            {/* ── Internal links ── */}
             <div className="setting-row">
               <div className="setting-info">
-                <div className="setting-name">Auto-inject external links</div>
+                <div className="setting-name">🔗 Auto-inject internal links</div>
+                <div className="setting-desc">Match full long-tail article titles (3+ word phrases) from your existing posts</div>
+              </div>
+              <label className="toggle">
+                <input type="checkbox" checked={cfg.use_internal_links !== false} onChange={e => update("use_internal_links", e.target.checked)} />
+                <span className="toggle-slider" />
+              </label>
+            </div>
+            {cfg.use_internal_links !== false && (
+              <div>
+                <label className="form-label">Max internal links per article</label>
+                <input className="input" type="number" value={cfg.max_links || 4} min={1} max={10} onChange={e => update("max_links", +e.target.value)} style={{ width: 100 }} />
+              </div>
+            )}
+
+            {/* ── External links ── */}
+            <div className="setting-row">
+              <div className="setting-info">
+                <div className="setting-name">🌐 Auto-inject external links (Wikipedia)</div>
                 <div className="setting-desc">Find 1–2 Wikipedia links related to the article topic and inject them into paragraph text</div>
               </div>
               <label className="toggle">
-                <input type="checkbox" checked={cfg.use_external_links||false} onChange={e=>update("use_external_links",e.target.checked)}/>
-                <span className="toggle-slider"/>
+                <input type="checkbox" checked={cfg.use_external_links === true} onChange={e => update("use_external_links", e.target.checked)} />
+                <span className="toggle-slider" />
               </label>
             </div>
+
+            {/* Status summary */}
+            <div style={{ background: "var(--bg3)", borderRadius: "var(--radius)", padding: "10px 14px", fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <span className={`links-pill ${cfg.use_internal_links !== false ? "links-pill-on" : "links-pill-off"}`}>
+                🔗 Internal: {cfg.use_internal_links !== false ? `ON · max ${cfg.max_links || 4}` : "OFF"}
+              </span>
+              <span className={`links-pill ${cfg.use_external_links === true ? "links-pill-on" : "links-pill-off"}`}>
+                🌐 External: {cfg.use_external_links === true ? "ON" : "OFF"}
+              </span>
+              <span style={{ fontSize: 11, color: "var(--text3)", alignSelf: "center" }}>
+                These settings are applied on every article generation.
+              </span>
+            </div>
+
+            <div className="setting-row"><div className="setting-info"><div className="setting-name">Full width images</div><div className="setting-desc">Images stretch to full width in articles</div></div><label className="toggle"><input type="checkbox" checked={cfg.full_width_images!==false} onChange={e=>update("full_width_images",e.target.checked)}/><span className="toggle-slider"/></label></div>
+            <div className="setting-row"><div className="setting-info"><div className="setting-name">Clickable card</div><div className="setting-desc">Wrap summary card in a share link</div></div><label className="toggle"><input type="checkbox" checked={cfg.clickable_card||false} onChange={e=>update("clickable_card",e.target.checked)}/><span className="toggle-slider"/></label></div>
           </div>
         </div>
       )}
@@ -1266,9 +1496,9 @@ function DocsPage({ plan, onUpgrade }) {
             {[
               {n:"1",t:"Get a free AI key",d:<>Go to <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>console.groq.com</a> — free key starting with <code>gsk_</code>. Or Gemini at <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" style={{color:"var(--accent2)"}}>aistudio.google.com</a> (starts with <code>AIza</code>).</>},
               {n:"2",t:"Configure API Keys",d:<>Go to <strong>Settings → API Keys</strong>, paste your key, hit <strong>Test</strong>, then <strong>Save Settings</strong>.</>},
-              {n:"3",t:"Connect WordPress",d:<>Go to <strong>Settings → WordPress</strong>. Enter your site URL and App Password in format <code>username:xxxx xxxx xxxx xxxx</code>.</>},
+              {n:"3",t:"Connect WordPress",d:<>Go to <strong>Settings → WordPress</strong>. Enter your site URL and App Password in format <code>username:xxxx xxxx xxxx xxxx</code>. Click <strong>Save Settings</strong>.</>},
               {n:"4",t:"Write your Prompts",d:<>Go to <strong>Settings → Prompts</strong>. Use <code>{"{title}"}</code> as placeholder. Return JSON with <code>html_content</code>, <code>seo_title</code>, <code>excerpt</code>, and color hex keys.</>},
-              {n:"5",t:"Generate your first article",d:<>Go to <strong>Generate</strong>, paste titles (one per line), click Load Categories to select WP categories, and click Generate.</>},
+              {n:"5",t:"Generate your first article",d:<>Go to <strong>Generate</strong>, paste titles (one per line), optionally click <strong>Load Categories</strong> to assign WP categories, and click Generate.</>},
             ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
           </div>
         )}
@@ -1276,9 +1506,10 @@ function DocsPage({ plan, onUpgrade }) {
           <div className="doc-section">
             <h3>🔗 Internal & External Links</h3>
             {[
-              {n:"1",t:"Internal links",d:"NicheFlow fetches up to 200 of your existing WordPress posts and injects full title matches as links into paragraph text. Only full post titles (3+ words) are linked."},
-              {n:"2",t:"External links (Wikipedia)",d:"When 'Auto-inject external links' is enabled in Settings → WordPress, NicheFlow searches Wikipedia for pages related to your article topic and injects 1–2 links. These are authoritative and SEO-safe."},
-              {n:"3",t:"Why links may not appear",d:"Internal links only appear when your existing post titles match phrases in the new article text. If none match, no links are injected — this is correct behavior, not a bug."},
+              {n:"1",t:"Enabling links",d:<>Go to <strong>Settings → WordPress</strong> and toggle on <strong>Auto-inject internal links</strong> and/or <strong>Auto-inject external links</strong>. Click <strong>Save Settings</strong>. The Generate page shows their current status.</>},
+              {n:"2",t:"Internal links",d:"NicheFlow fetches up to 200 of your existing WordPress posts and injects full title matches as links into paragraph text. Only full post titles (3+ words) are linked."},
+              {n:"3",t:"External links (Wikipedia)",d:"When 'Auto-inject external links' is enabled, NicheFlow searches Wikipedia for pages related to your article topic and injects 1–2 links. These are authoritative and SEO-safe."},
+              {n:"4",t:"Why links may not appear",d:"Internal links only appear when your existing post titles match phrases in the new article text. If none match, no links are injected — this is correct behavior, not a bug."},
             ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
           </div>
         )}
@@ -1311,7 +1542,7 @@ function DocsPage({ plan, onUpgrade }) {
               {n:"1",t:"Site URL",d:<>Enter your full site URL including <code>https://</code>, no trailing slash.</>},
               {n:"2",t:"Create an Application Password",d:<>In WordPress: go to <strong>Users → Profile</strong> → scroll to <strong>Application Passwords</strong> → enter a name → click <strong>Add New</strong>. Copy the generated password immediately.</>},
               {n:"3",t:"Format the credentials",d:<>Enter it as: <code>yourusername:xxxx xxxx xxxx xxxx</code>.</>},
-              {n:"4",t:"Test the connection",d:<>Click <strong>Test Connection</strong> to verify. Then go to Generate page and click <strong>Load Categories</strong> to load your WP categories.</>},
+              {n:"4",t:"Test and Save",d:<>Click <strong>Test Connection</strong> to verify, then click <strong>Save Settings</strong>. After saving, go to Generate → Load Categories.</>},
             ].map(s=>(<div key={s.n} className="doc-step"><div className="doc-step-num">{s.n}</div><div className="doc-step-text"><div className="doc-step-title">{s.t}</div><div className="doc-step-desc">{s.d}</div></div></div>))}
           </div>
         )}

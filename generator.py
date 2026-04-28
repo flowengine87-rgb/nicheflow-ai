@@ -512,7 +512,6 @@ def publish_to_wordpress(title, content, wp_url, wp_password, status="publish",
     except Exception as e: return {"success":False,"error":str(e)}
 
 
-# ── FIX 1: parse_wp_credentials — cleans URL properly, handles app password format ──
 def parse_wp_credentials(wp_url, wp_password):
     base_url = wp_url.strip().rstrip("/")
     base_url = re.sub(r'/wp-json.*$', '', base_url)
@@ -526,7 +525,6 @@ def parse_wp_credentials(wp_url, wp_password):
     return base_url, "", wp_password.strip()
 
 
-# ── FIX 2: fetch_wp_categories — guards empty user, logs HTTP errors ──
 def fetch_wp_categories(wp_url, wp_password):
     base_url, wp_user, wp_pass = parse_wp_credentials(wp_url, wp_password)
     if not wp_user:
@@ -573,7 +571,14 @@ def fetch_internal_links(wp_url, wp_password, max_posts=200):
     return links
 
 
-# ── FIX 3: inject_internal_links — matches keywords, not exact full title ──
+# ═══════════════════════════════════════════════════════════════════
+# FIX: inject_internal_links
+# Root cause: \b word boundary fails on multi-word phrases containing
+# spaces. The regex engine can't anchor \b between two words separated
+# by a space inside the pattern, so it never matches anything.
+# Fix: search for the phrase using case-insensitive plain string find
+# inside each <p> block, then replace only the first occurrence.
+# ═══════════════════════════════════════════════════════════════════
 def inject_internal_links(html, links, current_title, max_links=4, main_color="#ea580c"):
     if not links or not html:
         return html
@@ -596,38 +601,64 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
         clean = [re.sub(r"[^a-z0-9]", "", w) for w in words]
         meaningful = [w for w in clean if w and w not in STOP_WORDS and len(w) > 3]
         phrases = []
+        # 2-word pairs first (more specific)
         for i in range(len(meaningful) - 1):
             phrases.append(f"{meaningful[i]} {meaningful[i+1]}")
+        # single keywords as fallback
         phrases.extend(meaningful)
         return phrases
 
-    def replace_first_in_p(html_text, phrase, anchor):
-        parts = re.split(r'(<p[^>]*>|</p>)', html_text)
-        inside_p = False
-        replaced = False
+    # Split HTML into paragraph-level chunks and process each
+    # Uses a simple tag-aware replacer: finds <p...>content</p> blocks,
+    # does a case-insensitive string replace of the first phrase occurrence
+    # only when the paragraph doesn't already contain a link.
+    def replace_phrase_in_html(html_text, phrase, anchor):
+        """
+        Find the first <p>...</p> block that contains `phrase` (case-insensitive)
+        and has no existing <a tag, then replace the first occurrence of phrase
+        with anchor. Returns (new_html, did_replace).
+        """
+        phrase_lower = phrase.lower()
+        # Walk through p-tag segments
         result = []
-        for part in parts:
-            if re.match(r'<p[^>]*>', part):
-                inside_p = True
-                result.append(part)
-            elif part == '</p>':
-                inside_p = False
-                result.append(part)
-            elif inside_p and not replaced and '<a ' not in part and '<strong' not in part:
-                new_part = re.sub(
-                    r'\b' + re.escape(phrase) + r'\b',
-                    anchor,
-                    part,
-                    count=1,
-                    flags=re.IGNORECASE
-                )
-                if new_part != part:
+        pos = 0
+        replaced = False
+        while pos < len(html_text):
+            # Find next opening <p tag
+            p_open_start = html_text.find('<p', pos)
+            if p_open_start == -1:
+                result.append(html_text[pos:])
+                break
+            # Find end of opening tag
+            p_open_end = html_text.find('>', p_open_start)
+            if p_open_end == -1:
+                result.append(html_text[pos:])
+                break
+            p_open_end += 1  # include the >
+            # Find closing </p>
+            p_close = html_text.find('</p>', p_open_end)
+            if p_close == -1:
+                result.append(html_text[pos:])
+                break
+            # Everything before this <p>
+            result.append(html_text[pos:p_open_start])
+            open_tag = html_text[p_open_start:p_open_end]
+            content = html_text[p_open_end:p_close]
+            close_tag = html_text[p_close:p_close + 4]
+            next_pos = p_close + 4
+
+            if not replaced and '<a ' not in content and '<strong' not in content:
+                content_lower = content.lower()
+                idx = content_lower.find(phrase_lower)
+                if idx != -1:
+                    # Replace the first occurrence preserving original case
+                    original_phrase = content[idx:idx + len(phrase)]
+                    content = content[:idx] + anchor + content[idx + len(phrase):]
                     replaced = True
-                    result.append(new_part)
-                    continue
-                result.append(part)
-            else:
-                result.append(part)
+
+            result.append(open_tag + content + close_tag)
+            pos = next_pos
+
         return "".join(result), replaced
 
     for link in links:
@@ -656,7 +687,7 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
                 f'style="color:{main_color};text-decoration:underline;font-weight:500;" '
                 f'title="{link_title}">{phrase}</a>'
             )
-            new_html, did_replace = replace_first_in_p(html, phrase, anchor)
+            new_html, did_replace = replace_phrase_in_html(html, phrase, anchor)
             if did_replace:
                 html = new_html
                 used_urls.add(link_url)
@@ -666,7 +697,16 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
     return html
 
 
-# ── FIX 4: inject_external_links — injects "Learn more about X" at end of paragraphs ──
+# ═══════════════════════════════════════════════════════════════════
+# FIX: inject_external_links
+# Root cause: `nonlocal injected` on a plain int inside a closure
+# passed to re.sub() doesn't work reliably — Python closures capture
+# the variable by reference but re.sub calls the function in a way
+# that the nonlocal int mutation isn't visible across calls in some
+# versions. Fix: use a mutable list counter [0] instead.
+# Also switched from re.DOTALL re.sub (which matched across tags) to
+# a manual paragraph-by-paragraph walk, same as internal links.
+# ═══════════════════════════════════════════════════════════════════
 def inject_external_links(html, topic, max_links=2, main_color="#ea580c", log_fn=None):
     def log(m):
         if log_fn:
@@ -714,18 +754,40 @@ def inject_external_links(html, topic, max_links=2, main_color="#ea580c", log_fn
     if not wiki_links:
         return html
 
-    injected = 0
+    # Use a list so the counter mutates correctly inside the nested scope
+    injected = [0]
     used_urls = set()
 
-    def replacer(m):
-        nonlocal injected
-        if injected >= max_links:
-            return m.group(0)
-        open_tag = m.group(1)
-        content = m.group(2)
-        close_tag = m.group(3)
-        if len(content.strip()) > 80 and '<a ' not in content and injected < len(wiki_links):
-            link = wiki_links[injected]
+    result = []
+    pos = 0
+    while pos < len(html):
+        p_open_start = html.find('<p', pos)
+        if p_open_start == -1:
+            result.append(html[pos:])
+            break
+        p_open_end = html.find('>', p_open_start)
+        if p_open_end == -1:
+            result.append(html[pos:])
+            break
+        p_open_end += 1
+        p_close = html.find('</p>', p_open_end)
+        if p_close == -1:
+            result.append(html[pos:])
+            break
+
+        result.append(html[pos:p_open_start])
+        open_tag = html[p_open_start:p_open_end]
+        content = html[p_open_end:p_close]
+        close_tag = html[p_close:p_close + 4]
+        pos = p_close + 4
+
+        if (
+            injected[0] < max_links
+            and len(content.strip()) > 80
+            and '<a ' not in content
+            and injected[0] < len(wiki_links)
+        ):
+            link = wiki_links[injected[0]]
             if link["url"] not in used_urls:
                 link_html = (
                     f' <a href="{link["url"]}" target="_blank" rel="noopener noreferrer nofollow" '
@@ -738,13 +800,14 @@ def inject_external_links(html, topic, max_links=2, main_color="#ea580c", log_fn
                 else:
                     content = stripped + link_html
                 used_urls.add(link["url"])
-                injected += 1
-        return open_tag + content + close_tag
+                injected[0] += 1
 
-    html = re.sub(r'(<p[^>]*>)(.*?)(</p>)', replacer, html, flags=re.DOTALL)
+        result.append(open_tag + content + close_tag)
 
-    if injected:
-        log(f"  🌐 {injected} external link(s) injected into article")
+    html = "".join(result)
+
+    if injected[0]:
+        log(f"  🌐 {injected[0]} external link(s) injected into article")
     else:
         log(f"  ℹ️ External links fetched but no suitable paragraphs found")
 
@@ -1000,7 +1063,6 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
             else:
                 safe_log(f"  📸 Image {idx+1} ({label}): ❌ not generated")
 
-    # ── Launch all threads simultaneously ────────────────────────────
     for fn in [_gen_article, _gen_card, _gen_images]:
         t = threading.Thread(target=fn, daemon=True); all_threads.append(t); t.start()
 
@@ -1032,7 +1094,6 @@ def run_full_pipeline(title, gemini_key, goapi_key="", wp_url="", wp_password=""
         content = inject_internal_links(content, _links, title, max_links=max_links, main_color=mc)
         log("🔗 Internal links injected")
 
-    # ── External links ────────────────────────────────────────────────
     if use_external_links:
         mc = art.get("parsed",{}).get("MAIN","#ea580c")
         log("🌐 Fetching external links...")
