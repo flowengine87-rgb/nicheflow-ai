@@ -295,7 +295,13 @@ def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg
             )
 
             raw = ai_call(api_key, prompt, prefer_fast=True)
-            data = parse_json_response(raw)
+            try:
+                data = parse_json_response(raw)
+            except Exception:
+                start = raw.find('"html"')
+                if start != -1:
+                    raw = raw[start:]
+                data = {"html": re.sub(r'^"html"\s*:\s*"', '', raw).rstrip('"}').strip()}
             html = data.get("html", "")
             if not html:
                 raise Exception("AI returned no html field")
@@ -339,7 +345,8 @@ def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg
             + (f'<div style="margin-bottom:20px;"><div style="font-weight:700;font-size:11px;color:{main_color};margin-bottom:10px;text-transform:uppercase;letter-spacing:1px;">Quick Facts</div>{facts_html}</div>' if facts_html else '')
             + f'<div style="text-align:center;margin-top:24px;"><button onclick="{cta_js}" style="background:{main_color};color:#fff;padding:13px 30px;border-radius:30px;font-weight:700;font-size:14px;border:none;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.15);transition:opacity 0.2s;" onmouseover="this.style.opacity=\'0.88\'" onmouseout="this.style.opacity=\'1\'">{cta_text}</button></div></div>'
         )
-    except Exception:
+    except Exception as e:
+        print(f"generate_card error: {e}")
         cta_js = "if(navigator.share){navigator.share({title:document.title,url:window.location.href}).catch(function(){});}else{navigator.clipboard&&navigator.clipboard.writeText(window.location.href);}return false;"
         return (f'<div id="nicheflow-card" style="border:2px solid {main_color};border-radius:16px;padding:24px;background:{light_bg};margin:24px 0;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">'
                 f'<div style="font-weight:700;color:{main_color};margin-bottom:8px;">✦ Quick Summary</div>'
