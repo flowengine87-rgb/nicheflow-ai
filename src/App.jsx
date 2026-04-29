@@ -1168,9 +1168,9 @@ function SettingsPage({ config, onSave, plan, onUpgrade }) {
           <div className="settings-section">
             <div className="settings-header"><span>🃏</span><h3>Card Prompt</h3></div>
             <div className="settings-body">
-              <div className="alert alert-info">✦ Return JSON with <code>card_title</code>, <code>summary</code>, <code>key_points</code> array, <code>quick_facts</code> array, <code>cta_text</code>. The CTA button triggers browser share/bookmark.</div>
+              <div className="alert alert-info">✦ Describe your card in plain English. Example: "a recipe card with clickable checkboxes for ingredients, numbered steps, print button and save button at the bottom"</div>
               <div className="prompt-editor">
-                <textarea className="input" style={{minHeight:160,fontFamily:"monospace",fontSize:13}} value={cfg.card_prompt||""} onChange={e=>update("card_prompt",e.target.value)} placeholder={"For \"{title}\" return JSON:\n{\"card_title\":\"[short title]\",\"summary\":\"[2 sentences]\",\"key_points\":[\"point 1\"],\"quick_facts\":[{\"label\":\"Time\",\"value\":\"30 mins\"}],\"cta_text\":\"Save this! 📌\"}"}/>
+                <textarea className="input" style={{minHeight:160,fontFamily:"monospace",fontSize:13}} value={cfg.card_prompt||""} onChange={e=>update("card_prompt",e.target.value)} placeholder={"a recipe card with clickable checkboxes for ingredients, numbered steps, print button and save button at the bottom"}/>
                 {cfg.card_prompt&&<div className="prompt-counter">{estimateTokens(cfg.card_prompt).toLocaleString()} tokens</div>}
               </div>
               {cfg.card_prompt&&<TokenCounter text={cfg.card_prompt} limit={1500}/>}
