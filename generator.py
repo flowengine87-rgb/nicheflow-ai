@@ -268,78 +268,66 @@ def generate_article(title, api_key, custom_prompt="", show_card=True):
 
 def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg="#fff7ed", border_color="#fdba74"):
     try:
-        prompt = (card_prompt.strip() if card_prompt.strip() else DEFAULT_CARD_PROMPT).replace("{title}", title)
+        # ── CUSTOM PROMPT: user described what they want ──────────────────
+        if card_prompt.strip():
+            prompt = (
+                f'You are a card/widget HTML generator for WordPress articles.\n'
+                f'The user wants this card: {card_prompt}\n\n'
+                f'Article title: {title}\n'
+                f'Primary color: {main_color}\n'
+                f'Light background: {light_bg}\n'
+                f'Border color: {border_color}\n\n'
+                f'Rules:\n'
+                f'- Return ONLY valid JSON, no markdown, no preamble\n'
+                f'- The JSON must have an "html" field with complete self-contained HTML\n'
+                f'- Use inline styles only (no <style> tags, no external CSS)\n'
+                f'- Checkboxes must be real <input type="checkbox"> so they are clickable in WordPress\n'
+                f'- If user asked for a print button: use onclick="window.print()"\n'
+                f'- If user asked for a save/share button: use this onclick exactly:\n'
+                f'  if(navigator.share){{navigator.share({{title:document.title,url:window.location.href}}).catch(function(){{}})}}else if(navigator.clipboard){{navigator.clipboard.writeText(window.location.href);var b=this;var t=b.innerText;b.innerText="Copied!";setTimeout(function(){{b.innerText=t;}},2000)}}\n'
+                f'- Only add print/save buttons if the user explicitly asked for them\n'
+                f'- If user says image left: use float:left;margin-right:16px on the image\n'
+                f'- If user says image right: use float:right;margin-left:16px on the image\n'
+                f'- Make it look professional, match the colors provided\n'
+                f'- Everything must work in WordPress without any JS frameworks\n\n'
+                f'Return ONLY this JSON (no markdown, use \\\\" for quotes inside the html string):\n'
+                f'{{"html":"[your complete card HTML as a single line]"}}'
+            )
+
+            raw = ai_call(api_key, prompt, prefer_fast=True)
+            data = parse_json_response(raw)
+            html = data.get("html", "")
+            if not html:
+                raise Exception("AI returned no html field")
+
+            # Clean up any leftover placeholders
+            html = html.replace("##CARD_IMAGE##", "")
+            html = html.replace("##TITLE##", title)
+            html = html.replace("##CARD_TITLE##", title)
+            return html
+
+        # ── DEFAULT CARD (no custom prompt) ──────────────────────────────
+        prompt = DEFAULT_CARD_PROMPT.replace("{title}", title)
         raw = ai_call(api_key, prompt, prefer_fast=True)
         data = parse_json_response(raw)
 
-        # Custom prompt: if it returned html, fill placeholders and return
-        if card_prompt.strip() and data.get("html"):
-            html = data["html"]
-            M  = data.get("MAIN",     main_color)
-            MD = data.get("MAIN_DARK", "#b03a06")
-            LB = data.get("LIGHT_BG", light_bg)
-            BO = data.get("BORDER",   border_color)
+        card_title  = data.get("card_title", title)
+        summary     = data.get("summary", "")
+        key_points  = data.get("key_points", [])
+        quick_facts = data.get("quick_facts", [])
+        cta_text    = data.get("cta_text", "Save this! 📌")
 
-            html = html.replace("##MAIN##",      M)
-            html = html.replace("##MAIN_DARK##", MD)
-            html = html.replace("##LIGHT_BG##",  LB)
-            html = html.replace("##BORDER##",    BO)
-            html = html.replace("##CARD_TITLE##", data.get("card_title", title))
-            html = html.replace("##CARD_IMAGE##", "")
-            html = html.replace("##TITLE##",      data.get("card_title", title))
-
-            # Universal stat placeholders — recipes, fitness, finance, travel, beauty etc
-            html = html.replace("##PREP##",      data.get("prep",      data.get("duration",   data.get("time",     "—"))))
-            html = html.replace("##COOK##",      data.get("cook",      data.get("difficulty", data.get("level",    "—"))))
-            html = html.replace("##TOTAL##",     data.get("total",     data.get("total_time", data.get("length",   "—"))))
-            html = html.replace("##SERVES##",    data.get("serves",    data.get("audience",   data.get("for",      "—"))))
-            html = html.replace("##CALORIES##",  data.get("calories",  data.get("stat1",      data.get("cost",     "—"))))
-            html = html.replace("##PROTEIN##",   data.get("protein",   data.get("stat2",      data.get("savings",  "—"))))
-            html = html.replace("##CARBS##",     data.get("carbs",     data.get("stat3",      data.get("returns",  "—"))))
-            html = html.replace("##FAT##",       data.get("fat",       data.get("stat4",      data.get("risk",     "—"))))
-
-            # Replace any remaining ##KEY## with its value from data
-            for key, val in data.items():
-                if isinstance(val, str):
-                    html = html.replace(f"##{key.upper()}##", val)
-
-            # Universal list placeholders — works for any niche
-            items = data.get("ingredients", data.get("items",     data.get("tips",      data.get("points",    data.get("checklist", [])))))
-            steps = data.get("instructions", data.get("steps",    data.get("actions",   data.get("checklist", data.get("tasks",      [])))))
-
-            ing_rows = "".join(
-                f'<div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:10px;margin-bottom:2px;">'
-                f'<span style="min-width:22px;height:22px;border:2px solid {BO};border-radius:6px;background:#fff;display:inline-flex;"></span>'
-                f'<span style="font-size:15px;color:#333;">{i}</span></div>'
-                for i in items
-            )
-            step_rows = "".join(
-                f'<li style="margin-bottom:8px;"><div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;border-radius:12px;border:1.5px solid {BO};background:{LB};">'
-                f'<span style="min-width:30px;height:30px;background:{M};color:#fff;border-radius:50%;font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;">{n+1}</span>'
-                f'<span style="font-size:15px;color:#333;line-height:1.6;">{s}</span></div></li>'
-                for n, s in enumerate(steps)
-            )
-
-            html = html.replace("##INGREDIENTS_ROWS##", ing_rows)
-            html = html.replace("##INSTRUCTIONS_ROWS##", step_rows)
-            html = html.replace("##ITEMS_ROWS##",        ing_rows)
-            html = html.replace("##STEPS_ROWS##",        step_rows)
-            html = html.replace("##TIPS_ROWS##",         ing_rows)
-            html = html.replace("##CHECKLIST_ROWS##",    step_rows)
-            return html
-
-        card_title = data.get("card_title", title)
-        summary = data.get("summary",""); key_points = data.get("key_points",[])
-        quick_facts = data.get("quick_facts",[]); cta_text = data.get("cta_text","Save this! 📌")
         points_html = "".join(
             f'<li style="padding:8px 0;border-bottom:1px solid {border_color};line-height:1.6;display:flex;align-items:flex-start;gap:8px;">'
             f'<span style="color:{main_color};font-weight:700;flex-shrink:0;margin-top:2px;">✓</span><span>{p}</span></li>'
-            for p in key_points)
+            for p in key_points
+        )
         facts_html = "".join(
             f'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid {border_color};">'
             f'<span style="color:#666;font-size:13px;">{f.get("label","")}</span>'
             f'<span style="font-weight:700;font-size:14px;color:{main_color};">{f.get("value","")}</span></div>'
-            for f in quick_facts)
+            for f in quick_facts
+        )
         cta_js = ("if(navigator.share){navigator.share({title:document.title,url:window.location.href}).catch(function(){});}else if(navigator.clipboard){navigator.clipboard.writeText(window.location.href);var b=this;var t=b.innerText;b.innerText='Copied!';setTimeout(function(){b.innerText=t;},2000);}else{prompt('Copy this link:',window.location.href);}return false;")
         return (
             f'<div id="nicheflow-card" style="border:3px solid {main_color};border-radius:20px;padding:32px;background:linear-gradient(135deg,{light_bg} 0%,#ffffff 100%);box-shadow:0 8px 32px rgba(0,0,0,0.12);margin:32px 0;max-width:640px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;">'
@@ -628,14 +616,6 @@ def fetch_internal_links(wp_url, wp_password, max_posts=200):
     return links
 
 
-# ═══════════════════════════════════════════════════════════════════
-# FIX: inject_internal_links
-# Root cause: \b word boundary fails on multi-word phrases containing
-# spaces. The regex engine can't anchor \b between two words separated
-# by a space inside the pattern, so it never matches anything.
-# Fix: search for the phrase using case-insensitive plain string find
-# inside each <p> block, then replace only the first occurrence.
-# ═══════════════════════════════════════════════════════════════════
 def inject_internal_links(html, links, current_title, max_links=4, main_color="#ea580c"):
     if not links or not html:
         return html
@@ -688,105 +668,7 @@ def inject_internal_links(html, links, current_title, max_links=4, main_color="#
 
     return html + "\n" + related_section
 
-    # Split HTML into paragraph-level chunks and process each
-    # Uses a simple tag-aware replacer: finds <p...>content</p> blocks,
-    # does a case-insensitive string replace of the first phrase occurrence
-    # only when the paragraph doesn't already contain a link.
-    def replace_phrase_in_html(html_text, phrase, anchor):
-        """
-        Find the first <p>...</p> block that contains `phrase` (case-insensitive)
-        and has no existing <a tag, then replace the first occurrence of phrase
-        with anchor. Returns (new_html, did_replace).
-        """
-        phrase_lower = phrase.lower()
-        # Walk through p-tag segments
-        result = []
-        pos = 0
-        replaced = False
-        while pos < len(html_text):
-            # Find next opening <p tag
-            p_open_start = html_text.find('<p', pos)
-            if p_open_start == -1:
-                result.append(html_text[pos:])
-                break
-            # Find end of opening tag
-            p_open_end = html_text.find('>', p_open_start)
-            if p_open_end == -1:
-                result.append(html_text[pos:])
-                break
-            p_open_end += 1  # include the >
-            # Find closing </p>
-            p_close = html_text.find('</p>', p_open_end)
-            if p_close == -1:
-                result.append(html_text[pos:])
-                break
-            # Everything before this <p>
-            result.append(html_text[pos:p_open_start])
-            open_tag = html_text[p_open_start:p_open_end]
-            content = html_text[p_open_end:p_close]
-            close_tag = html_text[p_close:p_close + 4]
-            next_pos = p_close + 4
 
-            if not replaced and '<a ' not in content and '<strong' not in content:
-                content_lower = content.lower()
-                idx = content_lower.find(phrase_lower)
-                if idx != -1:
-                    # Replace the first occurrence preserving original case
-                    original_phrase = content[idx:idx + len(phrase)]
-                    content = content[:idx] + anchor + content[idx + len(phrase):]
-                    replaced = True
-
-            result.append(open_tag + content + close_tag)
-            pos = next_pos
-
-        return "".join(result), replaced
-
-    for link in links:
-        if injected >= max_links:
-            break
-        link_title = link.get("title", "").strip()
-        link_url = link.get("url", "")
-        if not link_title or not link_url or link_url in used_urls:
-            continue
-        if link_title.lower() == current_lower:
-            continue
-        if link_title.strip().endswith("?"):
-            continue
-        if len(link_title.split()) < 4:
-            continue
-        link_words = set(link_title.lower().split())
-        current_words = set(current_lower.split())
-        if len(link_words & current_words) / max(len(link_words), 1) > 0.6:
-            continue
-
-        for phrase in get_search_phrases(link_title):
-            if not phrase or len(phrase) < 4:
-                continue
-            anchor = (
-                f'<a href="{link_url}" '
-                f'style="color:{main_color};text-decoration:underline;font-weight:500;" '
-                f'title="{link_title}">{phrase}</a>'
-            )
-            new_html, did_replace = replace_phrase_in_html(html, phrase, anchor)
-            if did_replace:
-                html = new_html
-                used_urls.add(link_url)
-                injected += 1
-                break
-
-    return html
-
-
-# ═══════════════════════════════════════════════════════════════════
-# FIX: inject_external_links
-# Root cause: `nonlocal injected` on a plain int inside a closure
-# passed to re.sub() doesn't work reliably — Python closures capture
-# the variable by reference but re.sub calls the function in a way
-# that the nonlocal int mutation isn't visible across calls in some
-# versions. Fix: use a mutable list counter [0] instead.
-# Also switched from re.DOTALL re.sub (which matched across tags) to
-# a manual paragraph-by-paragraph walk, same as internal links.
-# ═══════════════════════════════════════════════════════════════════
 def inject_external_links(html, topic, max_links=2, main_color="#ea580c", log_fn=None):
     def log(m):
         if log_fn:
@@ -834,7 +716,6 @@ def inject_external_links(html, topic, max_links=2, main_color="#ea580c", log_fn
     if not wiki_links:
         return html
 
-    # Use a list so the counter mutates correctly inside the nested scope
     injected = [0]
     used_urls = set()
 
