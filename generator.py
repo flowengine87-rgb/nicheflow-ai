@@ -1219,5 +1219,3 @@ def test_pinterest(access_token):
         if resp.status_code==200: return {"success":True,"message":f"✅ Pinterest: {resp.json().get('username','connected')}"}
         return {"success":False,"message":f"❌ Pinterest error: {resp.status_code}"}
     except Exception as e: return {"success":False,"message":str(e)}
-ENDOFFILE
-echo "Done. Lines: $(wc -l < /home/claude/generator.py)"
