@@ -1637,7 +1637,7 @@ function AppShell({ user, onLogout, onPolicy }) {
   function saveConfig(cfg) {
     setConfig(cfg);
     localStorage.setItem("nicheflow_config", JSON.stringify(cfg));
-    fetch(`${API_URL}/settings`, { method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${token}`}, body:JSON.stringify(cfg) }).catch(()=>{});
+    fetch(`${API_URL}/settings`, { method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${getStoredToken()}`}, body:JSON.stringify(cfg) }).catch(()=>{});
   }
 
   function addHistory(item) { const next=[...history,item]; setHistory(next); localStorage.setItem("nicheflow_history",JSON.stringify(next)); }
