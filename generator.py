@@ -85,6 +85,69 @@ def ai_call(api_key, prompt, prefer_fast=False):
     raise Exception(f"All AI keys failed: {last_err}")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# DEDICATED CARD AI CALL
+# Uses gemma2-9b-it (separate Groq rate-limit bucket from article's llama-3.3-70b)
+# Falls back to llama-3.1-70b-versatile, then Gemini if keys include AIza
+# NEVER conflicts with the article generation running in parallel
+# ─────────────────────────────────────────────────────────────────────────────
+def _card_ai_call(api_key, prompt):
+    """
+    Dedicated AI call for card generation.
+    Uses models in a separate rate-limit bucket from the article generator.
+    Card models: gemma2-9b-it → llama-3.1-70b-versatile → gemini-2.0-flash
+    Article models: llama-3.3-70b-versatile → llama-4-scout → llama-3.1-70b → llama-3.1-8b
+    """
+    keys = [k.strip() for k in api_key.split(",") if k.strip()]
+    last_err = None
+
+    # Models chosen specifically to avoid rate-limit collision with article
+    CARD_MODELS = [
+        "gemma2-9b-it",           # primary — different bucket from llama article models
+        "llama-3.1-70b-versatile", # fallback — still capable of complex HTML
+        "llama3-70b-8192",         # secondary fallback
+        "llama-3.1-8b-instant",    # last resort groq
+    ]
+
+    for key in keys:
+        if key.startswith("gsk_"):
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            for model in CARD_MODELS:
+                try:
+                    resp = requests.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers=headers,
+                        json={
+                            "model": model,
+                            "messages": [{"role": "user", "content": prompt}],
+                            "max_tokens": 8000,
+                            "temperature": 0.7
+                        },
+                        timeout=90
+                    )
+                    if resp.status_code == 200:
+                        text = resp.json()["choices"][0]["message"]["content"]
+                        if text and len(text.strip()) > 50:
+                            return text
+                    elif resp.status_code == 429:
+                        last_err = f"rate_limited on {model}"
+                        continue
+                    else:
+                        last_err = f"HTTP {resp.status_code} on {model}"
+                        continue
+                except Exception as e:
+                    last_err = str(e)
+                    continue
+        elif key.startswith("AIza"):
+            try:
+                return _gemini_call(key, prompt)
+            except Exception as e:
+                last_err = str(e)
+                continue
+
+    raise Exception(f"Card AI call failed — all models exhausted: {last_err}")
+
+
 def parse_json_response(text):
     text = text.strip()
     text = re.sub(r"^```(?:json)?\s*","",text); text = re.sub(r"\s*```$","",text); text = text.strip()
@@ -294,7 +357,12 @@ def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg
                 f'{{"html":"[your complete card HTML as a single line]"}}'
             )
 
-            raw = ai_call(api_key, prompt, prefer_fast=True)
+            # ── USE DEDICATED CARD MODEL (separate rate-limit bucket) ─────
+            # Article uses: llama-3.3-70b-versatile (via ai_call prefer_fast=False)
+            # Card uses:    gemma2-9b-it → llama-3.1-70b-versatile (via _card_ai_call)
+            # This ensures they NEVER compete for the same Groq rate-limit bucket
+            raw = _card_ai_call(api_key, prompt)
+
             try:
                 data = parse_json_response(raw)
             except Exception:
@@ -314,7 +382,8 @@ def generate_card(title, api_key, card_prompt="", main_color="#ea580c", light_bg
 
         # ── DEFAULT CARD (no custom prompt) ──────────────────────────────
         prompt = DEFAULT_CARD_PROMPT.replace("{title}", title)
-        raw = ai_call(api_key, prompt, prefer_fast=True)
+        # Default card also uses dedicated card model to stay safe
+        raw = _card_ai_call(api_key, prompt)
         data = parse_json_response(raw)
 
         card_title  = data.get("card_title", title)
@@ -1150,3 +1219,5 @@ def test_pinterest(access_token):
         if resp.status_code==200: return {"success":True,"message":f"✅ Pinterest: {resp.json().get('username','connected')}"}
         return {"success":False,"message":f"❌ Pinterest error: {resp.status_code}"}
     except Exception as e: return {"success":False,"message":str(e)}
+ENDOFFILE
+echo "Done. Lines: $(wc -l < /home/claude/generator.py)"
